@@ -1,1 +1,26 @@
 apply from: 'http://artifacts.netflix.com/gradle-netflix-local/artifactory.gradle'
+import org.apache.ivy.plugins.resolver.FileSystemResolver;
+import org.apache.ivy.plugins.resolver.URLResolver;
+rootProject {
+    afterProject {  project ->
+    project.repositories {
+        def workspace = System.getenv()['WORKSPACE']
+        def artifactsBase = 'http://artifacts.netflix.com/'
+        def ivyArtifactPattern = '[organisation]/[module]/[revision]/[artifact]-[revision](-[classifier]).[ext]'
+        // Public artifacts used by Netflix projects
+        add(new URLResolver()) {
+            name = 'scala-tools-releases-cache'
+            def artifactsUrl = artifactsBase + name
+            addArtifactPattern "${artifactsUrl}/${ivyArtifactPattern}"
+            m2compatible = true
+        }
+        add(new URLResolver()) {
+            name = 'scala-central-maven-cache'
+            def artifactsUrl = artifactsBase + name
+            addArtifactPattern "${artifactsUrl}/${ivyArtifactPattern}"
+            m2compatible = true
+        }
+    }
+    }
+}
+
