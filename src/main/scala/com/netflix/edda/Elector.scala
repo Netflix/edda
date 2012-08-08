@@ -3,21 +3,24 @@ package com.netflix.edda
 import scala.actors.Actor
 import scala.actors.TIMEOUT
 
-case class ElectorState(val isLeader: Boolean, override val observers: List[Actor]) extends ObservableState(observers) {
-    override
-    def copy(observers: List[Actor]): ElectorState  = ElectorState(isLeader, observers)
-    def copy(isLeader: Boolean = isLeader, observers: List[Actor] = observers) = ElectorState(isLeader, observers)
-}
 
-object Elector {
+case class ElectorState(isLeader: Boolean = false)
+
+object Elector extends StateMachine.LocalState[ElectorState] {
     // Message sent to observers
-    case class ElectionResult(result: Boolean)
+    case class ElectionResult(result: Boolean) extends StateMachine.Message
+
+    // internal messages
+    private case class RunElection() extends StateMachine.Message
+    private case class IsLeader()    extends StateMachine.Message
 }
 
-abstract class Elector(pollCycle: Long = 10000) extends Observable[ElectorState] {
+abstract class Elector(pollCycle: Long = 10000) extends Observable {
+    import Elector._
+
     def isLeader(): Boolean = {
         this !? IsLeader() match {
-            case Elector.ElectionResult(result) => result
+            case ElectionResult(result) => result
             case message => throw new java.lang.UnsupportedOperationException("Failed to determine leadership: " + message);
         }
     }
@@ -25,15 +28,13 @@ abstract class Elector(pollCycle: Long = 10000) extends Observable[ElectorState]
     protected 
     def runElection(): Boolean
 
-    // private messages
-    private case class RunElection()
-    private case class IsLeader()
-    
-    override
-    def init() = {
+    protected override
+    def initState = addInitialState(super.initState, newLocalState(ElectorState()))
+
+    protected override
+    def init = {
         this ! RunElection()
         electionPoller()
-        ElectorState(false, List[Actor](this))
     }
 
     protected
@@ -50,20 +51,20 @@ abstract class Elector(pollCycle: Long = 10000) extends Observable[ElectorState]
         }
     }
 
-    protected
-    def localTransitions: PartialFunction[(Any,ElectorState),ElectorState] = {
+    private
+    def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
         case (RunElection(),state) => {
             Actor.actor {
                 val result = runElection()
-                state.observers.foreach( _ ! Elector.ElectionResult(result) )
+                Observable.localState(state).observers.foreach( _ ! ElectionResult(result) )
             }
             state
         }
-        case (Elector.ElectionResult(result), state) => {
-            state.copy(isLeader=result)
+        case (ElectionResult(result), state) => {
+            setLocalState(state,ElectorState(result))
         }
         case (IsLeader(), state) => {
-            sender ! Elector.ElectionResult(state.isLeader)
+            sender ! ElectionResult(localState(state).isLeader)
             state
         }
     }

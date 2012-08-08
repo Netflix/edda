@@ -1,40 +1,35 @@
 package com.netflix.edda
 import scala.actors.Actor
 
-case class CrawlerState(val records: List[Record], override val observers: List[Actor]) extends ObservableState(observers) {
-    override
-    def copy(observers: List[Actor]) = new CrawlerState(records,observers)
-    def copy(records: List[Record] = records, observers: List[Actor] = observers) = new CrawlerState(records,observers)
-}
+case class CrawlerState(records: List[Record] = List[Record]())
 
-object Crawler {
+object Crawler extends StateMachine.LocalState[CrawlerState] {
     // Message sent to Observers
-    case class CrawlResult(newRecords: List[Record])
+    case class CrawlResult(newRecords: List[Record]) extends StateMachine.Message
+
+    // internal messages
+    private case class Crawl() extends StateMachine.Message
 }
 
-
-abstract class Crawler() extends Observable[CrawlerState] {
+abstract class Crawler extends Observable {
+    import Crawler._
     def crawl() = this ! Crawl()
     
     protected def doCrawl(): List[Record]
 
-    override
-    def init() = CrawlerState(List[Record](), List[Actor]())
+    protected override
+    def initState = addInitialState(super.initState, newLocalState(CrawlerState()))
 
-    // internal messages
-    private case class Crawl()
-
-    protected
-    def localTransitions: PartialFunction[(Any,CrawlerState),CrawlerState] = {
+    private
+    def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
         case (Crawl(),state) => {
             // this is blocking so we dont crawl in parallel
             val newRecords = doCrawl()
-            state.observers.foreach( _ ! Crawler.CrawlResult(newRecords) )
-            state.copy(records = newRecords)
+            Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(newRecords) )
+            setLocalState(state, CrawlerState(newRecords))
         }
     }
 
-    override protected
+    protected override
     def transitions = localTransitions orElse super.transitions
 }
-

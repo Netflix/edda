@@ -2,12 +2,18 @@ package com.netflix.edda
 
 import scala.actors.Actor
 
-abstract class ObservableState(val observers: List[Actor]) {
-    def copy(observers: List[Actor]): ObservableState
+case class ObservableState(observers: List[Actor] = List[Actor]())
+
+object Observable extends StateMachine.LocalState[ObservableState] {
+    // internal messages
+    private case class Observe(actor: Actor) extends StateMachine.Message
+    private case class Ignore(actor: Actor)  extends StateMachine.Message
+    private case class OK()                  extends StateMachine.Message
 }
 
-abstract class Observable[T <: ObservableState] extends StateMachine[T] {
-
+abstract class Observable extends StateMachine {
+    import Observable._
+    
     def addObserver(actor: Actor) {
         this !? Observe(actor) match {
             case OK() =>
@@ -22,19 +28,18 @@ abstract class Observable[T <: ObservableState] extends StateMachine[T] {
         }
     }
 
-    private case class Observe(actor: Actor)
-    private case class Ignore(actor: Actor)
-    private case class OK()
+    protected override 
+    def initState = addInitialState(super.initState, newLocalState(ObservableState()))
 
-    protected
-    def transitions: PartialFunction[(Any,T),T]  = {
+    protected override
+    def transitions: PartialFunction[(Any,StateMachine.State),StateMachine.State]  = {
         case (Observe(caller),state) => {
             sender ! OK()
-            state.copy(observers = caller :: state.observers).asInstanceOf[T]
+            setLocalState(state, ObservableState(caller :: localState(state).observers))
         }
         case (Ignore(caller),state) => {
             sender ! OK()
-            state.copy(observers = state.observers diff List(caller)).asInstanceOf[T]
+            setLocalState(state, ObservableState(localState(state).observers diff List(caller)))
         }
     }
 }

@@ -3,13 +3,21 @@ package com.netflix.edda
 import scala.actors.Actor
 import scala.actors.TIMEOUT
 
-case class CollectionState(val records: List[Record], override val observers: List[Actor]) extends ObservableState(observers) {
-    override
-    def copy(observers: List[Actor]) = CollectionState(records,observers)
-    def copy(records: List[Record] = records, observers: List[Actor] = observers) = CollectionState(records,observers)
+case class CollectionState(records: List[Record] = List[Record]())
+
+object Collection extends StateMachine.LocalState[CollectionState] {
+    type LocalState = CollectionState
+    
+    // internal messages
+    private case class Load() extends StateMachine.Message
+    private case class Query(query: Map[String,Any]) extends StateMachine.Message
+    private case class QueryResult(records: List[Record]) extends StateMachine.Message
+    private case class Delta(changed: List[Record], added: List[Record], removed: List[Record]) extends StateMachine.Message
+    private case class DeltaResult(delta: Delta) extends StateMachine.Message
 }
 
-abstract class Collection(crawler: Crawler, elector: Elector) extends Observable[CollectionState] {
+abstract class Collection(crawler: Crawler, elector: Elector) extends Observable {
+    import Collection._
 
     def query(queryMap: Map[String,Any]): List[Record] = {
         this !? Query(queryMap) match {
@@ -18,31 +26,26 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
     }
     
     protected
-    def doQuery(queryMap: Map[String,Any], state: CollectionState): List[Record] 
+    def doQuery(queryMap: Map[String,Any], state: StateMachine.State): List[Record] 
 
     protected
-    def delta(newRecords: List[Record], state: CollectionState)
+    def delta(newRecords: List[Record], state: StateMachine.State)
 
     protected
-    def load(state: CollectionState)
+    def load(state: StateMachine.State)
     
     protected
-    def update(d: Delta, state: CollectionState)
+    def update(d: Delta, state: StateMachine.State)
 
-    protected
-    def init() = {
+    protected override
+    def initState = addInitialState(super.initState, newLocalState(CollectionState()))
+
+    protected override
+    def init {
         refresher
         crawler.addObserver(this)
         this ! Load()
-        CollectionState(List[Record](),List[Actor]())
     }
-
-    // internal messages
-    private case class Load()
-    private case class Query(query: Map[String,Any])
-    private case class QueryResult(records: List[Record])
-    private case class Delta(changed: List[Record], added: List[Record], removed: List[Record])
-    private case class DeltaResult(delta: Delta)
 
     protected
     def refresher {
@@ -74,8 +77,8 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
         }
     }
 
-    protected
-    def localTransitions: PartialFunction[(Any,CollectionState),CollectionState] = {
+    private
+    def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
         case (Query(queryMap),state) => {
             val replyTo = sender
             Actor.actor {
@@ -90,12 +93,12 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
             state
         }
         case (Crawler.CrawlResult(newRecords),state) => {
-            if( newRecords ne state.records ) {
+            if( newRecords ne localState(state).records ) {
                 Actor.actor { 
                     delta(newRecords, state)
                 }
             }
-            state.copy(records=newRecords)
+            setLocalState(state, CollectionState(newRecords))
         }
         case (DeltaResult(d),state) => {
             Actor.actor {
