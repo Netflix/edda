@@ -3,17 +3,19 @@ package com.netflix.edda
 import scala.actors.Actor
 import scala.actors.TIMEOUT
 
-case class CollectionState(records: List[Record] = List[Record]())
+case class CollectionState(records: List[Record] = List[Record](), crawled: List[Record] = List[Record]())
 
 object Collection extends StateMachine.LocalState[CollectionState] {
-    type LocalState = CollectionState
     
+    case class Delta(records: List[Record], changed: List[Record], added: List[Record], removed: List[Record])
+    
+    // message sent to observers
+    case class DeltaResult(delta: Delta) extends StateMachine.Message
+
     // internal messages
     private case class Load() extends StateMachine.Message
     private case class Query(query: Map[String,Any]) extends StateMachine.Message
     private case class QueryResult(records: List[Record]) extends StateMachine.Message
-    private case class Delta(changed: List[Record], added: List[Record], removed: List[Record]) extends StateMachine.Message
-    private case class DeltaResult(delta: Delta) extends StateMachine.Message
 }
 
 abstract class Collection(crawler: Crawler, elector: Elector) extends Observable {
@@ -29,13 +31,34 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
     def doQuery(queryMap: Map[String,Any], state: StateMachine.State): List[Record] 
 
     protected
-    def delta(newRecords: List[Record], state: StateMachine.State)
-
-    protected
     def load(state: StateMachine.State)
     
     protected
     def update(d: Delta, state: StateMachine.State)
+
+    protected
+    def delta(newRecords: List[Record], state: StateMachine.State): Delta = {
+        val oldRecords = localState(state).records
+        val oldMap = oldRecords.map( rec => rec.id -> rec ).toMap
+        val newMap = newRecords.map( rec => rec.id -> rec ).toMap
+        
+        val removedMap = oldMap.filterNot( pair => newMap.contains(pair._1) )
+        val addedMap   = newMap.filterNot( pair => oldMap.contains(pair._1) )
+
+        val changes = newMap.filterNot( pair => {
+            removedMap.contains(pair._1) || addedMap.contains(pair._1) || newMap(pair._1).sameData(oldMap(pair._1))
+        })
+
+        // need to reset mtime,stime,ctime crawled records to match what we have in memory
+        val fixedRecords = newRecords.collect {
+            case rec: Record if oldMap.contains(rec.id) => 
+                oldMap(rec.id).copy(data=rec.data)
+            case rec: Record => rec
+        }
+
+        // convert newRecords with oldRecords
+        Delta(fixedRecords, changed=changes.values.toList, added=addedMap.values.toList, removed=removedMap.values.toList)
+    }
 
     protected override
     def initState = addInitialState(super.initState, newLocalState(CollectionState()))
@@ -93,18 +116,25 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
             state
         }
         case (Crawler.CrawlResult(newRecords),state) => {
-            if( newRecords ne localState(state).records ) {
+            // only propagate if newRecords are not the same as the last crawled result
+            if( newRecords ne localState(state).crawled ) {
                 Actor.actor { 
-                    delta(newRecords, state)
+                    val d: Delta = delta(newRecords, state)
+                    Observable.localState(state).observers.foreach( _ ! DeltaResult(d) )
                 }
+                setLocalState(state, localState(state).copy(crawled=newRecords))
             }
-            setLocalState(state, CollectionState(newRecords))
+            else state
         }
         case (DeltaResult(d),state) => {
-            Actor.actor {
-                update(d,state)
+            // only propagate if the delta records are not the same as the current cached records
+            if( d.records ne localState(state).records ) {
+                Actor.actor {
+                    update(d,state)
+                }
+                setLocalState(state, localState(state).copy(records=d.records))
             }
-            state
+            else state
         }
     }
 
