@@ -3,6 +3,8 @@ package com.netflix.edda
 import scala.actors.Actor
 import scala.actors.TIMEOUT
 
+import scala.util.matching.Regex
+
 case class CollectionState(records: List[Record] = List[Record](), crawled: List[Record] = List[Record]())
 
 object Collection extends StateMachine.LocalState[CollectionState] {
@@ -28,8 +30,14 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
     }
     
     protected
-    def doQuery(queryMap: Map[String,Any], state: StateMachine.State): List[Record] 
+    def doQuery(queryMap: Map[String,Any], state: StateMachine.State): List[Record] = {
+        // generate function
+        localState(state).records.filter( record => matcher.doesMatch(queryMap, record.toMap ) )
+    }
 
+    protected
+    def matcher: Matcher = BasicRecordMatcher
+    
     protected
     def load(state: StateMachine.State)
     

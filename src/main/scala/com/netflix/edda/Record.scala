@@ -40,6 +40,18 @@ class Record(
         tags: Map[String,String] = tags
     ) = new Record(id,ctime,stime,ltime,mtime,data,tags)
 
+    def toMap = {
+        Map(
+            "id" -> id,
+            "ctime" -> ctime,
+            "stime" -> stime,
+            "ltime" -> ltime,
+            "mtime" -> mtime,
+            "data" -> data,
+            "tags" -> tags
+        )
+    }
+
     def sameData(that: Record): Boolean = {
         if (that == null) return false
         val ret: Boolean = this.data == that.data || this.data.toString == that.data.toString
