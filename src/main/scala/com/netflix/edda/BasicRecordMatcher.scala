@@ -59,29 +59,40 @@ object BasicRecordMatcher extends Matcher {
         case (null, null)     => 0
         case (found, null)    => -1
         case (null, expected) => 1
-        case (found: String, expected: Boolean) => found.toBoolean.compareTo(expected)
+
         case (found: Boolean, expected: String) => found.compareTo(expected.toBoolean)
+        case (found: String,  expected: Boolean) => found.toBoolean.compareTo(expected)
         case (found: Boolean, expected: Boolean) => found.compareTo(expected)
-        case (found: Long, expected: DateTime) => found.compareTo(expected.getMillis)
+
+        case (found: DateTime, expected: Long) => found.getMillis.compareTo(expected)
         case (found: DateTime, expected: DateTime) => found.compareTo(expected)
-        case (found: Long, expected: Date) => found.compareTo(expected.getTime)
+
+        case (found: Date, expected: Long) => found.getTime.compareTo(expected)
         case (found: Date, expected: Date) => found.compareTo(expected)
+
         case (found: String, expected) => found.compareTo(expected.asInstanceOf[String])
         case (found, expected: String) => found.asInstanceOf[String].compareTo(expected)
-        case (found: Double, expected) => found.compareTo(expected.asInstanceOf[Double])
+
         case (found, expected: Double) => found.asInstanceOf[Double].compareTo(expected)
-        case (found: Float, expected) => found.compareTo(expected.asInstanceOf[Float])
+        case (found: Double, expected) => found.compareTo(expected.asInstanceOf[Double])
+
         case (found, expected: Float) => found.asInstanceOf[Float].compareTo(expected)
-        case (found: Long, expected) => found.compareTo(expected.asInstanceOf[Long])
+        case (found: Float, expected) => found.compareTo(expected.asInstanceOf[Float])
+
         case (found, expected: Long) => found.asInstanceOf[Long].compareTo(expected)
-        case (found: Int, expected) => found.compareTo(expected.asInstanceOf[Int])
+        case (found: Long, expected) => found.compareTo(expected.asInstanceOf[Long])
+
         case (found, expected: Int) => found.asInstanceOf[Int].compareTo(expected)
-        case (found: Short, expected) => found.compareTo(expected.asInstanceOf[Short])
+        case (found: Int, expected) => found.compareTo(expected.asInstanceOf[Int])
+
         case (found, expected: Short) => found.asInstanceOf[Short].compareTo(expected)
-        case (found: Char, expected) => found.compareTo(expected.asInstanceOf[Char])
+        case (found: Short, expected) => found.compareTo(expected.asInstanceOf[Short])
+
         case (found, expected: Char) => found.asInstanceOf[Char].compareTo(expected)
-        case (found: Byte, expected) => found.compareTo(expected.asInstanceOf[Byte])
+        case (found: Char, expected) => found.compareTo(expected.asInstanceOf[Char])
+
         case (found, expected: Byte) => found.asInstanceOf[Byte].compareTo(expected)
+        case (found: Byte, expected) => found.compareTo(expected.asInstanceOf[Byte])
     }
     
     protected
