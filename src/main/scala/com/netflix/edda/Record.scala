@@ -17,6 +17,16 @@ object Record {
             tags=Map()
         )
     }
+    
+    def apply(
+        id: String,
+        ctime: DateTime,
+        stime: DateTime,
+        ltime: DateTime,
+        mtime: DateTime,
+        data: Any,
+        tags: Map[String,String]
+    ) = new Record(id,ctime,stime,ltime,mtime,data,tags)
 }
 
 class Record(
