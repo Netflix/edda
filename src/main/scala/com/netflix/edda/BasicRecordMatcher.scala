@@ -1,5 +1,8 @@
 package com.netflix.edda
 
+import java.util.Date
+import org.joda.time.DateTime
+
 trait Matcher {
     def doesMatch (queryMap: Map[String,Any], record: Map[String,Any]): Boolean
 }
@@ -8,7 +11,7 @@ object BasicRecordMatcher extends Matcher {
 
     def doesMatch (queryMap: Map[String,Any], record: Map[String,Any]): Boolean = {
         // find the first rule where rule does not match record
-        // if a rule is found then the query does *not* match and false
+        // if a rule is expected then the query does *not* match and false
         // is returned
         queryMap.find(
             rule => ! matchRule(rule, record)
@@ -52,82 +55,108 @@ object BasicRecordMatcher extends Matcher {
     }
 
     protected
+    def cmpPartialMatcher: PartialFunction[(Any,Any), Int] = {
+        case (null, null)     => 0
+        case (found, null)    => -1
+        case (null, expected) => 1
+        case (found: String, expected: Boolean) => found.toBoolean.compareTo(expected)
+        case (found: Boolean, expected: String) => found.compareTo(expected.toBoolean)
+        case (found: Boolean, expected: Boolean) => found.compareTo(expected)
+        case (found: Long, expected: DateTime) => found.compareTo(expected.getMillis)
+        case (found: DateTime, expected: DateTime) => found.compareTo(expected)
+        case (found: Long, expected: Date) => found.compareTo(expected.getTime)
+        case (found: Date, expected: Date) => found.compareTo(expected)
+        case (found: String, expected) => found.compareTo(expected.asInstanceOf[String])
+        case (found, expected: String) => found.asInstanceOf[String].compareTo(expected)
+        case (found: Double, expected) => found.compareTo(expected.asInstanceOf[Double])
+        case (found, expected: Double) => found.asInstanceOf[Double].compareTo(expected)
+        case (found: Float, expected) => found.compareTo(expected.asInstanceOf[Float])
+        case (found, expected: Float) => found.asInstanceOf[Float].compareTo(expected)
+        case (found: Long, expected) => found.compareTo(expected.asInstanceOf[Long])
+        case (found, expected: Long) => found.asInstanceOf[Long].compareTo(expected)
+        case (found: Int, expected) => found.compareTo(expected.asInstanceOf[Int])
+        case (found, expected: Int) => found.asInstanceOf[Int].compareTo(expected)
+        case (found: Short, expected) => found.compareTo(expected.asInstanceOf[Short])
+        case (found, expected: Short) => found.asInstanceOf[Short].compareTo(expected)
+        case (found: Char, expected) => found.compareTo(expected.asInstanceOf[Char])
+        case (found, expected: Char) => found.asInstanceOf[Char].compareTo(expected)
+        case (found: Byte, expected) => found.compareTo(expected.asInstanceOf[Byte])
+        case (found, expected: Byte) => found.asInstanceOf[Byte].compareTo(expected)
+    }
+    
+    protected
+    def noPartialMatch: PartialFunction[(Any,Any), Int] = {
+        case( found, expected ) => 
+            throw new java.lang.RuntimeException("no comparitor found for: " + found + " compareTo " + expected)
+    }
+
+    protected
+    def eqMatcher =
+        // for practical reasons if a.b.c=10 is what we are provided
+        // and a.b.c = [5,10,15] then treat $eq as $in
+        (found: Any, expected: Any) =>
+            found match {
+                case seq: Seq[_] => inMatcher(found,expected)
+                case value => cmpPartialMatcher.lift(value,expected) == Some(0)
+            }
+
+    protected
+    def cmpMatcher = 
+        (found: Any, expected: Any) => {
+            val matcher = cmpPartialMatcher orElse noPartialMatch
+            matcher(found, expected)
+        }
+
+    protected
+    def existsMatcher = 
+        (found: Any, expected: Any) => 
+            found match {
+                case null | None | Nil => found == false
+                case _ => found == true
+            }
+
+    protected
+    def inMatcher =
+        (found: Any, expected: Any) =>
+            found match {
+                case seq: Seq[_] => seq.find( item => cmpPartialMatcher.lift(found,item) == Some(0) ) match {
+                    case Some(_) => true
+                    case _ => false
+                }
+                case unk => throw new java.lang.RuntimeException("attempted to use $in operator on non-sequence value: " + found)
+            }
+
+    protected
+    def regexMatcher = 
+        (found: Any, expected: Any) => 
+            expected.toString.r findFirstIn found.toString match {
+                case Some(_) => true
+                case _ => false
+            }
+    
+        
+    
+    protected
     def matchOp(key: String, value: Any, op: String, record: Map[String,Any]): Boolean = {
-        // $ne $gt $lt $gte $lte $exists $in $nin $nor $or $and $regex
+        // $eq $ne $gt $lt $gte $lte $exists $in $nin $regex
         val opMatcher: (Any,Any) => Boolean = op match {
-            case "$eq"     => 
-                // for practical reasons if a.b.c=10 is what we are provided
-                // and a.b.c = [5,10,15] then treat $eq as $in
-                (expected: Any, found: Any) =>
-                    found match {
-                        case seq: Seq[_] => seq.find( item => expected == item ) match {
-                            case Some(_) => true
-                            case _ => false
-                        }
-                        case value => expected == value
-                    }
-            case "$ne"     => _ != _
-            case "$gt"     =>
-                (expected: Any, found: Any) =>
-                    if( expected.toString.contains('.') ) {
-                        BigDecimal(expected.toString) > BigDecimal(found.toString)
-                    }
-                    else
-                        BigInt(expected.toString) > BigInt(found.toString)
-            case "$gte"    =>
-                (expected: Any, found: Any) =>
-                    if( expected.toString.contains('.') ) {
-                        BigDecimal(expected.toString) >= BigDecimal(found.toString)
-                    }
-                    else
-                        BigInt(expected.toString) >= BigInt(found.toString)
-            case "$lt"     =>
-                (expected: Any, found: Any) =>
-                    if( expected.toString.contains('.') ) {
-                        BigDecimal(expected.toString) < BigDecimal(found.toString)
-                    }
-                    else
-                        BigInt(expected.toString) < BigInt(found.toString)
-            case "$lte"    => 
-                (expected: Any, found: Any) =>
-                    if( expected.toString.contains('.') ) {
-                        BigDecimal(expected.toString) <= BigDecimal(found.toString)
-                    }
-                    else
-                        BigInt(expected.toString) <= BigInt(found.toString)
-            case "$exists" => 
-                (expected: Any, found: Any) => 
-                    found match {
-                        case null | None | Nil => expected == false
-                        case _ => expected == true
-                    }
-            case "$in"     =>
-                (expected: Any, found: Any) =>
-                    found match {
-                        case seq: Seq[_] => seq.find( item => expected == item ) match {
-                            case Some(_) => true
-                            case _ => false
-                        }
-                        case unk => throw new java.lang.RuntimeException("attempted to use $in operator on non-sequence value: " + found)
-                    }
-            case "$nin"    => 
-                (expected: Any, found: Any) =>
-                    found.asInstanceOf[List[Any]].find(item => expected == item) match {
-                        case Some(_) => false
-                        case _ => true
-                    }
-            case "$regex"  => 
-                (expected: Any, found: Any) =>
-                    expected.toString.r findFirstIn found.toString match {
-                        case Some(_) => true
-                        case _ => false
-                    }
+            case "$eq"     => eqMatcher(_,_)
+            case "$ne"     => !eqMatcher(_,_)
+            case "$gt"     => cmpMatcher(_,_) > 0
+            case "$gte"    => cmpMatcher(_,_) >= 0
+            case "$lt"     => cmpMatcher(_,_) < 0
+            case "$lte"    => cmpMatcher(_,_) <= 0
+            case "$exists" => existsMatcher(_,_)
+            case "$in"     => inMatcher(_,_)
+            case "$nin"    => !inMatcher(_,_)
+            case "$regex"  => regexMatcher(_,_)
             case op => throw new java.lang.RuntimeException("uknown match operation: " + op)
         }
             
         runMatcher(key,value,opMatcher,record)
     }
     
+    protected
     def runMatcher(key: String, value: Any, opMatcher: (Any,Any)=>Boolean, record: Map[String,Any]): Boolean = {
         def _findObj(parts: Array[String], value: Any, data: Map[String,Any]): Boolean = {
             val dataHead = data.get(parts.head) match {
@@ -136,7 +165,7 @@ object BasicRecordMatcher extends Matcher {
             }
 
             if( parts.size == 1 ) {
-                return opMatcher(value, dataHead)
+                return opMatcher(dataHead,value)
             }
             dataHead match {
                 case v: Map[_,_]      => _findObj(parts.tail,  value, v.asInstanceOf[Map[String,Any]])
