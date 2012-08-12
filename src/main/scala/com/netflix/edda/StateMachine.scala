@@ -1,10 +1,15 @@
 package com.netflix.edda
 
 import scala.actors.Actor
+import org.slf4j.{Logger, LoggerFactory}
 
 object StateMachine {
     type State = Map[String,Any]
     trait Message {}
+    trait ErrorMessage extends Message {}
+    
+    case class InvalidMessageError(reason: String, message: Any) extends ErrorMessage;
+    case class UnknownMessageError(reason: String, message: Any) extends ErrorMessage;
     
     class LocalState[T] {
         def localStateKey = this.getClass.getName
@@ -15,6 +20,8 @@ object StateMachine {
             case other => throw new java.lang.RuntimeException(localStateKey + " state missing from current state")
         }
     }
+
+    private val logger = LoggerFactory.getLogger(getClass)
 }
 
 class StateMachine extends Actor {
@@ -47,9 +54,14 @@ class StateMachine extends Actor {
             react {
                 case message: Message =>  {
                     if( ! transitions.isDefinedAt(message,state) ) {
-                        throw new java.lang.UnsupportedOperationException("Unknown Message " + message)
+                        logger.error("Unknown Message " + message + " sent from " + sender)
+                        sender ! UnknownMessageError("Unknown Message " + message, message)
                     }
                     state = transitions(message,state)
+                }
+                case message => {
+                    logger.error("Invalid Message " + message + " sent from " + sender)
+                    sender ! InvalidMessageError("Invalid Message " + message, message)
                 }
             }
         }

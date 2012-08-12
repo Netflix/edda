@@ -3,34 +3,45 @@ package com.netflix.edda
 import scala.actors.Actor
 import scala.actors.TIMEOUT
 
-case class CollectionState(records: List[Record] = List[Record](), crawled: List[Record] = List[Record]())
+import org.joda.time.DateTime
+import org.slf4j.{Logger, LoggerFactory}
+
+case class CollectionState(records: List[Record] = List[Record](), crawled: List[Record] = List[Record](), amLeader: Boolean = false)
 
 object Collection extends StateMachine.LocalState[CollectionState] {
     
-    case class Delta(records: List[Record], changed: List[Record], added: List[Record], removed: List[Record])
+    case class RecordUpdate(oldRecord: Record, newRecord: Record)
+    case class Delta(records: List[Record], changed: List[RecordUpdate], added: List[Record], removed: List[Record])
     
     // message sent to observers
     case class DeltaResult(delta: Delta) extends StateMachine.Message
 
     // internal messages
     private case class Load() extends StateMachine.Message
-    private case class Query(query: Map[String,Any]) extends StateMachine.Message
+    private case class Query(query: Map[String,Any], limit: Int, live: Boolean) extends StateMachine.Message
     private case class QueryResult(records: List[Record]) extends StateMachine.Message
+
+    private val logger = LoggerFactory.getLogger(getClass)
 }
 
 abstract class Collection(crawler: Crawler, elector: Elector) extends Observable {
     import Collection._
 
-    def query(queryMap: Map[String,Any]): List[Record] = {
-        this !? Query(queryMap) match {
+    def query(queryMap: Map[String,Any], limit: Int=0, live: Boolean = false): List[Record] = {
+        this !? Query(queryMap,limit,live) match {
             case QueryResult(results) => results
         }
     }
     
     protected
-    def doQuery(queryMap: Map[String,Any], state: StateMachine.State): List[Record] = {
+    def doQuery(queryMap: Map[String,Any], limit: Int, live: Boolean, state: StateMachine.State): List[Record] = {
         // generate function
-        localState(state).records.filter( record => matcher.doesMatch(queryMap, record.toMap ) )
+        firstOf( limit, localState(state).records.filter( record => matcher.doesMatch(queryMap, record.toMap ) ))
+    }
+
+    protected
+    def firstOf(limit: Int, records: List[Record]): List[Record] = {
+        if( limit > 0 ) records.take(limit) else records
     }
 
     protected
@@ -48,17 +59,23 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
         val oldMap = oldRecords.map( rec => rec.id -> rec ).toMap
         val newMap = newRecords.map( rec => rec.id -> rec ).toMap
         
-        val removedMap = oldMap.filterNot( pair => newMap.contains(pair._1) )
+        val now=DateTime.now
+
+        val removedMap = oldMap.filterNot( pair => newMap.contains(pair._1) ).map(
+            pair => pair._1 -> pair._2.copy(mtime=now,ltime=now)
+        )
         val addedMap   = newMap.filterNot( pair => oldMap.contains(pair._1) )
 
         val changes = newMap.filterNot( pair => {
             removedMap.contains(pair._1) || addedMap.contains(pair._1) || newMap(pair._1).sameData(oldMap(pair._1))
-        })
+        }).map( pair => pair._1 -> RecordUpdate(oldMap(pair._1).copy(mtime=now,ltime=now), pair._2) )
 
-        // need to reset mtime,stime,ctime crawled records to match what we have in memory
+        // need to reset stime,ctime,tags for crawled records to match what we have in memory
         val fixedRecords = newRecords.collect {
+            case rec: Record if changes.contains(rec.id) =>
+                oldMap(rec.id).copy(data=rec.data, mtime=now, stime=now)
             case rec: Record if oldMap.contains(rec.id) => 
-                oldMap(rec.id).copy(data=rec.data)
+                oldMap(rec.id).copy(data=rec.data, mtime=now)
             case rec: Record => rec
         }
 
@@ -71,8 +88,11 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
 
     protected override
     def init {
-        refresher
+        elector.addObserver(this)
         crawler.addObserver(this)
+        refresher
+        // listen to our own DeltaResult events
+        this.addObserver(this)
         this ! Load()
     }
 
@@ -80,9 +100,8 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
     def refresher {
         val collection = this
         Actor.actor {
-            elector.addObserver(this)
             var amLeader = elector.isLeader()
-            if ( amLeader ) collection.addObserver(collection) else collection.delObserver(collection)
+            elector.addObserver(this)
             Actor.loop {
                 val timeout = if ( amLeader ) 60000 else 10000
                 Actor.reactWithin(timeout) {
@@ -90,17 +109,11 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
                         if( amLeader ) crawler.crawl() else collection ! Load()
                     }
                     case Elector.ElectionResult(result) => {
-                        if( amLeader && !result ) {
-                            // demoted so stop observing to crawl deltas
-                            collection.delObserver(collection)
-                        }
-                        else if( !amLeader && result ) {
-                            // promoted so start observing to crawl deltas
-                            collection.addObserver(collection)
-                        }
                         amLeader = result
                     }
-                    case message => throw new java.lang.UnsupportedOperationException("Unknown Message " + message);
+                    case message => {
+                        logger.error("Invalid message " + message + " from sender " + sender)
+                    }
                 }
             }
         }
@@ -108,10 +121,10 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
 
     private
     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
-        case (Query(queryMap),state) => {
+        case (Query(queryMap,limit,live),state) => {
             val replyTo = sender
             Actor.actor {
-                replyTo ! QueryResult(doQuery(queryMap, state))
+                replyTo ! QueryResult(doQuery(queryMap, limit, live, state))
             }
             state
         }
@@ -136,12 +149,17 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
         case (DeltaResult(d),state) => {
             // only propagate if the delta records are not the same as the current cached records
             if( d.records ne localState(state).records ) {
-                Actor.actor {
-                    update(d,state)
+                if( localState(state).amLeader ) {
+                    Actor.actor {
+                        update(d,state)
+                    }
                 }
                 setLocalState(state, localState(state).copy(records=d.records))
             }
             else state
+        }
+        case (Elector.ElectionResult(result),state) => {
+            setLocalState(state, localState(state).copy(amLeader=result))
         }
     }
 
