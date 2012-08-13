@@ -21,10 +21,10 @@ object Collection extends StateMachine.LocalState[CollectionState] {
     private case class Query(query: Map[String,Any], limit: Int, live: Boolean) extends StateMachine.Message
     private case class QueryResult(records: List[Record]) extends StateMachine.Message
 
-    private val logger = LoggerFactory.getLogger(getClass)
+    private val logger = LoggerFactory.getLogger(classOf[Collection])
 }
 
-abstract class Collection(crawler: Crawler, elector: Elector) extends Observable {
+abstract class Collection(val name: String, crawler: Crawler, elector: Elector) extends Observable {
     import Collection._
 
     def query(queryMap: Map[String,Any], limit: Int=0, live: Boolean = false): List[Record] = {
@@ -90,10 +90,10 @@ abstract class Collection(crawler: Crawler, elector: Elector) extends Observable
     def init {
         elector.addObserver(this)
         crawler.addObserver(this)
-        refresher
         // listen to our own DeltaResult events
         this.addObserver(this)
         this ! Load()
+        refresher
     }
 
     protected

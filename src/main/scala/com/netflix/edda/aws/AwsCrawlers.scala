@@ -30,7 +30,7 @@ import collection.JavaConversions._
 import scala.actors.Futures.{future, awaitAll}
 import scala.actors.Actor
 
-class AddressesCrawler(client: AwsClient) extends Crawler {
+class AddressCrawler(client: AwsClient) extends Crawler {
     val request = new DescribeAddressesRequest
     override def doCrawl =
         client.ec2.describeAddresses(request).getAddresses.toList.map(
@@ -54,7 +54,7 @@ class AutoScalingGroupCrawler(client: AwsClient) extends Crawler {
     }
 }
 
-class ImagesCrawler(client: AwsClient) extends Crawler {
+class ImageCrawler(client: AwsClient) extends Crawler {
     val request = new DescribeImagesRequest
     override def doCrawl =
         client.ec2.describeImages(request).getImages.toList.map(
@@ -192,7 +192,6 @@ class SnapshotCrawler(client: AwsClient) extends Crawler {
 
 class TagCrawler(client: AwsClient) extends Crawler {
     val request = new DescribeTagsRequest
-    // TODO fromBean needs id which is a combo for tags
     override def doCrawl = client.ec2.describeTags(request).getTags.toList.map(
         item => Record.fromBean(item.getKey() + "|" + item.getResourceType() + "|" + item.getResourceId(), item)
     )

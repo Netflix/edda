@@ -21,7 +21,7 @@ object StateMachine {
         }
     }
 
-    private val logger = LoggerFactory.getLogger(getClass)
+    private val logger = LoggerFactory.getLogger(classOf[StateMachine])
 }
 
 class StateMachine extends Actor {

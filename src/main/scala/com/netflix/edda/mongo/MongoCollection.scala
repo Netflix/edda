@@ -68,9 +68,11 @@ object MongoCollection {
             case other => throw new java.lang.RuntimeException("scalaToMongo: don't know how to handle: " + other)
         }
     }
+
+    private val logger = LoggerFactory.getLogger(classOf[MongoCollection])
 }
 
-class MongoCollection(mongo: DBCollection, crawler: Crawler, elector: Elector) extends Collection(crawler, elector) {
+class MongoCollection(mongo: DBCollection, override val name: String, crawler: Crawler, elector: Elector) extends Collection(name, crawler, elector) {
     import Collection._
     import MongoCollection._
 
