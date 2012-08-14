@@ -1,10 +1,11 @@
 package com.netflix.edda.mongo
 
-import com.netflix.edda.Crawler
-import com.netflix.edda.Elector
 import com.netflix.edda.Record
-import com.netflix.edda.StateMachine
 import com.netflix.edda.Collection
+import com.netflix.edda.Datastore
+
+import com.netflix.edda.NamedComponent
+import com.netflix.edda.ConfigurationComponent
 
 // http://www.mongodb.org/display/DOCS/Java+Tutorial
 
@@ -13,15 +14,17 @@ import com.mongodb.DBCursor
 import com.mongodb.BasicDBObject
 import com.mongodb.DBObject
 import com.mongodb.BasicDBList
+import com.mongodb.Mongo
+import com.mongodb.ServerAddress
 
 import org.joda.time.DateTime
 
 import org.slf4j.{Logger, LoggerFactory}
 
-object MongoCollection {
+object MongoDatastore {
     val nullLtimeQuery = mapToMongo( Map("ltime" -> null) )
     val stimeIdSort = mapToMongo( Map("stime" -> -1, "id" -> 1) )
-
+    
     def mongoToRecord(obj: DBObject): Record = {
         obj match {
             case o: BasicDBObject =>
@@ -50,6 +53,16 @@ object MongoCollection {
         }
     }
 
+    def recordToMongo(rec: Record, id: Option[String] = None): DBObject = {
+        val obj = mapToMongo(rec.toMap)
+        if( id.isDefined ) {
+            obj.put("_id", id.get)
+        } else {
+            obj.put("_id", rec.id + "|" + rec.stime.getMillis)
+        }
+        obj
+    }
+
     def mapToMongo(map: Map[String,Any]): DBObject = {
         val obj = new BasicDBObject
         map.foreach( pair => obj.put(pair._1, scalaToMongo(pair._2)) )
@@ -68,32 +81,49 @@ object MongoCollection {
             case other => throw new java.lang.RuntimeException("scalaToMongo: don't know how to handle: " + other)
         }
     }
-
-    private val logger = LoggerFactory.getLogger(classOf[MongoCollection])
 }
 
-class MongoCollection(mongo: DBCollection, override val name: String, crawler: Crawler, elector: Elector) extends Collection(name, crawler, elector) {
-    import Collection._
-    import MongoCollection._
+trait MongoDatastore extends Datastore with NamedComponent with ConfigurationComponent {
+    import MongoDatastore._
 
-    override protected
-    def doQuery(queryMap: Map[String,Any], limit: Int, live: Boolean, state: StateMachine.State): List[Record] = {
-        if( !live ) {
-            super.doQuery(queryMap,limit,live,state)
-        }
-        else {
-            import collection.JavaConversions._
-            val cursor = mongo.find(mapToMongo(queryMap)).sort(stimeIdSort);
-            try {
-                asScalaIterator(cursor).map( mongoToRecord(_) ).toList
-            } finally {
-                cursor.close();
+    private[this] val logger = LoggerFactory.getLogger(getClass)
+
+    val mongo = {
+        import collection.JavaConversions._
+        val servers = config.getProperty("edda.mongo.address").split(',').map(
+            hostport => {
+                val parts = hostport.split(':')
+                if( parts.length > 1 ) {
+                    new ServerAddress( parts(0), parts(1).toInt )
+                } else {
+                    new ServerAddress( parts(0) )
+                }
             }
+        )
+        val conn = new Mongo( servers.toList )
+        val db = conn.getDB( config.getProperty("edda.mongo.database", "edda") )
+        if( config.getProperty("edda.mongo.user") != null ) {
+            db.authenticate(
+                config.getProperty("edda.mongo.user"),
+                config.getProperty("edda.mongo.password").toArray
+            )
+        }
+        db.getCollection(name)
+    }
+
+    override
+    def query(queryMap: Map[String,Any], limit: Int): List[Record] = {
+        import collection.JavaConversions._
+        val cursor = mongo.find(mapToMongo(queryMap)).sort(stimeIdSort);
+        try {
+            asScalaIterator(cursor).map( mongoToRecord(_) ).toList
+        } finally {
+            cursor.close();
         }
     }
 
-    protected
-    def load(state: StateMachine.State): List[Record] = {
+    override
+    def load(): List[Record] = {
         import collection.JavaConversions._
         val cursor = mongo.find(nullLtimeQuery).sort(stimeIdSort);
         try {
@@ -103,10 +133,8 @@ class MongoCollection(mongo: DBCollection, override val name: String, crawler: C
         }
     }
     
-    protected
-    def update(d: Delta, state: StateMachine.State) {
-        // case class Delta(records: List[Record], changed: List[RecordUpdate], added: List[Record], removed: List[Record])
-        
+    override
+    def update(d: Collection.Delta) {
         d.changed.foreach(
             pair => {
                 upsert(pair.oldRecord)
@@ -118,6 +146,8 @@ class MongoCollection(mongo: DBCollection, override val name: String, crawler: C
         d.removed.foreach( upsert(_) )
     }
 
+    def init() = mongo.ensureIndex(stimeIdSort)
+
     protected
     def upsert( record: Record ) {
         mongo.findAndModify(
@@ -125,12 +155,10 @@ class MongoCollection(mongo: DBCollection, override val name: String, crawler: C
             null,  // fields
             null,  // sort
             false, // remove
-            mapToMongo(record.toMap), // update
+            recordToMongo(record), // update
             false, // returnNew
             true   // upsert
         )
     }
 
-    protected override
-    def init = mongo.ensureIndex(stimeIdSort)
 }

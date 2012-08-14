@@ -27,8 +27,6 @@ object Record {
         data: Any,
         tags: Map[String,String]
     ) = new Record(id,ctime,stime,ltime,mtime,data,tags)
-
-    private val logger = LoggerFactory.getLogger(getClass)
 }
 
 class Record(
@@ -41,6 +39,9 @@ class Record(
     val tags: Map[String,String]
 ) {
     import Record._
+
+    private[this] val logger = LoggerFactory.getLogger(getClass)
+
     def copy(
         id: String = id,
         ctime: DateTime = ctime,

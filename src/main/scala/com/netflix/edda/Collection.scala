@@ -6,6 +6,8 @@ import scala.actors.TIMEOUT
 import org.joda.time.DateTime
 import org.slf4j.{Logger, LoggerFactory}
 
+import java.util.Properties
+
 case class CollectionState(records: List[Record] = List[Record](), crawled: List[Record] = List[Record](), amLeader: Boolean = false)
 
 object Collection extends StateMachine.LocalState[CollectionState] {
@@ -20,12 +22,12 @@ object Collection extends StateMachine.LocalState[CollectionState] {
     private case class Load() extends StateMachine.Message
     private case class Query(query: Map[String,Any], limit: Int, live: Boolean) extends StateMachine.Message
     private case class QueryResult(records: List[Record]) extends StateMachine.Message
-
-    private val logger = LoggerFactory.getLogger(classOf[Collection])
 }
 
-abstract class Collection(val name: String, crawler: Crawler, elector: Elector) extends Observable {
+trait Collection extends Observable with NamedComponent with ConfigurationComponent with CrawlerComponent with DatastoreComponent with ElectorComponent {
     import Collection._
+
+    private[this] val logger = LoggerFactory.getLogger(getClass)
 
     def query(queryMap: Map[String,Any], limit: Int=0, live: Boolean = false): List[Record] = {
         this !? Query(queryMap,limit,live) match {
@@ -36,6 +38,13 @@ abstract class Collection(val name: String, crawler: Crawler, elector: Elector) 
     protected
     def doQuery(queryMap: Map[String,Any], limit: Int, live: Boolean, state: StateMachine.State): List[Record] = {
         // generate function
+        if( live ) {
+            if( datastore.isDefined ) {
+                return datastore.get.query(queryMap, limit)
+            } else {
+                logger.warn("Datastore is not available, applying query to cached records")
+            }
+        }
         firstOf( limit, localState(state).records.filter( record => matcher.doesMatch(queryMap, record.toMap ) ))
     }
 
@@ -48,10 +57,23 @@ abstract class Collection(val name: String, crawler: Crawler, elector: Elector) 
     def matcher: Matcher = BasicRecordMatcher
     
     protected
-    def load(state: StateMachine.State): List[Record]
+    def load(state: StateMachine.State): List[Record] = {
+        if( datastore.isDefined ) {
+            datastore.get.load()
+        } else {
+            logger.warn("Datastore is not available, returning cached records from load()")
+            localState(state).records
+        }
+    }
     
     protected
-    def update(d: Delta, state: StateMachine.State)
+    def update(d: Delta, state: StateMachine.State) {
+        if( datastore.isDefined ) {
+            datastore.get.update(d)
+        } else {
+            logger.warn("Datastore is not available, skipping update")
+        }
+    }
 
     protected
     def delta(newRecords: List[Record], state: StateMachine.State): Delta = {
@@ -87,7 +109,10 @@ abstract class Collection(val name: String, crawler: Crawler, elector: Elector) 
     def initState = addInitialState(super.initState, newLocalState(CollectionState()))
 
     protected override
-    def init {
+    def init() {
+        if( datastore.isDefined ) {
+            datastore.get.init
+        }
         elector.addObserver(this)
         crawler.addObserver(this)
         // listen to our own DeltaResult events
@@ -102,8 +127,11 @@ abstract class Collection(val name: String, crawler: Crawler, elector: Elector) 
         Actor.actor {
             var amLeader = elector.isLeader()
             elector.addObserver(this)
+            val leaderRefresh = config.getProperty("edda.collection.leader.refresh", "60000").toInt
+            val followerRefresh = config.getProperty("edda.collection.follower.refresh", "10000").toInt
+
             Actor.loop {
-                val timeout = if ( amLeader ) 60000 else 10000
+                val timeout = if ( amLeader ) leaderRefresh else followerRefresh
                 Actor.reactWithin(timeout) {
                     case TIMEOUT => {
                         if( amLeader ) crawler.crawl() else collection ! Load()

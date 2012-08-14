@@ -17,18 +17,21 @@
  */
 package com.netflix.edda.server;
 
+import com.netflix.edda.CollectionManager
+
 import javax.servlet.http.HttpServlet
 
 import org.slf4j.{Logger,LoggerFactory}
 
-object Server {
-    val logger = LoggerFactory.getLogger(classOf[Server]);
-}
-
 class Server extends HttpServlet {
-
+    private[this] val logger = LoggerFactory.getLogger(getClass)
+    
     override
     def init = {
+        new BasicCollectionBuilder().build().foreach(
+            pair => CollectionManager.register(pair._1, pair._2)
+        )
+
         super.init
     }
 

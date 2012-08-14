@@ -11,6 +11,10 @@ import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.s3.AmazonS3Client
 
+trait AwsClientComponent {
+    val awsClient: AwsClient
+}
+
 class AwsClient(credentials: AWSCredentials, region: String) {
     def this(region: String) = 
         this(new DefaultAWSCredentialsProviderChain().getCredentials(), region)

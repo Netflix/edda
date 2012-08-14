@@ -3,6 +3,7 @@ package com.netflix.edda
 import scala.actors.Actor
 import scala.actors.TIMEOUT
 
+import java.util.Properties
 
 case class ElectorState(isLeader: Boolean = false)
 
@@ -15,7 +16,11 @@ object Elector extends StateMachine.LocalState[ElectorState] {
     private case class IsLeader()    extends StateMachine.Message
 }
 
-abstract class Elector(pollCycle: Long = 10000) extends Observable {
+trait ElectorComponent {
+    val elector: Elector
+}
+
+trait Elector extends Observable with ConfigurationComponent {
     import Elector._
 
     def isLeader(): Boolean = {
@@ -24,6 +29,8 @@ abstract class Elector(pollCycle: Long = 10000) extends Observable {
             case message => throw new java.lang.UnsupportedOperationException("Failed to determine leadership: " + message);
         }
     }
+
+    val pollCycle = config.getProperty("edda.elector.refresh", "10000").toInt
 
     protected 
     def runElection(): Boolean

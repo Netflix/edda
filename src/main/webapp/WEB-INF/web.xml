@@ -3,7 +3,7 @@
          xsi:schemaLocation="http://java.sun.com/xml/ns/javaee ">
     <servlet>
         <servlet-name>Edda Server</servlet-name>
-        <servlet-class>com.netflix.edda.server.Server</servlet-class>
+        <servlet-class>com.netflix.edda.basic.BasicServer</servlet-class>
         <load-on-startup>1</load-on-startup>
     </servlet>
     <servlet>

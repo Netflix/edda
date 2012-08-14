@@ -11,7 +11,11 @@ object Crawler extends StateMachine.LocalState[CrawlerState] {
     private case class Crawl() extends StateMachine.Message
 }
 
-abstract class Crawler extends Observable {
+trait CrawlerComponent {
+    val crawler: Crawler
+}
+
+trait Crawler extends Observable {
     import Crawler._
     def crawl() = this ! Crawl()
     

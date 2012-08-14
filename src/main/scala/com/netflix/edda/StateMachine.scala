@@ -20,12 +20,12 @@ object StateMachine {
             case other => throw new java.lang.RuntimeException(localStateKey + " state missing from current state")
         }
     }
-
-    private val logger = LoggerFactory.getLogger(classOf[StateMachine])
 }
 
 class StateMachine extends Actor {
     import StateMachine._
+    private[this] val logger = LoggerFactory.getLogger(getClass)
+
     start
 
     protected
