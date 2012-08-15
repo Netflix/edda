@@ -108,7 +108,7 @@ trait MongoDatastore extends Datastore with NamedComponent with ConfigurationCom
                 config.getProperty("edda.mongo.password").toArray
             )
         }
-        db.getCollection(name)
+        if( db.collectionExists(name) ) db.getCollection(name) else db.createCollection(name, null)
     }
 
     override

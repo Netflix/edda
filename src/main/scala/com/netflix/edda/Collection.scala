@@ -121,14 +121,20 @@ trait Collection extends Observable with NamedComponent with ConfigurationCompon
     protected
     def refresher {
         val collection = this
+        val refresh = config.getProperty(
+            "edda.collection." + name + ".refresh",
+            config.getProperty("edda.collection.refresh", "60000")
+        ).toInt
+        val cacheRefresh = config.getProperty(
+            "edda.collection." + name + ".cache.refresh",
+            config.getProperty("edda.collection.cache.refresh", "10000")
+        ).toInt
+        
         Actor.actor {
             var amLeader = elector.isLeader()
             elector.addObserver(this)
-            val leaderRefresh = config.getProperty("edda.collection.leader.refresh", "60000").toInt
-            val followerRefresh = config.getProperty("edda.collection.follower.refresh", "10000").toInt
-
             Actor.loop {
-                val timeout = if ( amLeader ) leaderRefresh else followerRefresh
+                val timeout = if ( amLeader ) refresh else cacheRefresh
                 Actor.reactWithin(timeout) {
                     case TIMEOUT => {
                         if( amLeader ) crawler.crawl() else collection ! Load()

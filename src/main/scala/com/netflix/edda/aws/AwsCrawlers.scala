@@ -6,6 +6,8 @@ import com.netflix.edda.CrawlerState
 import com.netflix.edda.Observable
 import com.netflix.edda.Record
 
+import com.netflix.edda.NamedComponent
+import com.netflix.edda.ConfigurationComponent
 import com.netflix.edda.BeanMapperComponent
 import com.netflix.edda.CrawlerComponent
 
@@ -33,42 +35,47 @@ import collection.JavaConversions._
 import scala.actors.Futures.{future, awaitAll}
 import scala.actors.Actor
 
-trait AwsCrawlerBuilder extends AwsClientComponent with BeanMapperComponent {
+trait AwsCrawlerBuilder extends AwsClientComponent with BeanMapperComponent with ConfigurationComponent {
     val builderClient = awsClient
     val builderMapper = beanMapper
+    val builderConfig = config
 
-     trait Builder extends AwsClientComponent with BeanMapperComponent {
+     trait Builder extends AwsClientComponent with BeanMapperComponent with ConfigurationComponent {
          val awsClient = builderClient
          val beanMapper = builderMapper
+         val config = builderConfig
      }
 
     def build(): Map[String,Crawler] = {
-        val aws = Map(
-            "aws.addresses" -> new AddressCrawler with Builder,
-            "aws.autoScalingGroups" -> new AutoScalingGroupCrawler with Builder,
-            "aws.images" -> new ImageCrawler with Builder,
-            "aws.loadBalancers" -> new LoadBalancerCrawler with Builder,
-            "aws.launchConfigurations" -> new LaunchConfigurationCrawler with Builder,
-            "aws.instances" -> new ReservationCrawler with Builder,
-            "aws.securityGroups" -> new SecurityGroupCrawler with Builder,
-            "aws.snapshots" -> new SnapshotCrawler with Builder,
-            "aws.tags" -> new TagCrawler with Builder,
-            "aws.volumes" -> new VolumeCrawler with Builder,
-            "aws.buckets" -> new BucketCrawler with Builder
-        )
-
-        Map(
-            "view.loadBalancerInstances" -> new InstanceHealthCrawler with Builder {
+        val aws = List(
+            new AddressCrawler with Builder,
+            new AutoScalingGroupCrawler with Builder,            
+            new ImageCrawler with Builder,
+            new LoadBalancerCrawler with Builder,
+            new LaunchConfigurationCrawler with Builder,
+            new ReservationCrawler with Builder,
+            new SecurityGroupCrawler with Builder,
+            new SnapshotCrawler with Builder,
+            new TagCrawler with Builder,
+            new VolumeCrawler with Builder,
+            new BucketCrawler with Builder
+        ).map( crawler => crawler.name -> crawler ).toMap
+    
+        val views = List(
+            new InstanceHealthCrawler with Builder {
                 val crawler = aws("aws.loadBalancers")
             },
-            "view.instances" -> new InstanceCrawler with Builder {
+            new InstanceCrawler with Builder {
                 val crawler = aws("aws.instances")
             }
-        ) ++ aws
+        ).map( crawler => crawler.name -> crawler ).toMap
+        
+        views ++ aws
     }
 }
 
-trait AddressCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
+trait AddressCrawler extends Crawler with NamedComponent with AwsClientComponent with BeanMapperComponent {
+    val name = "aws.addresses"
     val request = new DescribeAddressesRequest
     override def doCrawl =
         awsClient.ec2.describeAddresses(request).getAddresses.toList.map(
@@ -76,7 +83,8 @@ trait AddressCrawler extends Crawler with AwsClientComponent with BeanMapperComp
         )
 }
 
-trait AutoScalingGroupCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
+trait AutoScalingGroupCrawler extends Crawler with NamedComponent  with AwsClientComponent with BeanMapperComponent {
+    val name = "aws.autoScalingGroups"
     val request = new DescribeAutoScalingGroupsRequest
     override def doCrawl = {
         val it = new AwsIterator() {
@@ -92,7 +100,8 @@ trait AutoScalingGroupCrawler extends Crawler with AwsClientComponent with BeanM
     }
 }
 
-trait ImageCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
+trait ImageCrawler extends Crawler with NamedComponent  with AwsClientComponent with BeanMapperComponent {
+    val name = "aws.images"
     val request = new DescribeImagesRequest
     override def doCrawl =
         awsClient.ec2.describeImages(request).getImages.toList.map(
@@ -100,7 +109,8 @@ trait ImageCrawler extends Crawler with AwsClientComponent with BeanMapperCompon
         )
 }
 
-trait LoadBalancerCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
+trait LoadBalancerCrawler extends Crawler with NamedComponent  with AwsClientComponent with BeanMapperComponent {
+    val name = "aws.loadBalancers"
     val request = new DescribeLoadBalancersRequest
     override def doCrawl = awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions.toList.map(
         item => Record(item.getLoadBalancerName, new DateTime(item.getCreatedTime), beanMapper(item))
@@ -111,8 +121,9 @@ case class InstanceHealthCrawlerState(elbRecords: List[Record] = List[Record]())
 
 object InstanceHealthCrawler extends StateMachine.LocalState[InstanceHealthCrawlerState]
 
-trait InstanceHealthCrawler extends Crawler with CrawlerComponent with AwsClientComponent with BeanMapperComponent {
+trait InstanceHealthCrawler extends Crawler with NamedComponent  with CrawlerComponent with AwsClientComponent with BeanMapperComponent {
     import InstanceHealthCrawler._
+    val name = "view.loadBalancerInstances"
     override def crawl() = crawler.crawl
     override def doCrawl = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceHealthCrawler")
     def doCrawl(elbRecords: List[Record]): List[Record] = {
@@ -136,10 +147,11 @@ trait InstanceHealthCrawler extends Crawler with CrawlerComponent with AwsClient
     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
         case (Crawler.CrawlResult(elbRecords),state) => {
             // this is blocking so we dont crawl in parallel
-            // TODO return state if elbRecords == state.elbRecords && minCycle not reached
-            val newRecords = doCrawl(elbRecords)
-            Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(newRecords) )
-            setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), InstanceHealthCrawlerState(elbRecords))
+            if( elbRecords ne localState(state).elbRecords ) {
+                val newRecords = doCrawl(elbRecords)
+                Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(newRecords) )
+                setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), InstanceHealthCrawlerState(elbRecords))
+            } else state
         }
     }
 
@@ -147,7 +159,8 @@ trait InstanceHealthCrawler extends Crawler with CrawlerComponent with AwsClient
     def transitions = localTransitions orElse super.transitions
 }
 
-trait LaunchConfigurationCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
+trait LaunchConfigurationCrawler extends Crawler with NamedComponent  with AwsClientComponent with BeanMapperComponent {
+    val name = "aws.launchConfigurations"
     val request = new DescribeLaunchConfigurationsRequest
     override def doCrawl = {
         val it = new AwsIterator() {
@@ -163,7 +176,8 @@ trait LaunchConfigurationCrawler extends Crawler with AwsClientComponent with Be
     }
 }
 
-trait ReservationCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
+trait ReservationCrawler extends Crawler with NamedComponent  with AwsClientComponent with BeanMapperComponent {
+    val name = "aws.instances"
     val request = new DescribeInstancesRequest
     override def doCrawl = awsClient.ec2.describeInstances(request).getReservations.toList.map(
         item => Record(item.getReservationId, beanMapper(item))
@@ -174,8 +188,9 @@ case class InstanceCrawlerState(reservationRecords: List[Record] = List[Record](
 
 object InstanceCrawler extends StateMachine.LocalState[InstanceCrawlerState]
 
-trait InstanceCrawler extends Crawler with CrawlerComponent with AwsClientComponent with BeanMapperComponent {
+trait InstanceCrawler extends Crawler with NamedComponent  with CrawlerComponent with AwsClientComponent with BeanMapperComponent {
     import InstanceCrawler._
+    val name = "view.instances"
     override def crawl() = crawler.crawl
     override def doCrawl = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceCrawler")
     def doCrawl(resRecords: List[Record]): List[Record] = {
@@ -204,9 +219,11 @@ trait InstanceCrawler extends Crawler with CrawlerComponent with AwsClientCompon
         case (Crawler.CrawlResult(reservations),state) => {
             // this is blocking so we dont crawl in parallel
             // TODO return state if elbRecords == state.elbRecords && minCycle not reached
-            val newRecords = doCrawl(reservations)
-            Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(newRecords) )
-            setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), InstanceCrawlerState(reservations))
+            if( reservations ne localState(state).reservationRecords ) {
+                val newRecords = doCrawl(reservations)
+                Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(newRecords) )
+                setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), InstanceCrawlerState(reservations))
+            } else state
         }
     }
 
@@ -215,35 +232,40 @@ trait InstanceCrawler extends Crawler with CrawlerComponent with AwsClientCompon
 }
 
 
-trait SecurityGroupCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
+trait SecurityGroupCrawler extends Crawler with NamedComponent  with AwsClientComponent with BeanMapperComponent {
+    val name = "aws.securityGroups"
     val request = new DescribeSecurityGroupsRequest
     override def doCrawl = awsClient.ec2.describeSecurityGroups(request).getSecurityGroups.toList.map(
         item => Record(item.getGroupId, beanMapper(item))
     )
 }
 
-trait SnapshotCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
+trait SnapshotCrawler extends Crawler with NamedComponent  with AwsClientComponent with BeanMapperComponent {
+    val name = "aws.snapshots"
     val request = new DescribeSnapshotsRequest
     override def doCrawl = awsClient.ec2.describeSnapshots(request).getSnapshots.toList.map(
         item => Record(item.getSnapshotId, new DateTime(item.getStartTime), beanMapper(item))
     )
 }
 
-trait TagCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
+trait TagCrawler extends Crawler with NamedComponent  with AwsClientComponent with BeanMapperComponent {
+    val name = "aws.tags"
     val request = new DescribeTagsRequest
     override def doCrawl = awsClient.ec2.describeTags(request).getTags.toList.map(
         item => Record(item.getKey() + "|" + item.getResourceType() + "|" + item.getResourceId(), beanMapper(item))
     )
 }
 
-trait VolumeCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
+trait VolumeCrawler extends Crawler with NamedComponent  with AwsClientComponent with BeanMapperComponent {
+    val name = "aws.volumes"
     val request = new DescribeVolumesRequest
     override def doCrawl = awsClient.ec2.describeVolumes(request).getVolumes.toList.map(
         item => Record(item.getVolumeId, new DateTime(item.getCreateTime), beanMapper(item))
     )
 }
 
-trait BucketCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
+trait BucketCrawler extends Crawler with NamedComponent  with AwsClientComponent with BeanMapperComponent {
+    val name = "aws.buckets"
     val request = new ListBucketsRequest
     override def doCrawl = awsClient.s3.listBuckets(request).toList.map(
         item => Record(item.getName, new DateTime(item.getCreationDate), beanMapper(item))
