@@ -10,6 +10,7 @@ import com.netflix.edda.Crawler
 import com.netflix.edda.mongo.MongoDatastore
 import com.netflix.edda.mongo.MongoElector
 
+import com.netflix.edda.BeanMapperComponent
 import com.netflix.edda.RecordMatcherComponent
 import com.netflix.edda.ConfigurationComponent
 import com.netflix.edda.aws.AwsClientComponent
@@ -21,7 +22,7 @@ import java.util.Properties
 import org.slf4j.{Logger,LoggerFactory}
 
 class BasicCollectionBuilder {
-    trait CommonComponents extends ConfigurationComponent with ElectorComponent with AwsClientComponent with RecordMatcherComponent {
+    trait CommonComponents extends ConfigurationComponent with ElectorComponent with AwsClientComponent with RecordMatcherComponent with BeanMapperComponent {
         private[this] val logger = LoggerFactory.getLogger(getClass)
         val propFile = System.getProperty("edda.properties", "/edda.properties");
         val props = new Properties();
@@ -45,6 +46,7 @@ class BasicCollectionBuilder {
         val elector   = new MongoElector with CommonComponents
         val config    = props
         val recordMatcher = new BasicRecordMatcher
+        val beanMapper = new BasicBeanMapper with CommonComponents
     }
     
     def build(): Map[String,Collection] = {

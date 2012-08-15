@@ -5,7 +5,20 @@ import org.joda.time.DateTime
 import org.slf4j.{Logger, LoggerFactory}
 
 object Record {
-    def fromBean(id: String, obj: Any, ctime: DateTime=DateTime.now): Record = {
+    def apply(id: String, data: Any): Record = {
+        val now = DateTime.now
+        new Record(
+            id=id,
+            ctime=now,
+            stime=now,
+            ltime=now,
+            mtime=now,
+            data=data,
+            tags=Map()
+        )
+    }
+
+    def apply(id: String, ctime: DateTime, data: Any): Record = {
         val now = DateTime.now
         new Record(
             id=id,
@@ -13,11 +26,11 @@ object Record {
             stime=now,
             ltime=now,
             mtime=now,
-            data="TODO",
+            data=data,
             tags=Map()
         )
     }
-    
+
     def apply(
         id: String,
         ctime: DateTime,

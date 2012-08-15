@@ -6,6 +6,7 @@ import com.netflix.edda.CrawlerState
 import com.netflix.edda.Observable
 import com.netflix.edda.Record
 
+import com.netflix.edda.BeanMapperComponent
 import com.netflix.edda.CrawlerComponent
 
 import org.joda.time.DateTime
@@ -32,11 +33,13 @@ import collection.JavaConversions._
 import scala.actors.Futures.{future, awaitAll}
 import scala.actors.Actor
 
-trait AwsCrawlerBuilder extends AwsClientComponent {
-    val builderClient = awsClient;
+trait AwsCrawlerBuilder extends AwsClientComponent with BeanMapperComponent {
+    val builderClient = awsClient
+    val builderMapper = beanMapper
 
-     trait Builder extends AwsClientComponent {
+     trait Builder extends AwsClientComponent with BeanMapperComponent {
          val awsClient = builderClient
+         val beanMapper = builderMapper
      }
 
     def build(): Map[String,Crawler] = {
@@ -65,15 +68,15 @@ trait AwsCrawlerBuilder extends AwsClientComponent {
     }
 }
 
-trait AddressCrawler extends Crawler with AwsClientComponent {
+trait AddressCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
     val request = new DescribeAddressesRequest
     override def doCrawl =
         awsClient.ec2.describeAddresses(request).getAddresses.toList.map(
-            item => Record.fromBean(item.getPublicIp, item)
+            item => Record(item.getPublicIp, beanMapper(item))
         )
 }
 
-trait AutoScalingGroupCrawler extends Crawler with AwsClientComponent {
+trait AutoScalingGroupCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
     val request = new DescribeAutoScalingGroupsRequest
     override def doCrawl = {
         val it = new AwsIterator() {
@@ -81,7 +84,7 @@ trait AutoScalingGroupCrawler extends Crawler with AwsClientComponent {
                 val response = awsClient.asg.describeAutoScalingGroups(request.withNextToken(this.nextToken))
                 this.nextToken = response.getNextToken
                 response.getAutoScalingGroups.toList.map(
-                    item => Record.fromBean(item.getAutoScalingGroupName, item, new DateTime(item.getCreatedTime))
+                    item => Record(item.getAutoScalingGroupName, new DateTime(item.getCreatedTime), beanMapper(item))
                 )
             }
         }
@@ -89,18 +92,18 @@ trait AutoScalingGroupCrawler extends Crawler with AwsClientComponent {
     }
 }
 
-trait ImageCrawler extends Crawler with AwsClientComponent {
+trait ImageCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
     val request = new DescribeImagesRequest
     override def doCrawl =
         awsClient.ec2.describeImages(request).getImages.toList.map(
-            item => Record.fromBean(item.getImageId, item)
+            item => Record(item.getImageId, beanMapper(item))
         )
 }
 
-trait LoadBalancerCrawler extends Crawler with AwsClientComponent {
+trait LoadBalancerCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
     val request = new DescribeLoadBalancersRequest
     override def doCrawl = awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions.toList.map(
-        item => Record.fromBean(item.getLoadBalancerName, item, new DateTime(item.getCreatedTime))
+        item => Record(item.getLoadBalancerName, new DateTime(item.getCreatedTime), beanMapper(item))
     )
 }
 
@@ -108,7 +111,7 @@ case class InstanceHealthCrawlerState(elbRecords: List[Record] = List[Record]())
 
 object InstanceHealthCrawler extends StateMachine.LocalState[InstanceHealthCrawlerState]
 
-trait InstanceHealthCrawler extends Crawler with CrawlerComponent with AwsClientComponent {
+trait InstanceHealthCrawler extends Crawler with CrawlerComponent with AwsClientComponent with BeanMapperComponent {
     import InstanceHealthCrawler._
     override def crawl() = crawler.crawl
     override def doCrawl = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceHealthCrawler")
@@ -144,7 +147,7 @@ trait InstanceHealthCrawler extends Crawler with CrawlerComponent with AwsClient
     def transitions = localTransitions orElse super.transitions
 }
 
-trait LaunchConfigurationCrawler extends Crawler with AwsClientComponent {
+trait LaunchConfigurationCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
     val request = new DescribeLaunchConfigurationsRequest
     override def doCrawl = {
         val it = new AwsIterator() {
@@ -152,7 +155,7 @@ trait LaunchConfigurationCrawler extends Crawler with AwsClientComponent {
                 val response = awsClient.asg.describeLaunchConfigurations.withNextToken(this.nextToken)
                 this.nextToken = response.getNextToken
                 response.getLaunchConfigurations.toList.map( 
-                    item => Record.fromBean(item.getLaunchConfigurationName, item, new DateTime(item.getCreatedTime))
+                    item => Record(item.getLaunchConfigurationName, new DateTime(item.getCreatedTime), beanMapper(item))
                 )
             }
         }
@@ -160,10 +163,10 @@ trait LaunchConfigurationCrawler extends Crawler with AwsClientComponent {
     }
 }
 
-trait ReservationCrawler extends Crawler with AwsClientComponent {
+trait ReservationCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
     val request = new DescribeInstancesRequest
     override def doCrawl = awsClient.ec2.describeInstances(request).getReservations.toList.map(
-        item => Record.fromBean(item.getReservationId, item)
+        item => Record(item.getReservationId, beanMapper(item))
     )
 }
 
@@ -171,7 +174,7 @@ case class InstanceCrawlerState(reservationRecords: List[Record] = List[Record](
 
 object InstanceCrawler extends StateMachine.LocalState[InstanceCrawlerState]
 
-trait InstanceCrawler extends Crawler with CrawlerComponent with AwsClientComponent {
+trait InstanceCrawler extends Crawler with CrawlerComponent with AwsClientComponent with BeanMapperComponent {
     import InstanceCrawler._
     override def crawl() = crawler.crawl
     override def doCrawl = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceCrawler")
@@ -212,36 +215,37 @@ trait InstanceCrawler extends Crawler with CrawlerComponent with AwsClientCompon
 }
 
 
-trait SecurityGroupCrawler extends Crawler with AwsClientComponent {
+trait SecurityGroupCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
     val request = new DescribeSecurityGroupsRequest
     override def doCrawl = awsClient.ec2.describeSecurityGroups(request).getSecurityGroups.toList.map(
-        item => Record.fromBean(item.getGroupId, item))
+        item => Record(item.getGroupId, beanMapper(item))
+    )
 }
 
-trait SnapshotCrawler extends Crawler with AwsClientComponent {
+trait SnapshotCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
     val request = new DescribeSnapshotsRequest
     override def doCrawl = awsClient.ec2.describeSnapshots(request).getSnapshots.toList.map(
-        item => Record.fromBean(item.getSnapshotId, item, new DateTime(item.getStartTime))
+        item => Record(item.getSnapshotId, new DateTime(item.getStartTime), beanMapper(item))
     )
 }
 
-trait TagCrawler extends Crawler with AwsClientComponent {
+trait TagCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
     val request = new DescribeTagsRequest
     override def doCrawl = awsClient.ec2.describeTags(request).getTags.toList.map(
-        item => Record.fromBean(item.getKey() + "|" + item.getResourceType() + "|" + item.getResourceId(), item)
+        item => Record(item.getKey() + "|" + item.getResourceType() + "|" + item.getResourceId(), beanMapper(item))
     )
 }
 
-trait VolumeCrawler extends Crawler with AwsClientComponent {
+trait VolumeCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
     val request = new DescribeVolumesRequest
     override def doCrawl = awsClient.ec2.describeVolumes(request).getVolumes.toList.map(
-        item => Record.fromBean(item.getVolumeId, item, new DateTime(item.getCreateTime))
+        item => Record(item.getVolumeId, new DateTime(item.getCreateTime), beanMapper(item))
     )
 }
 
-trait BucketCrawler extends Crawler with AwsClientComponent {
+trait BucketCrawler extends Crawler with AwsClientComponent with BeanMapperComponent {
     val request = new ListBucketsRequest
     override def doCrawl = awsClient.s3.listBuckets(request).toList.map(
-        item => Record.fromBean(item.getName, item, new DateTime(item.getCreationDate))
+        item => Record(item.getName, new DateTime(item.getCreationDate), beanMapper(item))
     )
 }
