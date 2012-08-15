@@ -1,13 +1,12 @@
-package com.netflix.edda
+package com.netflix.edda.basic
+
+import com.netflix.edda.RecordMatcher
 
 import java.util.Date
 import org.joda.time.DateTime
 
-trait Matcher {
-    def doesMatch (queryMap: Map[String,Any], record: Map[String,Any]): Boolean
-}
-    
-object BasicRecordMatcher extends Matcher {
+
+class BasicRecordMatcher extends RecordMatcher {
 
     def doesMatch (queryMap: Map[String,Any], record: Map[String,Any]): Boolean = {
         // find the first rule where rule does not match record

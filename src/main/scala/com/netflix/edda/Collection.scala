@@ -24,7 +24,7 @@ object Collection extends StateMachine.LocalState[CollectionState] {
     private case class QueryResult(records: List[Record]) extends StateMachine.Message
 }
 
-trait Collection extends Observable with NamedComponent with ConfigurationComponent with CrawlerComponent with DatastoreComponent with ElectorComponent {
+trait Collection extends Observable with NamedComponent with ConfigurationComponent with CrawlerComponent with DatastoreComponent with ElectorComponent with RecordMatcherComponent {
     import Collection._
 
     private[this] val logger = LoggerFactory.getLogger(getClass)
@@ -45,7 +45,7 @@ trait Collection extends Observable with NamedComponent with ConfigurationCompon
                 logger.warn("Datastore is not available, applying query to cached records")
             }
         }
-        firstOf( limit, localState(state).records.filter( record => matcher.doesMatch(queryMap, record.toMap ) ))
+        firstOf( limit, localState(state).records.filter( record => recordMatcher.doesMatch(queryMap, record.toMap ) ))
     }
 
     protected
@@ -53,9 +53,6 @@ trait Collection extends Observable with NamedComponent with ConfigurationCompon
         if( limit > 0 ) records.take(limit) else records
     }
 
-    protected
-    def matcher: Matcher = BasicRecordMatcher
-    
     protected
     def load(state: StateMachine.State): List[Record] = {
         if( datastore.isDefined ) {

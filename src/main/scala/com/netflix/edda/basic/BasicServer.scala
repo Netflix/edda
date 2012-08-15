@@ -15,7 +15,7 @@
  *     limitations under the License.
  *
  */
-package com.netflix.edda.server;
+package com.netflix.edda.basic;
 
 import com.netflix.edda.CollectionManager
 
