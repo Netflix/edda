@@ -2,32 +2,27 @@ package com.netflix.edda.basic
 
 import com.netflix.edda.Collection
 import com.netflix.edda.aws.AwsClient
+import com.netflix.edda.aws.AwsCrawler
 import com.netflix.edda.aws.AwsCrawlerBuilder
 import com.netflix.edda.Crawler
-// import com.netflix.edda.Datastore
-// import com.netflix.edda.Elector
+import com.netflix.edda.ConfigContext
 
 import com.netflix.edda.mongo.MongoDatastore
 import com.netflix.edda.mongo.MongoElector
 
-import com.netflix.edda.BeanMapperComponent
-import com.netflix.edda.RecordMatcherComponent
-import com.netflix.edda.ConfigurationComponent
-import com.netflix.edda.aws.AwsClientComponent
-import com.netflix.edda.ElectorComponent
-import com.netflix.edda.NamedComponent
-
 import java.util.Properties
 
-import org.slf4j.{Logger,LoggerFactory}
+import com.weiglewilczek.slf4s.Logger
 
 class BasicCollectionBuilder {
-    trait CommonComponents extends ConfigurationComponent with ElectorComponent with AwsClientComponent with RecordMatcherComponent with BeanMapperComponent {
-        private[this] val logger = LoggerFactory.getLogger(getClass)
+
+    private[this] val logger = Logger(getClass)
+    
+	val context = new ConfigContext with AwsCrawler.Context with Collection.Context {
         val propFile = System.getProperty("edda.properties", "/edda.properties");
         val props = new Properties();
         try {
-            val inputStream = classOf[Server].getResourceAsStream(propFile);
+            val inputStream = getClass.getResourceAsStream(propFile);
             try {
                 props.load(inputStream);
             } finally {
@@ -37,29 +32,35 @@ class BasicCollectionBuilder {
             case e => logger.error("Unable to load properties file " + propFile
                                    + " set System property \"edda.properties\" to valid file", e);
         }
+        val config    = props
         
         val awsClient = new AwsClient(
-            props.getProperty("edda.aws.accessKey"),
-            props.getProperty("edda.aws.secretKey"),
-            props.getProperty("edda.aws.region")
+            config.getProperty("edda.aws.accessKey"),
+            config.getProperty("edda.aws.secretKey"),
+            config.getProperty("edda.aws.region")
         )
-        val elector   = new MongoElector with CommonComponents
-        val config    = props
+
         val recordMatcher = new BasicRecordMatcher
-        val beanMapper = new BasicBeanMapper with CommonComponents
-    }
-    
+        val bm = new BasicBeanMapper(this)
+        def beanMapper = bm
+   }
+
     def build(): Map[String,Collection] = {
-        (new AwsCrawlerBuilder with CommonComponents).build().map( 
+        AwsCrawlerBuilder.build(context).map( 
             pair => pair._1 -> buildCollection(pair._1, pair._2)
         ).toMap
     }
 
+    val localElector = new MongoElector(context)
+
     def buildCollection(localName: String, localCrawler: Crawler): Collection = {
-        trait CommonName extends NamedComponent { val name = localName }
-        new Collection with CommonComponents with CommonName {
-            val datastore = Some(new MongoDatastore with CommonComponents with CommonName)
-            val crawler = localCrawler
+        val ds = new MongoDatastore(context, localName)
+        val coll = new Collection(context) {
+            override def name = localName
+	        override def crawler = localCrawler
+            override def datastore = Some(ds)
+            override def elector = localElector
         }
+        coll
     }
 }

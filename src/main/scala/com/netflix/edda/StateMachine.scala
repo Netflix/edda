@@ -1,13 +1,14 @@
 package com.netflix.edda
 
 import scala.actors.Actor
-import org.slf4j.{Logger, LoggerFactory}
+import com.weiglewilczek.slf4s.Logger
 
 object StateMachine {
     type State = Map[String,Any]
     trait Message {}
+    case class Stop() extends Message{}
+
     trait ErrorMessage extends Message {}
-    
     case class InvalidMessageError(reason: String, message: Any) extends ErrorMessage;
     case class UnknownMessageError(reason: String, message: Any) extends ErrorMessage;
     
@@ -24,15 +25,17 @@ object StateMachine {
 
 class StateMachine extends Actor {
     import StateMachine._
-    private[this] val logger = LoggerFactory.getLogger(getClass)
-
-    start
+    private[this] val logger = Logger(getClass)
 
     protected
     def init: Unit = {}
     
     protected
     def initState: State = Map()
+    
+    def stop() {
+        this ! Stop()
+    }
 
     protected
     def addInitialState(state: State, stateTup: (String,Any)): State = {
@@ -50,13 +53,18 @@ class StateMachine extends Actor {
     def act() {
         init
         var state = initState
-        loop {
+        var keepLooping = true
+        loopWhile(keepLooping) {
             react {
+                case Stop() => {
+                    keepLooping = false
+                }
                 case message: Message =>  {
                     if( ! transitions.isDefinedAt(message,state) ) {
                         logger.error("Unknown Message " + message + " sent from " + sender)
                         sender ! UnknownMessageError("Unknown Message " + message, message)
                     }
+                    logger.debug(sender + ": " + message + " -> " + this)
                     state = transitions(message,state)
                 }
                 case message => {

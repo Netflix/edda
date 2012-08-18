@@ -5,6 +5,8 @@ import scala.actors.TIMEOUT
 
 import java.util.Properties
 
+import com.weiglewilczek.slf4s.Logger
+
 case class ElectorState(isLeader: Boolean = false)
 
 object Elector extends StateMachine.LocalState[ElectorState] {
@@ -16,11 +18,7 @@ object Elector extends StateMachine.LocalState[ElectorState] {
     private case class IsLeader()    extends StateMachine.Message
 }
 
-trait ElectorComponent {
-    val elector: Elector
-}
-
-trait Elector extends Observable with ConfigurationComponent {
+abstract class Elector( ctx: ConfigContext ) extends Observable {
     import Elector._
 
     def isLeader(): Boolean = {
@@ -30,7 +28,8 @@ trait Elector extends Observable with ConfigurationComponent {
         }
     }
 
-    val pollCycle = config.getProperty("edda.elector.refresh", "10000").toInt
+    private[this] val logger = Logger(getClass)
+    val pollCycle = ctx.config.getProperty("edda.elector.refresh", "10000").toInt
 
     protected 
     def runElection(): Boolean
@@ -40,6 +39,10 @@ trait Elector extends Observable with ConfigurationComponent {
 
     protected override
     def init = {
+        // it is a sync call so put it in another thread
+        Actor.actor {
+            this.addObserver(this)
+        }
         this ! RunElection()
         electionPoller()
     }
@@ -47,7 +50,7 @@ trait Elector extends Observable with ConfigurationComponent {
     protected
     def electionPoller() = {
         val elector = this
-        Actor.actor {
+        namedActor(this + " poller") {
             Actor.loop {
                 Actor.reactWithin(pollCycle) {
                     case TIMEOUT => {
@@ -61,7 +64,7 @@ trait Elector extends Observable with ConfigurationComponent {
     private
     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
         case (RunElection(),state) => {
-            Actor.actor {
+            namedActor(this + " election runner") {
                 val result = runElection()
                 Observable.localState(state).observers.foreach( _ ! ElectionResult(result) )
             }

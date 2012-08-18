@@ -3,9 +3,7 @@ package com.netflix.edda.mongo
 import com.netflix.edda.Record
 import com.netflix.edda.Collection
 import com.netflix.edda.Datastore
-
-import com.netflix.edda.NamedComponent
-import com.netflix.edda.ConfigurationComponent
+import com.netflix.edda.ConfigContext
 
 // http://www.mongodb.org/display/DOCS/Java+Tutorial
 
@@ -18,22 +16,24 @@ import com.mongodb.Mongo
 import com.mongodb.ServerAddress
 
 import org.joda.time.DateTime
+import java.util.Date
 
-import org.slf4j.{Logger, LoggerFactory}
+import com.weiglewilczek.slf4s.Logger
 
 object MongoDatastore {
+    
     val nullLtimeQuery = mapToMongo( Map("ltime" -> null) )
     val stimeIdSort = mapToMongo( Map("stime" -> -1, "id" -> 1) )
-    
+
     def mongoToRecord(obj: DBObject): Record = {
         obj match {
             case o: BasicDBObject =>
                 Record(
                     Option(o.get("id")).getOrElse(o.get("_id")).asInstanceOf[String],
-                    o.get("ctime").asInstanceOf[DateTime],
-                    Option(o.get("stime")).getOrElse(o.get("ctime")).asInstanceOf[DateTime],
-                    o.get("ltime").asInstanceOf[DateTime],
-                    o.get("mtime").asInstanceOf[DateTime],
+                    new DateTime(o.get("ctime").asInstanceOf[Date]),
+                    new DateTime(Option(o.get("stime")).getOrElse(o.get("ctime")).asInstanceOf[Date]),
+                    new DateTime(o.get("ltime").asInstanceOf[Date]),
+                    new DateTime(o.get("mtime").asInstanceOf[Date]),
                     mongoToScala(o.get("data")),
                     mongoToScala(o.get("tags")).asInstanceOf[Map[String,String]]
                 )
@@ -47,8 +47,12 @@ object MongoDatastore {
             case o: BasicDBObject => {
                 o.keySet.toSet.map( (key: String) => (key -> mongoToScala(o.get(key))) ).toMap
             }
-            case o: BasicDBList => Unit
+            case o: BasicDBList => {
+                o.toList.map( mongoToScala(_) )
+            }
+            case o: Date => new DateTime(o)
             case o: AnyRef => o
+            case null => null
             case other => throw new java.lang.RuntimeException("mongoToScala: don't know how to handle: " + other)
         }
     }
@@ -77,20 +81,16 @@ object MongoDatastore {
                 o.foreach( item => mongo.add( scalaToMongo( item ) ) )
                 mongo
             }
+            case o: DateTime => o.toDate
             case o: AnyRef => o
+            case null => null
             case other => throw new java.lang.RuntimeException("scalaToMongo: don't know how to handle: " + other)
         }
     }
-}
 
-trait MongoDatastore extends Datastore with NamedComponent with ConfigurationComponent {
-    import MongoDatastore._
-
-    private[this] val logger = LoggerFactory.getLogger(getClass)
-
-    val mongo = {
+    def mongoCollection(name: String,  ctx: ConfigContext) = {
         import collection.JavaConversions._
-        val servers = config.getProperty("edda.mongo.address").split(',').map(
+        val servers = ctx.config.getProperty("edda.mongo.address").split(',').map(
             hostport => {
                 val parts = hostport.split(':')
                 if( parts.length > 1 ) {
@@ -101,15 +101,24 @@ trait MongoDatastore extends Datastore with NamedComponent with ConfigurationCom
             }
         )
         val conn = new Mongo( servers.toList )
-        val db = conn.getDB( config.getProperty("edda.mongo.database", "edda") )
-        if( config.getProperty("edda.mongo.user") != null ) {
+        val db = conn.getDB( ctx.config.getProperty("edda.mongo.database", "edda") )
+        if( ctx.config.getProperty("edda.mongo.user") != null ) {
             db.authenticate(
-                config.getProperty("edda.mongo.user"),
-                config.getProperty("edda.mongo.password").toArray
+                ctx.config.getProperty("edda.mongo.user"),
+                ctx.config.getProperty("edda.mongo.password").toArray
             )
         }
         if( db.collectionExists(name) ) db.getCollection(name) else db.createCollection(name, null)
     }
+
+}
+
+class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
+    import MongoDatastore._
+
+    val mongo = mongoCollection(name,ctx)
+
+    private[this] val logger = Logger(getClass)
 
     override
     def query(queryMap: Map[String,Any], limit: Int): List[Record] = {
@@ -127,7 +136,9 @@ trait MongoDatastore extends Datastore with NamedComponent with ConfigurationCom
         import collection.JavaConversions._
         val cursor = mongo.find(nullLtimeQuery).sort(stimeIdSort);
         try {
-            asScalaIterator(cursor).map( mongoToRecord(_) ).toList
+            val x = asScalaIterator(cursor).map( mongoToRecord(_) ).toList
+            logger.info(this + " Loaded " + x.size + " records")
+            x
         } finally {
             cursor.close();
         }
@@ -150,15 +161,20 @@ trait MongoDatastore extends Datastore with NamedComponent with ConfigurationCom
 
     protected
     def upsert( record: Record ) {
-        mongo.findAndModify(
-            mapToMongo(Map("_id" -> (record.id + "|" + record.stime.getMillis))), // query
-            null,  // fields
-            null,  // sort
-            false, // remove
-            recordToMongo(record), // update
-            false, // returnNew
-            true   // upsert
-        )
+        try {
+            mongo.findAndModify(
+                mapToMongo(Map("_id" -> (record.id + "|" + record.stime.getMillis))), // query
+                null,  // fields
+                null,  // sort
+                false, // remove
+                recordToMongo(record), // update
+                    false, // returnNew
+                true   // upsert
+            )
+        } catch {
+            case e => logger.error("failed to upsert record: " + record, e)
+        }
     }
 
+    override def toString = "[MongoDatastore " + name + "]";
 }

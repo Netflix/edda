@@ -48,9 +48,3 @@ class AwsClient(credentials: AWSCredentials, region: String) {
         client
     }
 }
-
-abstract class AwsIterator  extends Iterator[List[Record]] {
-    var nextToken = ""
-    def hasNext = nextToken != null
-    def next: List[Record]
-}

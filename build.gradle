@@ -48,6 +48,8 @@ dependencies {
     compile 'org.joda:joda-convert:1.2'
     compile 'commons-beanutils:commons-beanutils:1.8.2'
     compile 'commons-collections:commons-collections:3.2.1'
+    compile 'com.netflix.servo:servo-core:0.4.10'
+    compile 'com.weiglewilczek.slf4s:slf4s_2.9.1:1.0.7'
 
     compile 'org.mongodb:mongo-java-driver:2.6.5'
     

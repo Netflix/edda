@@ -2,6 +2,8 @@ package com.netflix.edda
 
 import scala.actors.Actor
 
+import com.weiglewilczek.slf4s.Logger
+
 case class ObservableState(observers: List[Actor] = List[Actor]())
 
 object Observable extends StateMachine.LocalState[ObservableState] {
@@ -13,6 +15,7 @@ object Observable extends StateMachine.LocalState[ObservableState] {
 
 abstract class Observable extends StateMachine {
     import Observable._
+    private[this] val logger = Logger(getClass)
     
     def addObserver(actor: Actor) {
         this !? Observe(actor) match {
@@ -31,8 +34,8 @@ abstract class Observable extends StateMachine {
     protected override 
     def initState = addInitialState(super.initState, newLocalState(ObservableState()))
 
-    protected override
-    def transitions: PartialFunction[(Any,StateMachine.State),StateMachine.State]  = {
+    private
+    def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
         case (Observe(caller),state) => {
             sender ! OK()
             setLocalState(state, ObservableState(caller :: localState(state).observers))
@@ -42,4 +45,7 @@ abstract class Observable extends StateMachine {
             setLocalState(state, ObservableState(localState(state).observers diff List(caller)))
         }
     }
+
+    override protected
+    def transitions = localTransitions orElse super.transitions
 }

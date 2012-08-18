@@ -2,7 +2,7 @@ package com.netflix.edda
 
 import org.joda.time.DateTime
 
-import org.slf4j.{Logger, LoggerFactory}
+import com.weiglewilczek.slf4s.Logger
 
 object Record {
     def apply(id: String, data: Any): Record = {
@@ -11,7 +11,7 @@ object Record {
             id=id,
             ctime=now,
             stime=now,
-            ltime=now,
+            ltime=null,
             mtime=now,
             data=data,
             tags=Map()
@@ -24,7 +24,7 @@ object Record {
             id=id,
             ctime=ctime,
             stime=now,
-            ltime=now,
+            ltime=null,
             mtime=now,
             data=data,
             tags=Map()
@@ -53,7 +53,7 @@ class Record(
 ) {
     import Record._
 
-    private[this] val logger = LoggerFactory.getLogger(getClass)
+    private[this] val logger = Logger(getClass)
 
     def copy(
         id: String = id,
@@ -81,11 +81,13 @@ class Record(
         if (that == null) return false
         val ret: Boolean = this.data == that.data || this.data.toString == that.data.toString
         if(!ret) {
-            logger.debug("====================> records differ <====================");
-            logger.debug("[" + this.data.toString + "," + that.data.toString + "]");
+            logger.info("====================> records differ <====================");
+            logger.info("[" + this.data.toString + "," + that.data.toString + "]");
         }
         return ret
         
     }
+    
+    override def toString = this.toMap.toString
 }
 

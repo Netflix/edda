@@ -21,22 +21,28 @@ import com.netflix.edda.CollectionManager
 
 import javax.servlet.http.HttpServlet
 
-import org.slf4j.{Logger,LoggerFactory}
+import com.weiglewilczek.slf4s.Logger
 
-class Server extends HttpServlet {
-    private[this] val logger = LoggerFactory.getLogger(getClass)
+class BasicServer extends HttpServlet {
+    private[this] val logger = Logger(getClass)
     
     override
     def init = {
+        logger.info("Staring Server");
         new BasicCollectionBuilder().build().foreach(
-            pair => CollectionManager.register(pair._1, pair._2)
+            pair => {
+                CollectionManager.register(pair._1, pair._2)
+            }
         )
+        logger.info("Starting Collections");
+        CollectionManager.start
 
         super.init
     }
 
     override 
     def destroy = {
+        CollectionManager.stop
         super.destroy
     }
 }

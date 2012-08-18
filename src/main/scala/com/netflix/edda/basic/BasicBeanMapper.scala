@@ -1,25 +1,25 @@
 package com.netflix.edda.basic
 
 import com.netflix.edda.BeanMapper
-import com.netflix.edda.ConfigurationComponent
+import com.netflix.edda.ConfigContext
 
 import java.util.Date
 
 import org.joda.time.DateTime
 
-import org.slf4j.{Logger,LoggerFactory}
+import com.weiglewilczek.slf4s.Logger
 
 import org.apache.commons.beanutils.BeanMap
 
-trait BasicBeanMapper extends BeanMapper with ConfigurationComponent {
-    private[this] val logger = LoggerFactory.getLogger(getClass)
+class BasicBeanMapper(ctx: ConfigContext) extends BeanMapper {
+    private[this] val logger = Logger(getClass)
 
     def apply(obj: Any): Any = {
         mkValue(obj).getOrElse(null)
     }
 
-    val ignorePattern = config.getProperty("edda.bean.ignorePattern", "(?i)(timestamp|clock)$").r
-    val argPattern = config.getProperty("edda.bean.argPattern", "[^a-zA-Z0-9_]").r
+    val ignorePattern = ctx.config.getProperty("edda.bean.ignorePattern", "(?i)(timestamp|clock)$").r
+    val argPattern = ctx.config.getProperty("edda.bean.argPattern", "[^a-zA-Z0-9_]").r
 
     /** Create a mongo db list from a java collection object. */
     def mkList(c: java.util.Collection[_ <: Any]): List[Any] = {
@@ -54,18 +54,23 @@ trait BasicBeanMapper extends BeanMapper with ConfigurationComponent {
         case v: Double   => Some(v)
         case v: Char     => Some(v)
         case v: String   => Some(v) 
-        case v: Date     => Some(v) 
+        case v: Date     => Some(new DateTime(v)) 
         case v: DateTime => Some(v) 
         case v: Class[_] => Some(v.getName)
         case v: java.util.Collection[_] => Some(mkList(v))
         case v: java.util.Map[_,_] => Some(mkMap(v))
         case v: AnyRef   => Some(fromBean(v))
+        case null => Some(null)
         case other       => {
             logger.warn("dont know how to make value from " + other)
             None
         }
     }
 
+    private[this] var keyMappers: PartialFunction[(AnyRef,String,Option[Any]),Option[Any]] = {
+        case (obj,key,value) => value
+    }
+    
     def fromBean(obj: AnyRef): AnyRef = {
         import scala.collection.JavaConversions._
         if (obj.getClass.isEnum) {
@@ -80,12 +85,16 @@ trait BasicBeanMapper extends BeanMapper with ConfigurationComponent {
                 item => {
                     val entry = item.asInstanceOf[java.util.Map.Entry[String,Any]]
                     val value = mkValue(entry.getValue)
-                    entry.getKey -> value
+                    entry.getKey -> keyMappers(obj,entry.getKey,value)
                 }
             ).collect({
                 case (name: String, Some(value)) if ignorePattern.findFirstIn(name) == None =>
                     argPattern.replaceAllIn(name,"_") -> value
             }).toMap
         }
+    }
+
+    def addKeyMapper( pf: PartialFunction[(AnyRef,String,Option[Any]),Option[Any]] ) {
+        keyMappers = pf orElse keyMappers
     }
 }
