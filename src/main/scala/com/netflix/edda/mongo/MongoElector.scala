@@ -3,14 +3,14 @@ package com.netflix.edda.mongo
 import com.netflix.edda.Elector
 import com.netflix.edda.ConfigContext
 
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 import org.joda.time.DateTime
     
 import com.mongodb.DBCollection
 
 class MongoElector(ctx: ConfigContext) extends Elector(ctx)  {
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
 
     val instance = Option(
         System.getenv( ctx.config.getProperty("edda.mongo.elector.uniqueEnvName", "EC2_INSTANCE_ID") )

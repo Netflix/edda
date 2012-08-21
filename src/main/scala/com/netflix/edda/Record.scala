@@ -2,7 +2,7 @@ package com.netflix.edda
 
 import org.joda.time.DateTime
 
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 object Record {
     def apply(id: String, data: Any): Record = {
@@ -53,7 +53,7 @@ class Record(
 ) {
     import Record._
 
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
 
     def copy(
         id: String = id,

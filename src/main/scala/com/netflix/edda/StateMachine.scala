@@ -1,7 +1,7 @@
 package com.netflix.edda
 
 import scala.actors.Actor
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 object StateMachine {
     type State = Map[String,Any]
@@ -25,7 +25,7 @@ object StateMachine {
 
 class StateMachine extends Actor {
     import StateMachine._
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
 
     protected
     def init: Unit = {}

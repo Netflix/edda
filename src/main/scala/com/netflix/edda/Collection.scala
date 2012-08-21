@@ -5,8 +5,7 @@ import scala.actors.TIMEOUT
 
 import java.util.concurrent.TimeUnit
 import org.joda.time.DateTime
-//import net.liftweb.common.Logger
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 import com.netflix.servo.monitor.Monitors
 
@@ -41,8 +40,9 @@ case class namedActor[T](name: String)(body: => T) extends Actor {
 
 abstract class Collection( ctx: Collection.Context ) extends Observable {
     import Collection._
+    import Utils._
 
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
 
     def query(queryMap: Map[String,Any], limit: Int=0, live: Boolean = false): List[Record] = {
         this !? Query(queryMap,limit,live) match {
@@ -215,7 +215,9 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
                     stopwatch.stop()
                 }
                 loadCounter.increment
-                logger.info("%s Loaded %d records in %.2f sec".format(this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS)/1000.0))
+                logger.info("{} Loaded {} records in {} sec", toObjects(
+                    this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS)/1000.0 -> "%.2f"
+                ))
                 self ! Crawler.CrawlResult( if(records == Nil ) localState(state).records else records )
             }
             state
@@ -248,8 +250,8 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
                         } finally {
                             stopwatch.stop()
                         }
-                        logger.info("%s Updated %d records(Changed: %d, Added: %d, Removed: %d) in %.2f sec".format(
-                            this, d.records.size, d.changed.size, d.added.size, d.removed.size, stopwatch.getDuration(TimeUnit.MILLISECONDS)/1000.0
+                        logger.info("{} Updated {} records(Changed: {}, Added: {}, Removed: {}) in {} sec", toObjects(
+                            this, d.records.size, d.changed.size, d.added.size, d.removed.size, stopwatch.getDuration(TimeUnit.MILLISECONDS)/1000.0 -> "%.2f"
                         ))
                     }
                 }

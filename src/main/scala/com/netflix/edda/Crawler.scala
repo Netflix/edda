@@ -7,7 +7,7 @@ import java.util.concurrent.TimeUnit
 
 import com.netflix.servo.monitor.Monitors
 
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 
 case class CrawlerState(records: List[Record] = List[Record](), crawlTime: Option[DateTime] = None)
@@ -24,7 +24,8 @@ object Crawler extends StateMachine.LocalState[CrawlerState] {
 
 abstract class Crawler( ctx: ConfigContext ) extends Observable {
     import Crawler._
-    private[this] val logger = Logger(getClass)
+    import Utils._
+    private[this] val logger = LoggerFactory.getLogger(getClass)
     def crawl() = this ! Crawl()
     
     def name: String
@@ -68,7 +69,9 @@ abstract class Crawler( ctx: ConfigContext ) extends Observable {
                 stopwatch.stop
             }
             
-            logger.info("%s Crawled %d records in %.2f sec".format(this, newRecords.size, stopwatch.getDuration(TimeUnit.MILLISECONDS)/1000D))
+            logger.info("{} Crawled {} records in {} sec", toObjects(
+                this, newRecords.size, stopwatch.getDuration(TimeUnit.MILLISECONDS)/1000D -> "%.2f"
+            ))
             crawlCounter.increment
             Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(newRecords) )
             setLocalState(state, CrawlerState(records=newRecords))

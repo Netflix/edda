@@ -21,10 +21,10 @@ import com.netflix.edda.CollectionManager
 
 import javax.servlet.http.HttpServlet
 
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 class BasicServer extends HttpServlet {
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
     
     override
     def init = {

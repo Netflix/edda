@@ -2,7 +2,7 @@ package com.netflix.edda
 
 import scala.actors.Actor
 
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 case class ObservableState(observers: List[Actor] = List[Actor]())
 
@@ -15,7 +15,7 @@ object Observable extends StateMachine.LocalState[ObservableState] {
 
 abstract class Observable extends StateMachine {
     import Observable._
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
     
     def addObserver(actor: Actor) {
         this !? Observe(actor) match {

@@ -1,9 +1,9 @@
 package com.netflix.edda
 
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 object CollectionManager {
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
     var collections: Map[String,Collection] = Map()
 
     def register(name: String, collection: Collection) {

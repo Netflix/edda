@@ -5,7 +5,7 @@ import scala.actors.TIMEOUT
 
 import java.util.Properties
 
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 case class ElectorState(isLeader: Boolean = false)
 
@@ -28,7 +28,7 @@ abstract class Elector( ctx: ConfigContext ) extends Observable {
         }
     }
 
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
     val pollCycle = ctx.config.getProperty("edda.elector.refresh", "10000").toInt
 
     protected 

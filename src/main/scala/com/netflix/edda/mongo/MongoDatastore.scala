@@ -18,7 +18,7 @@ import com.mongodb.ServerAddress
 import org.joda.time.DateTime
 import java.util.Date
 
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 object MongoDatastore {
     
@@ -118,7 +118,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
 
     val mongo = mongoCollection(name,ctx)
 
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
 
     override
     def query(queryMap: Map[String,Any], limit: Int): List[Record] = {

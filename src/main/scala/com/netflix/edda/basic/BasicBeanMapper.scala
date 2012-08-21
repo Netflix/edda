@@ -7,12 +7,12 @@ import java.util.Date
 
 import org.joda.time.DateTime
 
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 import org.apache.commons.beanutils.BeanMap
 
 class BasicBeanMapper(ctx: ConfigContext) extends BeanMapper {
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
 
     def apply(obj: Any): Any = {
         mkValue(obj).getOrElse(null)

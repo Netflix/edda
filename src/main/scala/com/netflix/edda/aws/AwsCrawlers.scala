@@ -32,7 +32,7 @@ import collection.JavaConversions._
 import scala.actors.Futures.{future, awaitAll}
 import scala.actors.Actor
 
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 object AwsCrawler {
     trait Context extends ConfigContext {
@@ -88,7 +88,7 @@ class AddressCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx) {
 }
 
 class AutoScalingGroupCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx) {
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
     val name = "aws.autoScalingGroups"
     val request = new DescribeAutoScalingGroupsRequest
     override def doCrawl = {
@@ -127,7 +127,7 @@ case class InstanceHealthCrawlerState(elbRecords: List[Record] = List[Record]())
 object InstanceHealthCrawler extends StateMachine.LocalState[InstanceHealthCrawlerState]
 
 class InstanceHealthCrawler(val ctx : AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
     import InstanceHealthCrawler._
     val name = "view.loadBalancerInstances"
     override def crawl() = Unit // we dont crawl, just get updates from crawler when it crawls

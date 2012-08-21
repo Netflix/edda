@@ -12,11 +12,11 @@ import com.netflix.edda.mongo.MongoElector
 
 import java.util.Properties
 
-import com.weiglewilczek.slf4s.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 class BasicCollectionBuilder {
 
-    private[this] val logger = Logger(getClass)
+    private[this] val logger = LoggerFactory.getLogger(getClass)
     
 	val context = new ConfigContext with AwsCrawler.Context with Collection.Context {
         val propFile = System.getProperty("edda.properties", "/edda.properties");
