@@ -42,13 +42,13 @@ object MongoDatastore {
     }
 
     def mongoToScala(obj: Any): Any = {
-        import collection.JavaConversions._
+        import collection.JavaConverters._
         obj match {
             case o: BasicDBObject => {
-                o.keySet.toSet.map( (key: String) => (key -> mongoToScala(o.get(key))) ).toMap
+                o.keySet.asScala.map( (key: String) => (key -> mongoToScala(o.get(key))) ).toMap
             }
             case o: BasicDBList => {
-                o.toList.map( mongoToScala(_) )
+                o.asScala.map( mongoToScala(_) )
             }
             case o: Date => new DateTime(o)
             case o: AnyRef => o
@@ -89,7 +89,7 @@ object MongoDatastore {
     }
 
     def mongoCollection(name: String,  ctx: ConfigContext) = {
-        import collection.JavaConversions._
+        import collection.JavaConverters._
         val servers = ctx.config.getProperty("edda.mongo.address").split(',').map(
             hostport => {
                 val parts = hostport.split(':')
@@ -99,8 +99,8 @@ object MongoDatastore {
                     new ServerAddress( parts(0) )
                 }
             }
-        )
-        val conn = new Mongo( servers.toList )
+        ).toList
+        val conn = new Mongo( servers.asJava )
         val db = conn.getDB( ctx.config.getProperty("edda.mongo.database", "edda") )
         if( ctx.config.getProperty("edda.mongo.user") != null ) {
             db.authenticate(
@@ -122,10 +122,10 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
 
     override
     def query(queryMap: Map[String,Any], limit: Int): List[Record] = {
-        import collection.JavaConversions._
+        import collection.JavaConverters.iterableAsScalaIterableConverter
         val cursor = mongo.find(mapToMongo(queryMap)).sort(stimeIdSort);
         try {
-            asScalaIterator(cursor).map( mongoToRecord(_) ).toList
+            cursor.asScala.map( mongoToRecord(_) ).toList
         } finally {
             cursor.close();
         }
@@ -133,10 +133,10 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
 
     override
     def load(): List[Record] = {
-        import collection.JavaConversions._
+        import collection.JavaConverters.iterableAsScalaIterableConverter
         val cursor = mongo.find(nullLtimeQuery).sort(stimeIdSort);
         try {
-            val x = asScalaIterator(cursor).map( mongoToRecord(_) ).toList
+            val x = cursor.asScala.map( mongoToRecord(_) ).toList
             logger.info(this + " Loaded " + x.size + " records")
             x
         } finally {

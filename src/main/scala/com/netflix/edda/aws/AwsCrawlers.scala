@@ -28,7 +28,7 @@ import com.amazonaws.services.elasticloadbalancing.model.DescribeLoadBalancersRe
 import com.amazonaws.services.elasticloadbalancing.model.DescribeInstanceHealthRequest
 
 
-import collection.JavaConversions._
+import collection.JavaConverters._
 import scala.actors.Futures.{future, awaitAll}
 import scala.actors.Actor
 
@@ -82,9 +82,9 @@ class AddressCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val name = "aws.addresses"
     val request = new DescribeAddressesRequest
     override def doCrawl =
-        ctx.awsClient.ec2.describeAddresses(request).getAddresses.toList.map(
+        ctx.awsClient.ec2.describeAddresses(request).getAddresses.asScala.map(
             item => Record(item.getPublicIp, ctx.beanMapper(item))
-        )
+        ).toList
 }
 
 class AutoScalingGroupCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx) {
@@ -96,9 +96,9 @@ class AutoScalingGroupCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx)
             def next = {
                 val response = ctx.awsClient.asg.describeAutoScalingGroups(request.withNextToken(this.nextToken.get))
                 this.nextToken = Option(response.getNextToken)
-                response.getAutoScalingGroups.toList.map(
+                response.getAutoScalingGroups.asScala.map(
                     item => Record(item.getAutoScalingGroupName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))
-                )
+                ).toList
             }
         }
         it.flatten.toList
@@ -109,17 +109,17 @@ class ImageCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val name = "aws.images"
     val request = new DescribeImagesRequest
     override def doCrawl =
-        ctx.awsClient.ec2.describeImages(request).getImages.toList.map(
+        ctx.awsClient.ec2.describeImages(request).getImages.asScala.map(
             item => Record(item.getImageId, ctx.beanMapper(item))
-        )
+        ).toList
 }
 
 class LoadBalancerCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val name = "aws.loadBalancers"
     val request = new DescribeLoadBalancersRequest
-    override def doCrawl = ctx.awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions.toList.map(
+    override def doCrawl = ctx.awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions.asScala.map(
         item => Record(item.getLoadBalancerName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))
-    )
+    ).toList
 }
 
 case class InstanceHealthCrawlerState(elbRecords: List[Record] = List[Record]())
@@ -135,7 +135,7 @@ class InstanceHealthCrawler(val ctx : AwsCrawler.Context, val crawler: Crawler) 
     def doCrawl(elbRecords: List[Record]): List[Record] = {
         val tasks = elbRecords.map(elb => future {
             val instances = ctx.awsClient.elb.describeInstanceHealth(new DescribeInstanceHealthRequest(elb.id)).getInstanceStates
-            elb.copy(data=Map("name" -> elb.id, "instances" -> instances.toList.map(ctx.beanMapper(_))))
+            elb.copy(data=Map("name" -> elb.id, "instances" -> instances.asScala.map(ctx.beanMapper(_))))
         })
         awaitAll(300000L, tasks:_*) match { 
             case x: List[Option[Record]] => x.map( _.get )
@@ -172,9 +172,9 @@ class LaunchConfigurationCrawler(val ctx : AwsCrawler.Context) extends Crawler(c
             def next = {
                 val response = ctx.awsClient.asg.describeLaunchConfigurations.withNextToken(this.nextToken.get)
                 this.nextToken = Option(response.getNextToken)
-                response.getLaunchConfigurations.toList.map( 
+                response.getLaunchConfigurations.asScala.map( 
                     item => Record(item.getLaunchConfigurationName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))
-                )
+                ).toList
             }
         }
         it.flatten.toList
@@ -184,9 +184,9 @@ class LaunchConfigurationCrawler(val ctx : AwsCrawler.Context) extends Crawler(c
 class ReservationCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val name = "aws.instances"
     val request = new DescribeInstancesRequest
-    override def doCrawl = ctx.awsClient.ec2.describeInstances(request).getReservations.toList.map(
+    override def doCrawl = ctx.awsClient.ec2.describeInstances(request).getReservations.asScala.map(
         item => Record(item.getReservationId, ctx.beanMapper(item))
-    )
+    ).toList
 }
 
 case class InstanceCrawlerState(reservationRecords: List[Record] = List[Record]())
@@ -240,39 +240,39 @@ class InstanceCrawler(val ctx : AwsCrawler.Context, val crawler: Crawler) extend
 class SecurityGroupCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val name = "aws.securityGroups"
     val request = new DescribeSecurityGroupsRequest
-    override def doCrawl = ctx.awsClient.ec2.describeSecurityGroups(request).getSecurityGroups.toList.map(
+    override def doCrawl = ctx.awsClient.ec2.describeSecurityGroups(request).getSecurityGroups.asScala.map(
         item => Record(item.getGroupId, ctx.beanMapper(item))
-    )
+    ).toList
 }
 
 class SnapshotCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val name = "aws.snapshots"
     val request = new DescribeSnapshotsRequest
-    override def doCrawl = ctx.awsClient.ec2.describeSnapshots(request).getSnapshots.toList.map(
+    override def doCrawl = ctx.awsClient.ec2.describeSnapshots(request).getSnapshots.asScala.map(
         item => Record(item.getSnapshotId, new DateTime(item.getStartTime), ctx.beanMapper(item))
-    )
+    ).toList
 }
 
 class TagCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val name = "aws.tags"
     val request = new DescribeTagsRequest
-    override def doCrawl = ctx.awsClient.ec2.describeTags(request).getTags.toList.map(
+    override def doCrawl = ctx.awsClient.ec2.describeTags(request).getTags.asScala.map(
         item => Record(item.getKey() + "|" + item.getResourceType() + "|" + item.getResourceId(), ctx.beanMapper(item))
-    )
+    ).toList
 }
 
 class VolumeCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val name = "aws.volumes"
     val request = new DescribeVolumesRequest
-    override def doCrawl = ctx.awsClient.ec2.describeVolumes(request).getVolumes.toList.map(
+    override def doCrawl = ctx.awsClient.ec2.describeVolumes(request).getVolumes.asScala.map(
         item => Record(item.getVolumeId, new DateTime(item.getCreateTime), ctx.beanMapper(item))
-    )
+    ).toList
 }
 
 class BucketCrawler(val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val name = "aws.buckets"
     val request = new ListBucketsRequest
-    override def doCrawl = ctx.awsClient.s3.listBuckets(request).toList.map(
+    override def doCrawl = ctx.awsClient.s3.listBuckets(request).asScala.map(
         item => Record(item.getName, new DateTime(item.getCreationDate), ctx.beanMapper(item))
-    )
+    ).toList
 }

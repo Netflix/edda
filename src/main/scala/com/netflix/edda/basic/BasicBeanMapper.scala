@@ -23,22 +23,23 @@ class BasicBeanMapper(ctx: ConfigContext) extends BeanMapper {
 
     /** Create a mongo db list from a java collection object. */
     def mkList(c: java.util.Collection[_ <: Any]): List[Any] = {
-        import scala.collection.JavaConversions._
-        c.toList
+        import collection.JavaConverters._
+        c.asScala
          .map(v => mkValue(v).getOrElse(null))
+         .toList
          .sortBy(v => if(v == null) "" else v.toString.toLowerCase)
     }
 
     /** Create a mongo db object from a java map object. */
     def mkMap(m: java.util.Map[_ <: Any, _ <: Any]): Map[Any, Any] = {
-        import scala.collection.JavaConversions._
+        import scala.collection.JavaConverters._
         if (m.getClass.isEnum)
             Map(
                 "class" -> m.getClass.getName,
                 "name" -> m.getClass.getMethod("name").invoke(m).asInstanceOf[String]
             )
         else
-            m.collect({
+            m.asScala.collect({
                 case (key: Any, value: Any) if ignorePattern.findFirstIn(key.toString) == None =>
                     argPattern.replaceAllIn(key.toString,"_") -> mkValue(value).getOrElse(null)
             }).toMap[Any,Any] + ("class" -> m.getClass.getName)
@@ -72,7 +73,7 @@ class BasicBeanMapper(ctx: ConfigContext) extends BeanMapper {
     }
     
     def fromBean(obj: AnyRef): AnyRef = {
-        import scala.collection.JavaConversions._
+        import scala.collection.JavaConverters._
         if (obj.getClass.isEnum) {
             Map(
                 "class" -> obj.getClass.getName,
@@ -80,7 +81,7 @@ class BasicBeanMapper(ctx: ConfigContext) extends BeanMapper {
             )
         } else {
             val beanMap = new BeanMap(obj)
-            val entries = beanMap.entrySet.toList.sortBy(_.asInstanceOf[java.util.Map.Entry[String,Any]].getKey.toLowerCase)
+            val entries = beanMap.entrySet.asScala.toList.sortBy(_.asInstanceOf[java.util.Map.Entry[String,Any]].getKey.toLowerCase)
             entries.map(
                 item => {
                     val entry = item.asInstanceOf[java.util.Map.Entry[String,Any]]
