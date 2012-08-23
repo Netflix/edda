@@ -51,6 +51,7 @@ dependencies {
     compile 'commons-beanutils:commons-beanutils:1.8.2'
     compile 'commons-collections:commons-collections:3.2.1'
     compile 'com.netflix.servo:servo-core:0.4.10'
+    compile 'com.googlecode.java-diff-utils:diffutils:1.2.1'
 
     compile 'org.mongodb:mongo-java-driver:2.6.5'
     

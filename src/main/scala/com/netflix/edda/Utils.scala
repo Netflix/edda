@@ -1,10 +1,22 @@
 package com.netflix.edda
 
-import org.codehaus.jackson.JsonGenerator
+import java.io.ByteArrayOutputStream
+import java.io.OutputStream
 import java.util.Date
+import java.text.SimpleDateFormat
+
 import org.joda.time.DateTime
 
+import org.codehaus.jackson.JsonGenerator
+import org.codehaus.jackson.JsonEncoding.UTF8
+import org.codehaus.jackson.util.DefaultPrettyPrinter
+import org.codehaus.jackson.map.MappingJsonFactory
+
+import org.slf4j.{Logger, LoggerFactory}
+
 object Utils {
+    private[this] val logger = LoggerFactory.getLogger(getClass)
+
     def toObjects(args: Any*): Array[AnyRef] = {
         args.map(arg => arg match {
             case v: Char    => v.asInstanceOf[java.lang.Character]
@@ -33,11 +45,6 @@ object Utils {
             case v: String => gen.writeString(v)
             case v: Date => gen.writeNumber(v.getTime)
             case v: DateTime => gen.writeNumber(v.getMillis)
-            case v: Seq[_] => {
-                gen.writeStartArray
-                v.foreach( toJson(gen, _, fmt) )
-                gen.writeEndArray
-            }
             case v: Map[_,_] => {
                 gen.writeStartObject
                 v.foreach( pair => {
@@ -46,10 +53,60 @@ object Utils {
                 })
                 gen.writeEndObject
             }
+            case v: Seq[_] => {
+                gen.writeStartArray
+                v.foreach( toJson(gen, _, fmt) )
+                gen.writeEndArray
+            }
             case null => gen.writeNull
             case v => { 
                 throw new java.lang.RuntimeException("unable to convert \"" + v + "\" to json")
             }
         }
+    }
+
+    private val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
+    def dateFormatter(arg: Any): Any = {
+        arg match {
+            case v: Date => dateFormat.format(v)
+            case v: DateTime => dateFormat.format(v.toDate)
+            case v => v
+        }
+    }
+
+    private val factory = new MappingJsonFactory
+    private val dpp = new DefaultPrettyPrinter;
+    def diffRecords(recs: Seq[Record], context: Option[Int] = None, prefix: String  = ""): String = {
+        import difflib.DiffUtils;
+        import difflib.Patch;
+        import scala.collection.JavaConverters._
+        if( recs.size < 2 ) {
+            throw new java.lang.RuntimeException("diff requires at least 2 records")
+        }
+        // map each record to a tuple of it's id uri and pretty-printed string output
+        // then use 2-wide sliding window and create unified diffs for each pair
+        val result = new collection.mutable.StringBuilder
+        recs.map(rec => {
+            val baos = new ByteArrayOutputStream()
+            val gen = factory.createJsonGenerator(baos, UTF8)
+            dpp.indentArraysWith(new DefaultPrettyPrinter.Lf2SpacesIndenter)
+            gen.setPrettyPrinter(dpp)
+            toJson(gen, rec.data, dateFormatter)
+            gen.close;
+            (prefix + "/" + rec.id + ";_pp;_at=" + rec.stime.getMillis, baos.toString)
+        }).sliding(2).foreach( v => {
+            var(a,b) = (v.head,v.tail.head)
+            val alines = a._2.split("\n").toList
+            val blines = b._2.split("\n").toList
+            val size =
+                if ( context != None  ) context.get
+                else if( alines.length > blines.length ) alines.length else blines.length
+            val patch: Patch = DiffUtils.diff(blines.asJava,alines.asJava)
+            DiffUtils.generateUnifiedDiff(b._1,a._1,blines.asJava,patch,size).asScala.foreach(l => {
+                result.append(l)
+                result.append('\n')
+            });
+        })
+        result.toString
     }
 }

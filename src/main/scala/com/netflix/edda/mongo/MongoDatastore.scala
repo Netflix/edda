@@ -76,7 +76,7 @@ object MongoDatastore {
     def scalaToMongo(obj: Any): AnyRef = {
         obj match {
             case o: Map[_,_] => mapToMongo(o.asInstanceOf[Map[String,Any]])
-            case o: List[_] => {
+            case o: Seq[_] => {
                 val mongo = new BasicDBList
                 o.foreach( item => mongo.add( scalaToMongo( item ) ) )
                 mongo

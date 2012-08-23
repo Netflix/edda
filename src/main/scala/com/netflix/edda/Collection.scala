@@ -108,6 +108,13 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
             removedMap.contains(pair._1) || addedMap.contains(pair._1) || newMap(pair._1).sameData(oldMap(pair._1))
         }).map( pair => pair._1 -> RecordUpdate(oldMap(pair._1).copy(mtime=now,ltime=now), pair._2) )
 
+        changes.values.foreach( 
+            update => {
+                lazy val diff: String = Utils.diffRecords(Array(update.newRecord, update.oldRecord), Some(1), name.replace('.','/'))
+                logger.info("\n{}", Utils.toObjects(diff))
+            }
+        )
+
         // need to reset stime,ctime,tags for crawled records to match what we have in memory
         val fixedRecords = newRecords.collect {
             case rec: Record if changes.contains(rec.id) =>

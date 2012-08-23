@@ -14,6 +14,8 @@ object CollectionManager {
     def get(name: String): Option[Collection] = {
         collections.get(name)
     }
+
+    def names(): Set[String] = collections.keySet
     
     def start() {
         logger.info("Staring collections")
