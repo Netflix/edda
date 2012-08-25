@@ -65,7 +65,13 @@ class StateMachine extends Actor {
                         sender ! UnknownMessageError("Unknown Message " + message, message)
                     }
                     logger.debug(sender + ": " + message + " -> " + this)
-                    state = transitions(message,state)
+                    try {
+                        state = transitions(message,state)
+                    } catch {
+                        case e => {
+                            logger.error("failed to handle event " + message, e)
+                        }
+                    }
                 }
                 case message => {
                     logger.error("Invalid Message " + message + " sent from " + sender)

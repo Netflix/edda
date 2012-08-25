@@ -148,6 +148,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
     def update(d: Collection.Delta) {
         d.changed.foreach(
             pair => {
+                // logger.info("UPDATE\nOld: " + pair.oldRecord + "\nNew: " + pair.newRecord)
                 upsert(pair.oldRecord)
                 upsert(pair.newRecord)
             }
@@ -168,7 +169,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
                 null,  // sort
                 false, // remove
                 recordToMongo(record), // update
-                    false, // returnNew
+                false, // returnNew
                 true   // upsert
             )
         } catch {

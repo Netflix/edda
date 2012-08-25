@@ -26,7 +26,11 @@ abstract class Crawler( ctx: ConfigContext ) extends Observable {
     import Crawler._
     import Utils._
     private[this] val logger = LoggerFactory.getLogger(getClass)
-    def crawl() = this ! Crawl()
+    lazy val enabled = ctx.config.getProperty("edda.crawler." + name + ".enabled", "true").toBoolean
+
+    def crawl() {
+        if( enabled ) this ! Crawl()
+    }
     
     def name: String
     

@@ -16,6 +16,9 @@ import org.slf4j.{Logger, LoggerFactory}
 
 object Utils {
     private[this] val logger = LoggerFactory.getLogger(getClass)
+    private lazy val factory = new MappingJsonFactory
+    private lazy val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
+    private lazy val dpp = new DefaultPrettyPrinter;
 
     def toObjects(args: Any*): Array[AnyRef] = {
         args.map(arg => arg match {
@@ -30,6 +33,14 @@ object Utils {
             case (v: Any, f: String) => f.format(v)
             case v: AnyRef  => v
         }).toArray[AnyRef]
+    }
+
+    def toJson(obj: Any): String = {
+        val baos = new ByteArrayOutputStream()
+        val gen = factory.createJsonGenerator(baos, UTF8)
+        toJson(gen, obj)
+        gen.close;
+        baos.toString
     }
 
     def toJson(gen: JsonGenerator, obj: Any, fmt: (Any) => Any = (x: Any) => x) {
@@ -47,7 +58,7 @@ object Utils {
             case v: DateTime => gen.writeNumber(v.getMillis)
             case v: Map[_,_] => {
                 gen.writeStartObject
-                v.foreach( pair => {
+                v.toSeq.sortBy(_._1.asInstanceOf[String]).foreach( pair => {
                     gen.writeFieldName(pair._1.toString)
                     toJson(gen, pair._2, fmt)
                 })
@@ -65,7 +76,6 @@ object Utils {
         }
     }
 
-    private val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
     def dateFormatter(arg: Any): Any = {
         arg match {
             case v: Date => dateFormat.format(v)
@@ -74,8 +84,7 @@ object Utils {
         }
     }
 
-    private val factory = new MappingJsonFactory
-    private val dpp = new DefaultPrettyPrinter;
+    // most recent records first
     def diffRecords(recs: Seq[Record], context: Option[Int] = None, prefix: String  = ""): String = {
         import difflib.DiffUtils;
         import difflib.Patch;
@@ -87,13 +96,17 @@ object Utils {
         // then use 2-wide sliding window and create unified diffs for each pair
         val result = new collection.mutable.StringBuilder
         recs.map(rec => {
-            val baos = new ByteArrayOutputStream()
-            val gen = factory.createJsonGenerator(baos, UTF8)
-            dpp.indentArraysWith(new DefaultPrettyPrinter.Lf2SpacesIndenter)
-            gen.setPrettyPrinter(dpp)
-            toJson(gen, rec.data, dateFormatter)
-            gen.close;
-            (prefix + "/" + rec.id + ";_pp;_at=" + rec.stime.getMillis, baos.toString)
+            if( rec == null ) {
+                ("/dev/null", "")
+            } else {
+                val baos = new ByteArrayOutputStream()
+                val gen = factory.createJsonGenerator(baos, UTF8)
+                dpp.indentArraysWith(new DefaultPrettyPrinter.Lf2SpacesIndenter)
+                gen.setPrettyPrinter(dpp)
+                toJson(gen, rec.data, dateFormatter)
+                gen.close;
+                (prefix + "/" + rec.id + ";_pp;_at=" + rec.stime.getMillis, baos.toString)
+            }
         }).sliding(2).foreach( v => {
             var(a,b) = (v.head,v.tail.head)
             val alines = a._2.split("\n").toList

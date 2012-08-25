@@ -18,7 +18,7 @@ class BasicBeanMapper(ctx: ConfigContext) extends BeanMapper {
         mkValue(obj).getOrElse(null)
     }
 
-    val ignorePattern = ctx.config.getProperty("edda.bean.ignorePattern", "(?i)(timestamp|clock)$").r
+//    val ignorePattern = ctx.config.getProperty("edda.bean.ignorePattern", "(?i)(timestamp|clock)$").r
     val argPattern = ctx.config.getProperty("edda.bean.argPattern", "[^a-zA-Z0-9_]").r
 
     /** Create a mongo db list from a java collection object. */
@@ -40,7 +40,8 @@ class BasicBeanMapper(ctx: ConfigContext) extends BeanMapper {
             )
         else
             m.asScala.collect({
-                case (key: Any, value: Any) if ignorePattern.findFirstIn(key.toString) == None =>
+//                case (key: Any, value: Any) if ignorePattern.findFirstIn(key.toString) == None =>
+                case (key: Any, value: Any) =>
                     argPattern.replaceAllIn(key.toString,"_") -> mkValue(value).getOrElse(null)
             }).toMap[Any,Any] + ("class" -> m.getClass.getName)
     }
@@ -89,7 +90,8 @@ class BasicBeanMapper(ctx: ConfigContext) extends BeanMapper {
                     entry.getKey -> keyMappers(obj,entry.getKey,value)
                 }
             ).collect({
-                case (name: String, Some(value)) if ignorePattern.findFirstIn(name) == None =>
+//                case (name: String, Some(value)) if ignorePattern.findFirstIn(name) == None =>
+                case (name: String, Some(value)) =>
                     argPattern.replaceAllIn(name,"_") -> value
             }).toMap
         }

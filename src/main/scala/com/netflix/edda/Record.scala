@@ -1,7 +1,5 @@
 package com.netflix.edda
 
-import java.io.ByteArrayOutputStream
-
 import org.joda.time.DateTime
 
 import org.slf4j.{Logger, LoggerFactory}
@@ -79,11 +77,13 @@ class Record(
         )
     }
 
+    lazy val dataString = Utils.toJson(this.data)
+
     def sameData(that: Record): Boolean = {
         if (that == null) return false
-        this.data == that.data || this.data.toString == that.data.toString
+        this.data == that.data || this.dataString == that.dataString
     }
     
-    override def toString = this.toMap.toString
+    override lazy val toString = Utils.toJson(this.toMap)
 }
 

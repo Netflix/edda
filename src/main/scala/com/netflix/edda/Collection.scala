@@ -43,6 +43,7 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
     import Utils._
 
     private[this] val logger = LoggerFactory.getLogger(getClass)
+    lazy val enabled = ctx.config.getProperty("edda.collection." + name + ".enabled", "true").toBoolean
 
     def query(queryMap: Map[String,Any], limit: Int=0, live: Boolean = false): List[Record] = {
         this !? Query(queryMap,limit,live) match {
@@ -108,10 +109,23 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
             removedMap.contains(pair._1) || addedMap.contains(pair._1) || newMap(pair._1).sameData(oldMap(pair._1))
         }).map( pair => pair._1 -> RecordUpdate(oldMap(pair._1).copy(mtime=now,ltime=now), pair._2) )
 
+        lazy val path = name.replace('.','/')
+        addedMap.values.foreach(
+            rec => {
+                lazy val diff: String = Utils.diffRecords(Array(rec, null), Some(1), path)
+                logger.info("\n{}", diff)
+            }
+        )
+        removedMap.values.foreach(
+            rec => {
+                lazy val diff: String = Utils.diffRecords(Array(null, rec), Some(1), path)
+                logger.info("\n{}", diff)
+            }
+        )
         changes.values.foreach( 
             update => {
-                lazy val diff: String = Utils.diffRecords(Array(update.newRecord, update.oldRecord), Some(1), name.replace('.','/'))
-                logger.info("\n{}", Utils.toObjects(diff))
+                lazy val diff: String = Utils.diffRecords(Array(update.newRecord, update.oldRecord), Some(1), path)
+                logger.info("\n{}", diff)
             }
         )
 
@@ -124,7 +138,6 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
             case rec: Record => rec
         }
 
-        // convert newRecords with oldRecords
         logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + removedMap.size)
         Delta(fixedRecords, changed=changes.values.toList, added=addedMap.values.toList, removed=removedMap.values.toList)
     }
@@ -279,10 +292,15 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
 
     override
     def start(): Actor = {
-        logger.info("Staring "+ this);
-        elector.start()
-        crawler.start()
-        super.start()
+        if( enabled ) { 
+            logger.info("Staring "+ this);
+            elector.start()
+            crawler.start()
+            super.start()
+        } else {
+            logger.info("Collection " + name + " is disabled, not starting")
+            this
+        }
     }
 
     override
