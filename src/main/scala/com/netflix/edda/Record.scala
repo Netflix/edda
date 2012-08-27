@@ -23,7 +23,7 @@ object Record {
         new Record(
             id=id,
             ctime=ctime,
-            stime=now,
+            stime=ctime,
             ltime=null,
             mtime=now,
             data=data,

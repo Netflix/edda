@@ -1,5 +1,7 @@
 package com.netflix.edda
 
+import scala.actors.Actor
+
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.util.Date
@@ -19,6 +21,12 @@ object Utils {
     private lazy val factory = new MappingJsonFactory
     private lazy val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
     private lazy val dpp = new DefaultPrettyPrinter;
+
+    case class NamedActor[T](name: String)(body: => T) extends Actor {
+        override def toString = name
+        override def act = body
+        start
+    }
 
     def toObjects(args: Any*): Array[AnyRef] = {
         args.map(arg => arg match {

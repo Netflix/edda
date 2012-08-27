@@ -9,7 +9,7 @@ import org.slf4j.{Logger, LoggerFactory}
 
 import com.netflix.servo.monitor.Monitors
 
-case class CollectionState(records: List[Record] = List[Record](), crawled: List[Record] = List[Record](), amLeader: Boolean = false)
+case class CollectionState(records: Seq[Record] = Seq[Record](), crawled: Seq[Record] = Seq[Record](), amLeader: Boolean = false)
 
 object Collection extends StateMachine.LocalState[CollectionState] {
     trait Context extends ConfigContext {
@@ -17,7 +17,7 @@ object Collection extends StateMachine.LocalState[CollectionState] {
     }
     
     case class RecordUpdate(oldRecord: Record, newRecord: Record)
-    case class Delta(records: List[Record], changed: List[RecordUpdate], added: List[Record], removed: List[Record]) {
+    case class Delta(records: Seq[Record], changed: Seq[RecordUpdate], added: Seq[Record], removed: Seq[Record]) {
         override def toString = "Delta(records=" + records.size + ", changed=" + changed.size + ", added=" + added.size + ", removed=" + removed.size + ")";
     }
     
@@ -26,30 +26,14 @@ object Collection extends StateMachine.LocalState[CollectionState] {
 
     // internal messages
     private case class Load() extends StateMachine.Message
-    private case class Query(query: Map[String,Any], limit: Int, live: Boolean) extends StateMachine.Message
-    private case class QueryResult(records: List[Record]) extends StateMachine.Message {
-        override def toString = "QueryResult(records=" + records.size +")";
-    }
 }
 
-case class namedActor[T](name: String)(body: => T) extends Actor {
-    override def toString = name
-    override def act = body
-    start
-}
-
-abstract class Collection( ctx: Collection.Context ) extends Observable {
+abstract class Collection( ctx: Collection.Context ) extends Queryable {
     import Collection._
     import Utils._
 
     private[this] val logger = LoggerFactory.getLogger(getClass)
     lazy val enabled = ctx.config.getProperty("edda.collection." + name + ".enabled", "true").toBoolean
-
-    def query(queryMap: Map[String,Any], limit: Int=0, live: Boolean = false): List[Record] = {
-        this !? Query(queryMap,limit,live) match {
-            case QueryResult(results) => results
-        }
-    }
 
     def name: String
     def crawler: Crawler
@@ -57,7 +41,7 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
     def elector: Elector
     
     protected
-    def doQuery(queryMap: Map[String,Any], limit: Int, live: Boolean, state: StateMachine.State): List[Record] = {
+    def doQuery(queryMap: Map[String,Any], limit: Int, live: Boolean, state: StateMachine.State): Seq[Record] = {
         // generate function
         if( live ) {
             if( datastore.isDefined ) {
@@ -70,17 +54,12 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
     }
 
     protected
-    def firstOf(limit: Int, records: List[Record]): List[Record] = {
-        if( limit > 0 ) records.take(limit) else records
-    }
-
-    protected
-    def load(): List[Record] = {
+    def load(): Seq[Record] = {
         if( datastore.isDefined ) {
             datastore.get.load()
         } else {
             logger.warn("Datastore is not available for load()")
-            Nil
+            Seq()
         }
     }
     
@@ -94,7 +73,7 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
     }
 
     protected
-    def delta(newRecords: List[Record], oldRecords: List[Record]): Delta = {
+    def delta(newRecords: Seq[Record], oldRecords: Seq[Record]): Delta = {
         val oldMap = oldRecords.map( rec => rec.id -> rec ).toMap
         val newMap = newRecords.map( rec => rec.id -> rec ).toMap
         
@@ -139,7 +118,7 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
         }
 
         logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + removedMap.size)
-        Delta(fixedRecords, changed=changes.values.toList, added=addedMap.values.toList, removed=removedMap.values.toList)
+        Delta(fixedRecords, changed=changes.values.toSeq, added=addedMap.values.toSeq, removed=removedMap.values.toSeq)
     }
 
     protected override
@@ -151,8 +130,8 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
         if( datastore.isDefined ) {
             datastore.get.init
         }
-        elector.addObserver(this)
-        crawler.addObserver(this)
+        Option(elector).foreach( _.addObserver(this) )
+        Option(crawler).foreach( _.addObserver(this) )
         // listen to our own DeltaResult events
         // it is a sync call so put it in another actor
         Actor.actor {
@@ -168,6 +147,7 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
 
     protected
     def refresher {
+        if( Option(crawler) == None || Option(elector) == None ) return
         val refresh = ctx.config.getProperty(
             "edda.collection." + name + ".refresh",
             ctx.config.getProperty("edda.collection.refresh", "60000")
@@ -176,7 +156,7 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
             "edda.collection." + name + ".cache.refresh",
             ctx.config.getProperty("edda.collection.cache.refresh", "10000")
         ).toLong
-        namedActor(this + " refresher") {
+        NamedActor(this + " refresher") {
             elector.addObserver(Actor.self)
             var amLeader = elector.isLeader()
             var lastRun = DateTime.now
@@ -213,16 +193,9 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
 
     private
     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
-        case (Query(queryMap,limit,live),state) => {
-            val replyTo = sender
-            namedActor(this + " Query processor") {
-                replyTo ! QueryResult(doQuery(queryMap, limit, live, state))
-            }
-            state
-        }
         case (Load(),state) => {
             val self: Actor = this
-            namedActor(this + " Load processor") {
+            NamedActor(this + " Load processor") {
                 val stopwatch = loadTimer.start()
                 var records = try {
                     load()
@@ -238,14 +211,14 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
                 logger.info("{} Loaded {} records in {} sec", toObjects(
                     this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS)/1000.0 -> "%.2f"
                 ))
-                self ! Crawler.CrawlResult( if(records == Nil ) localState(state).records else records )
+                self ! Crawler.CrawlResult( if(records.size == 0) localState(state).records else records )
             }
             state
         }
         case (Crawler.CrawlResult(newRecords),state) => {
             // only propagate if newRecords are not the same as the last crawled result
             if( newRecords ne localState(state).crawled ) {
-                namedActor(this + " CrawlResult processor") {
+                NamedActor(this + " CrawlResult processor") {
                     val d: Delta = delta(newRecords, localState(state).records)
                     Observable.localState(state).observers.foreach( _ ! DeltaResult(d) )
                 }
@@ -294,8 +267,8 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
     def start(): Actor = {
         if( enabled ) { 
             logger.info("Staring "+ this);
-            elector.start()
-            crawler.start()
+            Option(elector).foreach( _.start )
+            Option(crawler).foreach( _.start )
             super.start()
         } else {
             logger.info("Collection " + name + " is disabled, not starting")
@@ -306,8 +279,8 @@ abstract class Collection( ctx: Collection.Context ) extends Observable {
     override
     def stop() {
         logger.info("Stoping "+ this);
-        elector.stop()
-        crawler.stop()
+        Option(elector).foreach( _.stop )
+        Option(crawler).foreach( _.stop )
         super.stop()
     }
 }

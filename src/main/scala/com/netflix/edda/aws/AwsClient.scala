@@ -15,11 +15,11 @@ trait AwsClientComponent {
     val awsClient: AwsClient
 }
 
-class AwsClient(credentials: AWSCredentials, region: String) {
-    def this(region: String) = 
-        this(new DefaultAWSCredentialsProviderChain().getCredentials(), region)
-    def this(accessKey: String, secretKey: String, region: String) =
-        this(new BasicAWSCredentials(accessKey, secretKey), region)
+class AwsClient(val accountName: String, val credentials: AWSCredentials, val region: String) {
+    def this(accountName: String, region: String) = 
+        this(accountName, new DefaultAWSCredentialsProviderChain().getCredentials(), region)
+    def this(accountName: String, accessKey: String, secretKey: String, region: String) =
+        this(accountName, new BasicAWSCredentials(accessKey, secretKey), region)
 
     def ec2 = {
         val client = new AmazonEC2Client(credentials)

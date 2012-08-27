@@ -34,7 +34,7 @@ class CollectionResource {
 
     private val factory = new MappingJsonFactory
 
-    private val collectionPathRx = """^([^/]+/[^/:;]+)/?([^/:;]+)?((?:;[^/;:]*(?:=[^/;:]+)?)*)(:.*)?""".r
+    private val collectionPathRx = """^([^:;]+)/?([^/:;]+)?((?:;[^/;:]*(?:=[^/;:]+)?)*)(:.*)?""".r
 
     private def fail(message: String, status: Response.Status): Response = {
         val output = new ByteArrayOutputStream()
@@ -59,7 +59,7 @@ class CollectionResource {
         return !in;
     }
 
-    private def unique(recs: List[Record], details: ReqDetails): List[Record] = {
+    private def unique(recs: Seq[Record], details: ReqDetails): Seq[Record] = {
         if( details.metaArgs.contains("_all") ) return recs
         var seen: MSet[String] = MSet()
         return recs.filter( r => unseen(r.id, seen) )
@@ -281,7 +281,7 @@ class CollectionResource {
         details.response
     }
 
-    def selectRecords(collName: String, details: ReqDetails): List[Record] = {
+    def selectRecords(collName: String, details: ReqDetails): Seq[Record] = {
         val coll = CollectionManager.get(collName).get
         val query = if(details.id != null) makeQuery(details) + ("id" -> details.id) else makeQuery(details)
         return unique(coll.query(query, details.limit, details.live), details)

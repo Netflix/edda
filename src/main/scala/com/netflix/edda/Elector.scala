@@ -50,7 +50,7 @@ abstract class Elector( ctx: ConfigContext ) extends Observable {
     protected
     def electionPoller() = {
         val elector = this
-        namedActor(this + " poller") {
+        Utils.NamedActor(this + " poller") {
             Actor.loop {
                 Actor.reactWithin(pollCycle) {
                     case TIMEOUT => {
@@ -64,7 +64,7 @@ abstract class Elector( ctx: ConfigContext ) extends Observable {
     private
     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
         case (RunElection(),state) => {
-            namedActor(this + " election runner") {
+            Utils.NamedActor(this + " election runner") {
                 val result = runElection()
                 Observable.localState(state).observers.foreach( _ ! ElectionResult(result) )
             }

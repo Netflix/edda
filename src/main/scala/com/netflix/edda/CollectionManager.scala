@@ -4,14 +4,14 @@ import org.slf4j.{Logger, LoggerFactory}
 
 object CollectionManager {
     private[this] val logger = LoggerFactory.getLogger(getClass)
-    var collections: Map[String,Collection] = Map()
+    var collections: Map[String,Queryable] = Map()
 
-    def register(name: String, collection: Collection) {
+    def register(name: String, collection: Queryable) {
         logger.info("Registering collection " + collection)
         collections = collections + (name -> collection)
     }
     
-    def get(name: String): Option[Collection] = {
+    def get(name: String): Option[Queryable] = {
         collections.get(name)
     }
 

@@ -10,11 +10,11 @@ import com.netflix.servo.monitor.Monitors
 import org.slf4j.{Logger, LoggerFactory}
 
 
-case class CrawlerState(records: List[Record] = List[Record](), crawlTime: Option[DateTime] = None)
+case class CrawlerState(records: Seq[Record] = Seq[Record](), crawlTime: Option[DateTime] = None)
 
 object Crawler extends StateMachine.LocalState[CrawlerState] {
     // Message sent to Observers
-    case class CrawlResult(newRecords: List[Record]) extends StateMachine.Message {
+    case class CrawlResult(newRecords: Seq[Record]) extends StateMachine.Message {
         override def toString = "CrawlResult(newRecords=" + newRecords.size + ")"
     }
 
@@ -38,7 +38,7 @@ abstract class Crawler( ctx: ConfigContext ) extends Observable {
     private[this] val crawlCounter = Monitors.newCounter("edda.crawler." + name + ".crawl.count")
     private[this] val errorCounter = Monitors.newCounter("edda.crawler." + name + ".crawl.errors")
 
-    protected def doCrawl(): List[Record]
+    protected def doCrawl(): Seq[Record]
 
     protected override
     def initState = addInitialState(super.initState, newLocalState(CrawlerState()))

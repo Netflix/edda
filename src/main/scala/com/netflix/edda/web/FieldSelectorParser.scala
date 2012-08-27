@@ -76,8 +76,8 @@ case class KeySelectExpr(keys: Map[String,FieldSelectorExpr])
         case map: Map[_,_] => {
             val newMap = map.
                 filter(t => keys.contains(t._1.toString)).
-                map(t => t._1 -> keys(t._1.toString)._select(Some(t._2)))
-            val matches = newMap.values.forall(_.objectMatches)
+                map(t => t._1 -> keys(t._1.toString)._select(t._2))
+            val matches = newMap.values.exists(_.objectMatches)
             val resultMap = newMap.filter(_._2.newValue.isDefined).map(t => {
                 t._1 -> t._2.newValue.get
             })
