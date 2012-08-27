@@ -34,7 +34,7 @@ class CollectionResource {
 
     private val factory = new MappingJsonFactory
 
-    private val collectionPathRx = """^([^:;]+)/?([^/:;]+)?((?:;[^/;:]*(?:=[^/;:]+)?)*)(:.*)?""".r
+    private val collectionPathRx = """^([^:;]+?)(?:/?)((?:;[^/;:]*(?:=[^/;:]+)?)*)(:.*)?""".r
 
     private def fail(message: String, status: Response.Status): Response = {
         val output = new ByteArrayOutputStream()
@@ -292,8 +292,15 @@ class CollectionResource {
     def getCollection(@Context req: HttpServletRequest): Response = {
         val path = req.getRequestURI.drop(req.getContextPath.length + req.getServletPath.length + 4)
         path match {
-            case collectionPathRx(collPath, id, matrixStr, exprStr) => {
-                val collName = collPath.replace('/','.')                
+            case collectionPathRx(collPath, matrixStr, exprStr) => {
+                val name = collPath.replace('/','.')
+                val (collName, id) =
+                    if ( CollectionManager.names.contains(name) ) {
+                        (name, null)
+                    } else {
+                        val parts = name.split('.')
+                        (parts.init mkString ".", parts.last)
+                    }
                 val details = ReqDetails(req,id,matrixStr,exprStr)
                 if( details.id == null && details.diff != None ) {
                     return fail("_diff argument requires use of resource id: " + req.getServletPath + collName + "/<id>", Response.Status.BAD_REQUEST)
