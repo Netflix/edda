@@ -11,7 +11,7 @@ import org.slf4j.{Logger, LoggerFactory}
 
 import org.apache.commons.beanutils.BeanMap
 
-class BasicBeanMapper(ctx: ConfigContext) extends BeanMapper {
+class BasicBeanMapper(val ctx: ConfigContext) extends BeanMapper {
     private[this] val logger = LoggerFactory.getLogger(getClass)
 
     def apply(obj: Any): Any = {

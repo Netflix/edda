@@ -5,12 +5,14 @@ import org.slf4j.{Logger, LoggerFactory}
 
 object StateMachine {
     type State = Map[String,Any]
-    trait Message {}
-    case class Stop() extends Message{}
+    trait Message {
+        def from: Actor
+    }
+    case class Stop(from: Actor) extends Message{}
 
     trait ErrorMessage extends Message {}
-    case class InvalidMessageError(reason: String, message: Any) extends ErrorMessage;
-    case class UnknownMessageError(reason: String, message: Any) extends ErrorMessage;
+    case class InvalidMessageError(from: Actor, reason: String, message: Any) extends ErrorMessage;
+    case class UnknownMessageError(from: Actor, reason: String, message: Any) extends ErrorMessage;
     
     class LocalState[T] {
         def localStateKey = this.getClass.getName
@@ -34,7 +36,7 @@ class StateMachine extends Actor {
     def initState: State = Map()
     
     def stop() {
-        this ! Stop()
+        this ! Stop(this)
     }
 
     protected
@@ -56,13 +58,13 @@ class StateMachine extends Actor {
         var keepLooping = true
         loopWhile(keepLooping) {
             react {
-                case Stop() => {
+                case Stop(from) => {
                     keepLooping = false
                 }
                 case message: Message =>  {
                     if( ! transitions.isDefinedAt(message,state) ) {
                         logger.error("Unknown Message " + message + " sent from " + sender)
-                        sender ! UnknownMessageError("Unknown Message " + message, message)
+                        sender ! UnknownMessageError(this, "Unknown Message " + message, message)
                     }
                     logger.debug(sender + ": " + message + " -> " + this)
                     try {
@@ -75,7 +77,7 @@ class StateMachine extends Actor {
                 }
                 case message => {
                     logger.error("Invalid Message " + message + " sent from " + sender)
-                    sender ! InvalidMessageError("Invalid Message " + message, message)
+                    sender ! InvalidMessageError(this, "Invalid Message " + message, message)
                 }
             }
         }

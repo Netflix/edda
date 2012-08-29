@@ -41,65 +41,71 @@ object AwsCrawler {
     }
 }
 
-object AwsCrawlerBuilder {
-
+trait AwsBeanMapper extends BeanMapper {
+    val ctx: ConfigContext
     val instanceStateKeyMapper: PartialFunction[(AnyRef,String,Option[Any]),Option[Any]] = {
         case (obj: com.amazonaws.services.ec2.model.InstanceState, "code", Some(value: Int)) => Some(0x00FF & value)
     }
-
+    this.addKeyMapper(instanceStateKeyMapper)
     
-    def build(ctx : AwsCrawler.Context): Seq[AwsCrawler] = {
-        ctx.beanMapper.addKeyMapper(instanceStateKeyMapper)
-        val tags = ctx.config.getProperty("edda.crawler.aws.suppressTags", "")
-        tags.split(",").foreach( tag => {
-            val pf: PartialFunction[(AnyRef,String,Option[Any]),Option[Any]] = {
-                case (obj: com.amazonaws.services.ec2.model.Tag, "value", Some(x: Any)) if obj.getKey() == tag => Some("[EDDA_SUPPRESSED]")
-                case (obj: com.amazonaws.services.ec2.model.TagDescription, "value", Some(x: Any)) if obj.getKey() == tag => Some("[EDDA_SUPPRESSED]")
-            }
-            ctx.beanMapper.addKeyMapper(pf)
-        })
-        
-        
-        val elb = new LoadBalancerCrawler(ctx)
-        val inst = new ReservationCrawler(ctx)
-
-        val aws = List(
-            new AddressCrawler(ctx),
-            new AutoScalingGroupCrawler(ctx),
-            new ImageCrawler(ctx),
-            new LaunchConfigurationCrawler(ctx),
-            new SecurityGroupCrawler(ctx),
-            new SnapshotCrawler(ctx),
-            new TagCrawler(ctx),
-            new VolumeCrawler(ctx),
-            new BucketCrawler(ctx),
-            elb,
-            inst
-        )
-    
-        val views = List(
-            new InstanceHealthCrawler(ctx, elb),
-            new InstanceCrawler(ctx, inst)
-        )
-            
-        views ++ aws
-    }
+    val tags = ctx.config.getProperty("edda.crawler.aws.suppressTags", "")
+    tags.split(",").foreach( tag => {
+        val pf: PartialFunction[(AnyRef,String,Option[Any]),Option[Any]] = {
+            case (obj: com.amazonaws.services.ec2.model.Tag, "value", Some(x: Any)) if obj.getKey() == tag => Some("[EDDA_SUPPRESSED]")
+            case (obj: com.amazonaws.services.ec2.model.TagDescription, "value", Some(x: Any)) if obj.getKey() == tag => Some("[EDDA_SUPPRESSED]")
+        }
+        this.addKeyMapper(pf)
+    })
 }
+
+// object AwsCrawlerBuilder {
+
+//     def build(ctx : AwsCrawler.Context): Seq[AwsCrawler] = {
+//         ctx.beanMapper.addKeyMapper(instanceStateKeyMapper)
+//         val tags = ctx.config.getProperty("edda.crawler.aws.suppressTags", "")
+//         tags.split(",").foreach( tag => {
+//             val pf: PartialFunction[(AnyRef,String,Option[Any]),Option[Any]] = {
+//                 case (obj: com.amazonaws.services.ec2.model.Tag, "value", Some(x: Any)) if obj.getKey() == tag => Some("[EDDA_SUPPRESSED]")
+//                 case (obj: com.amazonaws.services.ec2.model.TagDescription, "value", Some(x: Any)) if obj.getKey() == tag => Some("[EDDA_SUPPRESSED]")
+//             }
+//             ctx.beanMapper.addKeyMapper(pf)
+//         })
+        
+        
+//         val elb = new LoadBalancerCrawler(ctx)
+//         val inst = new ReservationCrawler(ctx)
+
+//         val aws = List(
+//             new AddressCrawler(ctx),
+//             new AutoScalingGroupCrawler(ctx),
+//             new ImageCrawler(ctx),
+//             new LaunchConfigurationCrawler(ctx),
+//             new SecurityGroupCrawler(ctx),
+//             new SnapshotCrawler(ctx),
+//             new TagCrawler(ctx),
+//             new VolumeCrawler(ctx),
+//             new BucketCrawler(ctx),
+//             elb,
+//             inst
+//         )
+    
+//         val views = List(
+//             new InstanceHealthCrawler(ctx, elb),
+//             new InstanceCrawler(ctx, inst)
+//         )
+            
+//         views ++ aws
+//     }
+// }
 
 abstract class AwsIterator  extends Iterator[Seq[Record]] {
+    private[this] val logger = LoggerFactory.getLogger(getClass)
     var nextToken: Option[String] = Some(null)
     def hasNext = nextToken != None
-    def next: Seq[Record]
+    def next: List[Record]
 }
 
-abstract class AwsCrawler(val rootName: String, ctx: AwsCrawler.Context) extends Crawler(ctx) {
-    val name = ctx.awsClient.accountName match {
-        case "" => rootName
-        case x: String => x + "." + rootName
-    }
-}
-
-class AddressCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.addresses", ctx) {
+class AwsAddressCrawler(val name: String, val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val request = new DescribeAddressesRequest
     override def doCrawl =
         ctx.awsClient.ec2.describeAddresses(request).getAddresses.asScala.map(
@@ -107,9 +113,10 @@ class AddressCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.addre
         ).toSeq
 }
 
-class AutoScalingGroupCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.autoScalingGroups", ctx) {
+class AwsAutoScalingGroupCrawler(val name: String, val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     private[this] val logger = LoggerFactory.getLogger(getClass)
     val request = new DescribeAutoScalingGroupsRequest
+    request.setMaxRecords(50)
     override def doCrawl = {
         var tagCount = 0
         val it = new AwsIterator() {
@@ -121,10 +128,10 @@ class AutoScalingGroupCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("
                         tagCount += item.getTags.size
                         Record(item.getAutoScalingGroupName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))
                     }
-                ).toSeq
+                ).toList
             }
         }
-        val list = it.flatten.toSeq
+        val list = it.toList.flatten
         if(tagCount == 0) {
             if(ctx.config.getProperty("edda.crawler." + name + ".abortWithoutTags", "false").toBoolean) {
                 throw new java.lang.RuntimeException("no tags found for any record in " + name + ", ignoring crawl results")
@@ -136,7 +143,7 @@ class AutoScalingGroupCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("
     }
 }
 
-class ImageCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.images", ctx) {
+class AwsImageCrawler(val name: String, val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val request = new DescribeImagesRequest
     override def doCrawl = {
         var tagCount = 0
@@ -153,20 +160,20 @@ class ImageCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.images"
     }
 }
 
-class LoadBalancerCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.loadBalancers", ctx) {
+class AwsLoadBalancerCrawler(val name: String, val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val request = new DescribeLoadBalancersRequest
     override def doCrawl = ctx.awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions.asScala.map(
         item => Record(item.getLoadBalancerName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))
     ).toSeq
 }
 
-case class InstanceHealthCrawlerState(elbRecords: Seq[Record] = Seq[Record]())
+case class AwsInstanceHealthCrawlerState(elbRecords: Seq[Record] = Seq[Record]())
 
-object InstanceHealthCrawler extends StateMachine.LocalState[InstanceHealthCrawlerState]
+object AwsInstanceHealthCrawler extends StateMachine.LocalState[AwsInstanceHealthCrawlerState]
 
-class InstanceHealthCrawler(val ctx : AwsCrawler.Context, val crawler: Crawler) extends AwsCrawler("view.loadBalancerInstances", ctx) {
+class AwsInstanceHealthCrawler(val name: String, val ctx : AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
     private[this] val logger = LoggerFactory.getLogger(getClass)
-    import InstanceHealthCrawler._
+    import AwsInstanceHealthCrawler._
     override def crawl() = Unit // we dont crawl, just get updates from crawler when it crawls
     override def doCrawl = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceHealthCrawler")
     def doCrawl(elbRecords: Seq[Record]): Seq[Record] = {
@@ -181,19 +188,19 @@ class InstanceHealthCrawler(val ctx : AwsCrawler.Context, val crawler: Crawler) 
     }
 
     protected override
-    def initState = addInitialState(super.initState, newLocalState(InstanceHealthCrawlerState()))
+    def initState = addInitialState(super.initState, newLocalState(AwsInstanceHealthCrawlerState()))
     
     protected override
     def init = crawler.addObserver(this)
 
     protected
     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
-        case (Crawler.CrawlResult(elbRecords),state) => {
+        case (Crawler.CrawlResult(from, elbRecords),state) => {
             // this is blocking so we dont crawl in parallel
             if( elbRecords ne localState(state).elbRecords ) {
                 val newRecords = doCrawl(elbRecords)
-                Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(newRecords) )
-                setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), InstanceHealthCrawlerState(elbRecords))
+                Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(this, newRecords) )
+                setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), AwsInstanceHealthCrawlerState(elbRecords))
             } else state
         }
     }
@@ -202,7 +209,7 @@ class InstanceHealthCrawler(val ctx : AwsCrawler.Context, val crawler: Crawler) 
     def transitions = localTransitions orElse super.transitions
 }
 
-class LaunchConfigurationCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.launchConfigurations", ctx) {
+class AwsLaunchConfigurationCrawler(val name: String, val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val request = new DescribeLaunchConfigurationsRequest
     override def doCrawl = {
         val it = new AwsIterator() {
@@ -211,14 +218,14 @@ class LaunchConfigurationCrawler(val ctx : AwsCrawler.Context) extends AwsCrawle
                 this.nextToken = Option(response.getNextToken)
                 response.getLaunchConfigurations.asScala.map( 
                     item => Record(item.getLaunchConfigurationName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))
-                ).toSeq
+                ).toList
             }
         }
-        it.flatten.toSeq
+        it.toList.flatten
     }
 }
 
-class ReservationCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.instances", ctx) {
+class AwsReservationCrawler(val name: String, val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val request = new DescribeInstancesRequest
     override def doCrawl = {
         var tagCount = 0
@@ -235,12 +242,12 @@ class ReservationCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.i
     }
 }
 
-case class InstanceCrawlerState(reservationRecords: Seq[Record] = Seq[Record]())
+case class AwsInstanceCrawlerState(reservationRecords: Seq[Record] = Seq[Record]())
 
-object InstanceCrawler extends StateMachine.LocalState[InstanceCrawlerState]
+object AwsInstanceCrawler extends StateMachine.LocalState[AwsInstanceCrawlerState]
 
-class InstanceCrawler(val ctx : AwsCrawler.Context, val crawler: Crawler) extends AwsCrawler("view.instances", ctx) {
-    import InstanceCrawler._
+class AwsInstanceCrawler(val name: String, val ctx : AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
+    import AwsInstanceCrawler._
     override def crawl() = Unit // we dont crawl, just get updates from crawler when it crawls
     override def doCrawl = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceCrawler")
     def doCrawl(resRecords: Seq[Record]): Seq[Record] = {
@@ -259,20 +266,20 @@ class InstanceCrawler(val ctx : AwsCrawler.Context, val crawler: Crawler) extend
     }
 
     protected override
-    def initState = addInitialState(super.initState, newLocalState(InstanceCrawlerState()))
+    def initState = addInitialState(super.initState, newLocalState(AwsInstanceCrawlerState()))
     
     protected override
     def init = crawler.addObserver(this)
 
     protected
     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
-        case (Crawler.CrawlResult(reservations),state) => {
+        case (Crawler.CrawlResult(from, reservations),state) => {
             // this is blocking so we dont crawl in parallel
             // TODO return state if elbRecords == state.elbRecords && minCycle not reached
             if( reservations ne localState(state).reservationRecords ) {
                 val newRecords = doCrawl(reservations)
-                Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(newRecords) )
-                setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), InstanceCrawlerState(reservations))
+                Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(this, newRecords) )
+                setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), AwsInstanceCrawlerState(reservations))
             } else state
         }
     }
@@ -282,7 +289,7 @@ class InstanceCrawler(val ctx : AwsCrawler.Context, val crawler: Crawler) extend
 }
 
 
-class SecurityGroupCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.securityGroups", ctx) {
+class AwsSecurityGroupCrawler(val name: String, val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val request = new DescribeSecurityGroupsRequest
     override def doCrawl = {
         var tagCount = 0
@@ -299,7 +306,7 @@ class SecurityGroupCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws
     }
 }
 
-class SnapshotCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.snapshots", ctx) {
+class AwsSnapshotCrawler(val name: String, val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val request = new DescribeSnapshotsRequest
     override def doCrawl = {
         var tagCount = 0
@@ -316,14 +323,14 @@ class SnapshotCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.snap
     }
 }
 
-class TagCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.tags", ctx) {
+class AwsTagCrawler(val name: String, val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val request = new DescribeTagsRequest
     override def doCrawl = ctx.awsClient.ec2.describeTags(request).getTags.asScala.map(
         item => Record(item.getKey() + "|" + item.getResourceType() + "|" + item.getResourceId(), ctx.beanMapper(item))
     ).toSeq
 }
 
-class VolumeCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.volumes", ctx) {
+class AwsVolumeCrawler(val name: String, val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val request = new DescribeVolumesRequest
     override def doCrawl = {
         var tagCount = 0
@@ -340,9 +347,58 @@ class VolumeCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.volume
     }
 }
 
-class BucketCrawler(val ctx : AwsCrawler.Context) extends AwsCrawler("aws.buckets", ctx) {
+class AwsBucketCrawler(val name: String, val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val request = new ListBucketsRequest
     override def doCrawl = ctx.awsClient.s3.listBuckets(request).asScala.map(
         item => Record(item.getName, new DateTime(item.getCreationDate), ctx.beanMapper(item))
     ).toSeq
 }
+
+// case class GroupAutoScalingGroupsCrawlerState(asgRecords: Seq[Record] = Seq(), slotMap: Map[String,Int] = Map())
+
+// object GroupAutoScalingGroupsCrawler extends StateMachine.LocalState[GroupAutoScalingGroupsCrawlerState]
+
+// class GroupAutoScalingGroupsCrawler(val name: String, val ctx : AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
+//     import GroupAutoScalingGroupsCrawler._
+//     override def crawl() = Unit // we dont crawl, just get updates from crawler when it crawls
+//     override def doCrawl = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on GroupAutoScalingGroupsCrawler")
+//     def doCrawl(asgRecords: Seq[Record]): Seq[Record] = {
+//         asgRecords.flatMap(rec => {
+//             rec.data.asInstanceOf[Map[String,Any]].get("instances") match {
+//                 case instances: Option[Seq[Map[String,Any]]] => instances.get.map(
+//                     (inst: Map[String,Any]) => rec.copy(
+//                         id=inst("instanceId").asInstanceOf[String],
+//                         data=inst,
+//                         ctime=inst("launchTime").asInstanceOf[DateTime]
+//                     )
+//                 )
+//                 case other => throw new java.lang.RuntimeException("failed to crawl instances from reservation, got: " + other)
+//             }
+//         })
+//     }
+
+//     protected override
+//     def initState = addInitialState(super.initState, newLocalState(GroupAutoScalingGroupsCrawlerState()))
+    
+//     protected override
+//     def init = crawler.addObserver(this)
+
+//     protected
+//     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
+//         case (Crawler.CrawlResult(from, asgRecords),state) => {
+//             // this is blocking so we dont crawl in parallel
+//             // TODO return state if elbRecords == state.elbRecords && minCycle not reached
+//             if( asgRecords ne localState(state).asgRecords ) {
+//                 val newRecords = doCrawl(asgRecords)
+//                 Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(this, newRecords) )
+//                 setLocalState(
+//                     Crawler.setLocalState(state, CrawlerState(newRecords)),
+//                     GroupAutoScalingGroupsCrawlerState(asgRecords, asgRecords.map(rec => rec.id -> rec))
+//                 )
+//             } else state
+//         }
+//     }
+
+//     override protected
+//     def transitions = localTransitions orElse super.transitions
+// }

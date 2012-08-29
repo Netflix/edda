@@ -5,6 +5,7 @@ import com.netflix.edda.MergedCollection
 import com.netflix.edda.Crawler
 import com.netflix.edda.Elector
 import com.netflix.edda.Queryable
+import com.netflix.edda.Record
 
 import com.netflix.edda.Datastore
 import com.netflix.edda.BeanMapper
@@ -56,9 +57,10 @@ object AwsCollectionBuilder {
     def mkCollections(  ctx: AwsCollection.Context, elector: Elector, dsFactory: String => Option[Datastore]): Seq[AwsCollection] = {
         val res = new AwsReservationCollection(dsFactory, elector, ctx)
         val elb = new AwsLoadBalancerCollection(dsFactory, elector, ctx)
+        val asg = new AwsAutoScalingGroupCollection(dsFactory, elector, ctx)
         return Seq(
             new AwsAddressCollection(dsFactory, elector, ctx),
-            new AwsAutoScalingGroupCollection(dsFactory, elector, ctx),
+            asg,
             new AwsImageCollection(dsFactory, elector, ctx),
             elb,
             new AwsInstanceHealthCollection(elb.crawler, dsFactory, elector, ctx),
@@ -69,7 +71,8 @@ object AwsCollectionBuilder {
             new AwsSnapshotCollection(dsFactory, elector, ctx),
             new AwsTagCollection(dsFactory, elector, ctx),
             new AwsVolumeCollection(dsFactory, elector, ctx),
-            new AwsBucketCollection(dsFactory, elector, ctx)
+            new AwsBucketCollection(dsFactory, elector, ctx),
+            new GroupAutoScalingGroups(asg.crawler, dsFactory, elector, ctx)
         )
     }
 }
@@ -202,4 +205,60 @@ class AwsBucketCollection(
 ) extends AwsCollection("aws.buckets", ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsBucketCrawler(name, ctx)
+}
+
+class GroupAutoScalingGroups(
+    val crawler: AwsAutoScalingGroupCrawler,
+    dsFactory: String => Option[Datastore],
+    val elector: Elector,
+    val ctx: AwsCollection.Context
+) extends AwsCollection("group.autoScalingGroups", ctx) {
+    val datastore: Option[Datastore] = dsFactory(name)
+
+    // we dont need to refresh out crawler/collection, it will be 
+    // done for us by the AwsAutoScalingGroupCollection
+    override protected
+    def refresher = Unit
+
+    override protected
+    def delta(newRecords: Seq[Record], oldRecords: Seq[Record]) =  {
+        // newRecords will be from the ASG crawler, we need to convert it
+        // to the Group records first then call parent delta
+        val oldMap = oldRecords.map(rec => rec.id -> rec)
+        
+        val instanceSlots = oldRecords.flatMap( rec => {
+            rec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[List[Map[String,Any]]].map(
+                inst => inst("instanceId").asInstanceOf[String] -> inst("slot").asInstanceOf[Int] )
+        }).toMap
+
+        // rec => { "instances": [{"instanceId": "i-123456789", "slot": 0}], "name": "asg" }
+        val modNewRecords = newRecords.map(
+            asgRec => {
+                val instances = asgRec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[List[Map[String,Any]]]
+                val usedSlots: Set[Int] = instances.map(
+                    inst => inst("instanceId").asInstanceOf[String]
+                ) collect {
+                    case id: String if instanceSlots.contains(id) => instanceSlots(id)
+                } toSet
+                var unusedSlots = Range(0, instances.size).collect {
+                    case slot if !usedSlots.contains(slot) => slot
+                }
+
+                val newInstances = instances.map( inst => {
+                    val id = inst("instanceId").asInstanceOf[String]
+                    val slot = instanceSlots.get(id) match {
+                        case Some(slot) => slot
+                        case None => {
+                            val slot = unusedSlots.head
+                            unusedSlots = unusedSlots.tail
+                            slot
+                        }
+                    }
+                    Map("instanceId" -> id, "slot" -> slot)
+                }).sortWith( (a,b) => a("slot").asInstanceOf[Int] < b("slot").asInstanceOf[Int] )
+                asgRec.copy(data=Map("name" -> asgRec.id, "instances" -> newInstances))
+            }
+        )
+        super.delta(modNewRecords, oldRecords)
+    }
 }

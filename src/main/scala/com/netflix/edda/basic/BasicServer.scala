@@ -17,7 +17,11 @@
  */
 package com.netflix.edda.basic;
 
+import com.netflix.edda.aws.AwsBeanMapper
+import com.netflix.edda.aws.AwsCollectionBuilder
 import com.netflix.edda.CollectionManager
+import com.netflix.edda.mongo.MongoDatastore
+import com.netflix.edda.mongo.MongoElector
 
 import javax.servlet.http.HttpServlet
 
@@ -29,7 +33,11 @@ class BasicServer extends HttpServlet {
     override
     def init = {
         logger.info("Staring Server");
-        new BasicCollectionBuilder().build().foreach(
+        val dsFactory = (name: String) => Some(new MongoDatastore(BasicContext, name))
+        val elector = new MongoElector(BasicContext)
+        
+        val bm = new BasicBeanMapper(BasicContext) with AwsBeanMapper
+        AwsCollectionBuilder.buildAll(BasicContext, bm, elector, dsFactory).foreach(
             pair => {
                 CollectionManager.register(pair._1, pair._2)
             }

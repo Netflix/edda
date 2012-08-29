@@ -11,19 +11,20 @@ case class ElectorState(isLeader: Boolean = false)
 
 object Elector extends StateMachine.LocalState[ElectorState] {
     // Message sent to observers
-    case class ElectionResult(result: Boolean) extends StateMachine.Message
+    case class ElectionResult(from: Actor, result: Boolean) extends StateMachine.Message
 
     // internal messages
-    private case class RunElection() extends StateMachine.Message
-    private case class IsLeader()    extends StateMachine.Message
+    private case class RunElection(from: Actor) extends StateMachine.Message
+    private case class IsLeader(from: Actor)    extends StateMachine.Message
 }
 
 abstract class Elector( ctx: ConfigContext ) extends Observable {
     import Elector._
 
     def isLeader(): Boolean = {
-        this !? IsLeader() match {
-            case ElectionResult(result) => result
+        val self = this
+        this !? IsLeader(this) match {
+            case ElectionResult(`self`,result) => result
             case message => throw new java.lang.UnsupportedOperationException("Failed to determine leadership: " + message);
         }
     }
@@ -43,7 +44,7 @@ abstract class Elector( ctx: ConfigContext ) extends Observable {
         Actor.actor {
             this.addObserver(this)
         }
-        this ! RunElection()
+        this ! RunElection(this)
         electionPoller()
     }
 
@@ -54,7 +55,7 @@ abstract class Elector( ctx: ConfigContext ) extends Observable {
             Actor.loop {
                 Actor.reactWithin(pollCycle) {
                     case TIMEOUT => {
-                        elector ! RunElection()
+                        elector ! RunElection(this)
                     }
                 }
             }
@@ -63,18 +64,18 @@ abstract class Elector( ctx: ConfigContext ) extends Observable {
 
     private
     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
-        case (RunElection(),state) => {
+        case (RunElection(from),state) => {
             Utils.NamedActor(this + " election runner") {
                 val result = runElection()
-                Observable.localState(state).observers.foreach( _ ! ElectionResult(result) )
+                Observable.localState(state).observers.foreach( _ ! ElectionResult(this,result) )
             }
             state
         }
-        case (ElectionResult(result), state) => {
+        case (ElectionResult(from,result), state) => {
             setLocalState(state,ElectorState(result))
         }
-        case (IsLeader(), state) => {
-            sender ! ElectionResult(localState(state).isLeader)
+        case (IsLeader(from), state) => {
+            sender ! ElectionResult(this,localState(state).isLeader)
             state
         }
     }

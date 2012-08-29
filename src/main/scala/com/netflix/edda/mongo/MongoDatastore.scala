@@ -48,7 +48,7 @@ object MongoDatastore {
                 o.keySet.asScala.map( (key: String) => (key -> mongoToScala(o.get(key))) ).toMap
             }
             case o: BasicDBList => {
-                o.asScala.map( mongoToScala(_) )
+                List.empty[Any] ++ o.asScala.map( mongoToScala(_) )
             }
             case o: Date => new DateTime(o)
             case o: AnyRef => o
@@ -173,7 +173,10 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
                 true   // upsert
             )
         } catch {
-            case e => logger.error("failed to upsert record: " + record, e)
+            case e => {
+                logger.error("failed to upsert record: " + record)
+                throw e
+            }
         }
     }
 

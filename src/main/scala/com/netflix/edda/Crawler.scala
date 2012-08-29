@@ -14,12 +14,12 @@ case class CrawlerState(records: Seq[Record] = Seq[Record](), crawlTime: Option[
 
 object Crawler extends StateMachine.LocalState[CrawlerState] {
     // Message sent to Observers
-    case class CrawlResult(newRecords: Seq[Record]) extends StateMachine.Message {
+    case class CrawlResult(from: Actor, newRecords: Seq[Record]) extends StateMachine.Message {
         override def toString = "CrawlResult(newRecords=" + newRecords.size + ")"
     }
 
     // internal messages
-    private case class Crawl() extends StateMachine.Message
+    private case class Crawl(from: Actor) extends StateMachine.Message
 }
 
 abstract class Crawler( ctx: ConfigContext ) extends Observable {
@@ -29,7 +29,7 @@ abstract class Crawler( ctx: ConfigContext ) extends Observable {
     lazy val enabled = ctx.config.getProperty("edda.crawler." + name + ".enabled", "true").toBoolean
 
     def crawl() {
-        if( enabled ) this ! Crawl()
+        if( enabled ) this ! Crawl(this)
     }
     
     def name: String
@@ -55,7 +55,7 @@ abstract class Crawler( ctx: ConfigContext ) extends Observable {
     
     private
     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
-        case (Crawl(),state) => {
+        case (Crawl(from),state) => {
             // val crawlTime = localState(state).crawlTime
             // val now = DateTime.now()
             // if( crawlTime == None || crawlTime.get.isBefore(now.minusMillis(minCycle)) ) {
@@ -77,7 +77,7 @@ abstract class Crawler( ctx: ConfigContext ) extends Observable {
                 this, newRecords.size, stopwatch.getDuration(TimeUnit.MILLISECONDS)/1000D -> "%.2f"
             ))
             crawlCounter.increment
-            Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(newRecords) )
+            Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(this, newRecords) )
             setLocalState(state, CrawlerState(records=newRecords))
             
             // } else state

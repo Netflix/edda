@@ -22,10 +22,10 @@ object Collection extends StateMachine.LocalState[CollectionState] {
     }
     
     // message sent to observers
-    case class DeltaResult(delta: Delta) extends StateMachine.Message
+    case class DeltaResult(from: Actor, delta: Delta) extends StateMachine.Message
 
     // internal messages
-    private case class Load() extends StateMachine.Message
+    private case class Load(from: Actor) extends StateMachine.Message
 }
 
 abstract class Collection( ctx: Collection.Context ) extends Queryable {
@@ -50,7 +50,11 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
                 logger.warn("Datastore is not available, applying query to cached records")
             }
         }
-        firstOf( limit, localState(state).records.filter( record => ctx.recordMatcher.doesMatch(queryMap, record.toMap ) ))
+        if(queryMap.isEmpty) {
+            firstOf( limit, localState(state).records)
+        } else {
+            firstOf( limit, localState(state).records.filter( record => ctx.recordMatcher.doesMatch(queryMap, record.toMap ) ))
+        }
     }
 
     protected
@@ -91,14 +95,12 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
         lazy val path = name.replace('.','/')
         addedMap.values.foreach(
             rec => {
-                lazy val diff: String = Utils.diffRecords(Array(rec, null), Some(1), path)
-                logger.info("\n{}", diff)
+                logger.info("Added {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
             }
         )
         removedMap.values.foreach(
             rec => {
-                lazy val diff: String = Utils.diffRecords(Array(null, rec), Some(1), path)
-                logger.info("\n{}", diff)
+                logger.info("Removing {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
             }
         )
         changes.values.foreach( 
@@ -164,10 +166,10 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
                 val timeout = if ( amLeader ) refresh else cacheRefresh
                 Actor.reactWithin( timeLeft(lastRun, timeout) ) {
                     case TIMEOUT => {
-                        if( amLeader ) crawler.crawl() else this ! Load()
+                        if( amLeader ) crawler.crawl() else this ! Load(this)
                         lastRun = DateTime.now
                     }
-                    case Elector.ElectionResult(result) => {
+                    case Elector.ElectionResult(from, result) => {
                         // if we just became leader, then start a crawl
                         if( !amLeader && result ) {
                             crawler.crawl()
@@ -193,7 +195,7 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
 
     private
     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
-        case (Load(),state) => {
+        case (Load(from),state) => {
             val self: Actor = this
             NamedActor(this + " Load processor") {
                 val stopwatch = loadTimer.start()
@@ -211,22 +213,22 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
                 logger.info("{} Loaded {} records in {} sec", toObjects(
                     this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS)/1000.0 -> "%.2f"
                 ))
-                self ! Crawler.CrawlResult( if(records.size == 0) localState(state).records else records )
+                self ! Crawler.CrawlResult(this, if(records.size == 0) localState(state).records else records )
             }
             state
         }
-        case (Crawler.CrawlResult(newRecords),state) => {
+        case (Crawler.CrawlResult(from, newRecords),state) => {
             // only propagate if newRecords are not the same as the last crawled result
             if( newRecords ne localState(state).crawled ) {
                 NamedActor(this + " CrawlResult processor") {
                     val d: Delta = delta(newRecords, localState(state).records)
-                    Observable.localState(state).observers.foreach( _ ! DeltaResult(d) )
+                    Observable.localState(state).observers.foreach( _ ! DeltaResult(this, d) )
                 }
                 setLocalState(state, localState(state).copy(crawled=newRecords))
             }
             else state
         }
-        case (DeltaResult(d),state) => {
+        case (DeltaResult(from, d),state) => {
             // only propagate if the delta records are not the same as the current cached records
             if( d.records ne localState(state).records ) {
                 if( localState(state).amLeader ) {
@@ -252,7 +254,7 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
             }
             else state
         }
-        case (Elector.ElectionResult(result),state) => {
+        case (Elector.ElectionResult(from, result),state) => {
             setLocalState(state, localState(state).copy(amLeader=result))
         }
     }
