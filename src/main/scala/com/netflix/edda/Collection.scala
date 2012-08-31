@@ -92,24 +92,6 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
             removedMap.contains(pair._1) || addedMap.contains(pair._1) || newMap(pair._1).sameData(oldMap(pair._1))
         }).map( pair => pair._1 -> RecordUpdate(oldMap(pair._1).copy(mtime=now,ltime=now), pair._2) )
 
-        lazy val path = name.replace('.','/')
-        addedMap.values.foreach(
-            rec => {
-                logger.info("Added {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
-            }
-        )
-        removedMap.values.foreach(
-            rec => {
-                logger.info("Removing {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
-            }
-        )
-        changes.values.foreach( 
-            update => {
-                lazy val diff: String = Utils.diffRecords(Array(update.newRecord, update.oldRecord), Some(1), path)
-                logger.info("\n{}", diff)
-            }
-        )
-
         // need to reset stime,ctime,tags for crawled records to match what we have in memory
         val fixedRecords = newRecords.collect {
             case rec: Record if changes.contains(rec.id) =>
@@ -222,6 +204,25 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
             if( newRecords ne localState(state).crawled ) {
                 NamedActor(this + " CrawlResult processor") {
                     val d: Delta = delta(newRecords, localState(state).records)
+
+                    lazy val path = name.replace('.','/')
+                    d.added.foreach(
+                        rec => {
+                            logger.info("Added {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
+                        }
+                    )
+                    d.removed.foreach(
+                        rec => {
+                            logger.info("Removing {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
+                        }
+                    )
+                    d.changed.foreach( 
+                        update => {
+                            lazy val diff: String = Utils.diffRecords(Array(update.newRecord, update.oldRecord), Some(1), path)
+                            logger.info("\n{}", diff)
+                        }
+                    )
+
                     Observable.localState(state).observers.foreach( _ ! DeltaResult(this, d) )
                 }
                 setLocalState(state, localState(state).copy(crawled=newRecords))

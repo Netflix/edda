@@ -211,10 +211,11 @@ class AwsInstanceHealthCrawler(val name: String, val ctx : AwsCrawler.Context, v
 
 class AwsLaunchConfigurationCrawler(val name: String, val ctx : AwsCrawler.Context) extends Crawler(ctx) {
     val request = new DescribeLaunchConfigurationsRequest
+    request.setMaxRecords(50)
     override def doCrawl = {
         val it = new AwsIterator() {
             def next = {
-                val response = ctx.awsClient.asg.describeLaunchConfigurations.withNextToken(this.nextToken.get)
+                val response = ctx.awsClient.asg.describeLaunchConfigurations(request.withNextToken(this.nextToken.get))
                 this.nextToken = Option(response.getNextToken)
                 response.getLaunchConfigurations.asScala.map( 
                     item => Record(item.getLaunchConfigurationName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))

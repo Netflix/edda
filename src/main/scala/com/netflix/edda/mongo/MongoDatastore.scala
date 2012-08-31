@@ -149,7 +149,10 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
         d.changed.foreach(
             pair => {
                 // logger.info("UPDATE\nOld: " + pair.oldRecord + "\nNew: " + pair.newRecord)
-                upsert(pair.oldRecord)
+                // only update oldRecord if the stime is changed
+                if( pair.oldRecord.stime != pair.newRecord.stime ) {
+                    upsert(pair.oldRecord)
+                }
                 upsert(pair.newRecord)
             }
         )
