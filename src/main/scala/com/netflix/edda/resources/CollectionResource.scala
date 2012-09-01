@@ -284,7 +284,7 @@ class CollectionResource {
     def selectRecords(collName: String, details: ReqDetails): Seq[Record] = {
         val coll = CollectionManager.get(collName).get
         val query = if(details.id != null) makeQuery(details) + ("id" -> details.id) else makeQuery(details)
-        return unique(coll.query(query, details.limit, details.live), details)
+        return unique(coll.query(query, details.limit, details.timeTravelling), details)
     }
 
     @GET

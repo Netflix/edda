@@ -230,12 +230,12 @@ class GroupAutoScalingGroups(
     override protected
     def refresher = Unit
 
-    implicit def recordOrdering: Ordering[Record] = Ordering.fromLessThan(_.stime isAfter _.stime)
+    implicit def recordOrdering: Ordering[Record] = Ordering.fromLessThan(_.stime isBefore _.stime)
     
     override
     def doQuery(queryMap: Map[String,Any], limit: Int, live: Boolean, state: StateMachine.State): Seq[Record] = {
         val records = super.doQuery(queryMap,limit,live,state)
-        records.groupBy(_.id).values.toSeq.sortBy(_.head).flatten
+        records.groupBy(_.id).values.toSeq.sortBy(_.head).map( mergeRecords(_) )
     }
 
     def mergeRecords(records: Seq[Record]): Record = {
@@ -246,7 +246,9 @@ class GroupAutoScalingGroups(
         var seen: Set[String] = Set()
         val instances = records.map(
             rec => {
-                rec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[List[Map[String,Any]]]
+                rec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[List[Map[String,Any]]].map(
+                    inst => inst ++ Map("end" -> rec.ltime)
+                )
             }
         ).flatten.filterNot(
             inst => {
@@ -260,7 +262,7 @@ class GroupAutoScalingGroups(
         )
         
         val rec = records.head
-        val data = rec.data.asInstanceOf[Map[String,Any]] ++ Map("instances" -> instances)
+        val data = rec.data.asInstanceOf[Map[String,Any]] ++ Map("instances" -> instances, "end" -> rec.ltime)
         return rec.copy(data=data)
     }
 
@@ -292,7 +294,12 @@ class GroupAutoScalingGroups(
 
                 val newInstances = instances.filter(
                     inst => {
-                        instanceMap.contains(inst("instanceId").asInstanceOf[String])
+                        val id = inst("instanceId").asInstanceOf[String]
+                        val bool = instanceMap.contains(id)
+                        if( !bool ) {
+                            logger.warn("asg: " + asgRec.id + " contains unknown instance: " + id)
+                        }
+                        bool
                     }
                 ).map(asgInst => { 
                     val id = asgInst("instanceId").asInstanceOf[String]
@@ -363,26 +370,22 @@ class GroupAutoScalingGroups(
             ).toSet
             
             val oldRec = oldMap(rec.id)
-            logger.info("oldInstanceSet: " + oldInstanceSet)
-            logger.info("newInstanceSet: " + newInstanceSet)
             if( newInstanceSet == oldInstanceSet ) {
-                logger.info("sets same")
                 rec.id -> Collection.RecordUpdate(oldRec, rec.copy(stime=oldRec.stime))
             } else {
-                logger.info("sets different")
                 // sets dont have same instances, so create new document revision
-                logger.info("old stime: " + oldRec.stime.getMillis)
-                logger.info("new stime: " + rec.stime.getMillis)
                 rec.id -> Collection.RecordUpdate(oldRec.copy(mtime=now,ltime=now), rec)
             }
         }).toMap
-        
+
         // need to reset stime,ctime,tags for crawled records to match what we have in memory
         val fixedRecords = modNewRecords.collect {
-            case rec: Record if changes.contains(rec.id) =>
-                oldMap(rec.id).copy(data=rec.data, mtime=now)
+            case rec: Record if changes.contains(rec.id) => {
+                val newRec = changes(rec.id).newRecord
+                oldMap(rec.id).copy(data=rec.data, mtime=newRec.mtime, stime=newRec.stime)
+            }
             case rec: Record if oldMap.contains(rec.id) => 
-                oldMap(rec.id).copy(data=rec.data, mtime=now)
+                oldMap(rec.id).copy(data=rec.data, mtime=rec.mtime)
             case rec: Record => rec
         }
 

@@ -20,7 +20,11 @@ object Utils {
     private[this] val logger = LoggerFactory.getLogger(getClass)
     private lazy val factory = new MappingJsonFactory
     private lazy val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
-    private lazy val dpp = new DefaultPrettyPrinter;
+    private lazy val dpp = {
+        val dpp = new DefaultPrettyPrinter
+        dpp.indentArraysWith(new DefaultPrettyPrinter.Lf2SpacesIndenter)
+        dpp
+    }
 
     case class NamedActor[T](name: String)(body: => T) extends Actor {
         override def toString = name
@@ -41,6 +45,15 @@ object Utils {
             case (v: Any, f: String) => f.format(v)
             case v: AnyRef  => v
         }).toArray[AnyRef]
+    }
+
+    def toPrettyJson(obj: Any): String = {
+        val baos = new ByteArrayOutputStream()
+        val gen = factory.createJsonGenerator(baos, UTF8)
+        gen.setPrettyPrinter(dpp)
+        toJson(gen, obj, dateFormatter)
+        gen.close;
+        baos.toString
     }
 
     def toJson(obj: Any): String = {

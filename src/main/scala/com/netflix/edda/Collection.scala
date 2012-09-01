@@ -88,16 +88,16 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
         )
         val addedMap   = newMap.filterNot( pair => oldMap.contains(pair._1) )
 
-        val changes = newMap.filterNot( pair => {
-            removedMap.contains(pair._1) || addedMap.contains(pair._1) || newMap(pair._1).sameData(oldMap(pair._1))
+        val changes = newMap.filter( pair => {
+            oldMap.contains(pair._1) && newMap.contains(pair._1) && !newMap(pair._1).sameData(oldMap(pair._1))
         }).map( pair => pair._1 -> RecordUpdate(oldMap(pair._1).copy(mtime=now,ltime=now), pair._2) )
 
         // need to reset stime,ctime,tags for crawled records to match what we have in memory
         val fixedRecords = newRecords.collect {
             case rec: Record if changes.contains(rec.id) =>
-                oldMap(rec.id).copy(data=rec.data, mtime=now, stime=now)
+                oldMap(rec.id).copy(data=rec.data, mtime=rec.mtime, stime=rec.stime)
             case rec: Record if oldMap.contains(rec.id) => 
-                oldMap(rec.id).copy(data=rec.data, mtime=now)
+                oldMap(rec.id).copy(data=rec.data, mtime=rec.mtime)
             case rec: Record => rec
         }
 

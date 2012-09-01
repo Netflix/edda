@@ -32,7 +32,7 @@ object MongoDatastore {
                     Option(o.get("id")).getOrElse(o.get("_id")).asInstanceOf[String],
                     new DateTime(o.get("ctime").asInstanceOf[Date]),
                     new DateTime(Option(o.get("stime")).getOrElse(o.get("ctime")).asInstanceOf[Date]),
-                    new DateTime(o.get("ltime").asInstanceOf[Date]),
+                    Option(o.get("ltime")) match { case Some(date: Date) => new DateTime(date); case None => null },
                     new DateTime(o.get("mtime").asInstanceOf[Date]),
                     mongoToScala(o.get("data")),
                     mongoToScala(o.get("tags")).asInstanceOf[Map[String,String]]
@@ -123,6 +123,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
     override
     def query(queryMap: Map[String,Any], limit: Int): List[Record] = {
         import collection.JavaConverters.iterableAsScalaIterableConverter
+        logger.info("mongo query: " + queryMap)
         val cursor = mongo.find(mapToMongo(queryMap)).sort(stimeIdSort);
         try {
             cursor.asScala.map( mongoToRecord(_) ).toList
