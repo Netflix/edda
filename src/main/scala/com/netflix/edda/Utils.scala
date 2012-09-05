@@ -13,6 +13,7 @@ import org.codehaus.jackson.JsonGenerator
 import org.codehaus.jackson.JsonEncoding.UTF8
 import org.codehaus.jackson.util.DefaultPrettyPrinter
 import org.codehaus.jackson.map.MappingJsonFactory
+import org.codehaus.jackson.JsonNode
 
 import org.slf4j.{Logger, LoggerFactory}
 
@@ -91,6 +92,27 @@ object Utils {
             case v => { 
                 throw new java.lang.RuntimeException("unable to convert \"" + v + "\" to json")
             }
+        }
+    }
+
+    def fromJson(node: JsonNode): Any = {
+        import scala.collection.JavaConverters._
+        node match {
+            case _ if node.isBigDecimal => node.getDecimalValue
+            case _ if node.isBigInteger => node.getBigIntegerValue
+            case _ if node.isBoolean    => node.getBooleanValue
+            case _ if node.isLong       => node.getLongValue
+            case _ if node.isInt        => node.getIntValue
+            case _ if node.isDouble     => node.getDoubleValue
+            case _ if node.isTextual    => node.getTextValue
+            case _ if node.isNull       => null
+            case _ if node.isObject     => {
+                node.getFieldNames.asScala.map(
+                    key => key -> fromJson( node.get(key) )
+                ).toMap
+            }
+            case _ if node.isArray      => node.getElements.asScala.map( fromJson(_) ).toList
+            case _ => throw new java.lang.RuntimeException("unable to convert from Json to Scala: " + node)
         }
     }
 
