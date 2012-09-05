@@ -17,7 +17,7 @@ import org.joda.time.DateTime
 
 object AwsCollectionBuilder {
     def buildAll(ctx: Collection.Context, bm: BeanMapper, elector: Elector, dsFactory: String => Option[Datastore]): Map[String,Queryable] = {
-        val accounts = ctx.config.getProperty("edda.aws.accounts","").split(",");
+        val accounts = ctx.config.getProperty("edda.accounts","").split(",");
         val accountContexts = accounts.map(
             account => account -> new AwsCollection.Context {
                 val config = ctx.config
