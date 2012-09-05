@@ -76,7 +76,7 @@ abstract class Crawler( ctx: ConfigContext ) extends Observable {
             logger.info("{} Crawled {} records in {} sec", toObjects(
                 this, newRecords.size, stopwatch.getDuration(TimeUnit.MILLISECONDS)/1000D -> "%.2f"
             ))
-            crawlCounter.increment
+            crawlCounter.increment(newRecords.size)
             Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(this, newRecords) )
             setLocalState(state, CrawlerState(records=newRecords))
             
