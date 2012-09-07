@@ -11,9 +11,12 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
     private[this] val logger = LoggerFactory.getLogger(getClass)
 
     protected
-    def doQuery(queryMap: Map[String,Any], limit: Int, live: Boolean, state: StateMachine.State): Seq[Record] = {
+    def doQuery(queryMap: Map[String,Any], limit: Int, live: Boolean, keys: Set[String], state: StateMachine.State): Seq[Record] = {
+        // if they have specified a subset of keys, then we need to make
+        // sure stime is in there so we can sort
+        val requiredKeys = if( keys.isEmpty ) keys else (keys + "stime")
         val tasks = collections.map(c => future {
-            c.query(queryMap,limit,live)
+            c.query(queryMap,limit,live,requiredKeys)
         })
         val records = awaitAll(300000L, tasks:_*) match { 
             case Nil => Seq()

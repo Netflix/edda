@@ -2,6 +2,7 @@ package com.netflix.edda.aws
 
 import com.netflix.edda.Collection
 import com.netflix.edda.MergedCollection
+import com.netflix.edda.GroupCollection
 import com.netflix.edda.Crawler
 import com.netflix.edda.Elector
 import com.netflix.edda.Queryable
@@ -27,7 +28,7 @@ object AwsCollectionBuilder {
                     account,
                     config.getProperty("edda.aws." + account + ".accessKey", config.getProperty("edda.aws.accessKey")),
                     config.getProperty("edda.aws." + account + ".secretKey", config.getProperty("edda.aws.secretKey")),
-                    config.getProperty("edda.aws." + account + ".region",    config.getProperty("edda.aws.region"))
+                    config.getProperty("edda." + account + ".region",    config.getProperty("edda.region"))
                 )
             }
         ).toMap
@@ -219,59 +220,19 @@ class GroupAutoScalingGroups(
     dsFactory: String => Option[Datastore],
     val elector: Elector,
     val ctx: AwsCollection.Context
-) extends AwsCollection("group.autoScalingGroups", ctx) {
+) extends AwsCollection("group.autoScalingGroups", ctx) with GroupCollection {
     val crawler = asgCollection.crawler
     val datastore: Option[Datastore] = dsFactory(name)
 
     private[this] val logger = LoggerFactory.getLogger(getClass)
 
-    // we dont need to refresh out crawler/collection, it will be 
-    // done for us by the AwsAutoScalingGroupCollection
-    override protected
-    def refresher = Unit
-
-    implicit def recordOrdering: Ordering[Record] = Ordering.fromLessThan(_.stime isBefore _.stime)
-    
-    override
-    def doQuery(queryMap: Map[String,Any], limit: Int, live: Boolean, state: StateMachine.State): Seq[Record] = {
-        val records = super.doQuery(queryMap,limit,live,state)
-        records.groupBy(_.id).values.toSeq.sortBy(_.head).map( mergeRecords(_) )
-    }
-
-    def mergeRecords(records: Seq[Record]): Record = {
-        if( records.size == 1 ) {
-            return records.head
-        }
-
-        var seen: Set[String] = Set()
-        val instances = records.map(
-            rec => {
-                rec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[List[Map[String,Any]]].map(
-                    inst => inst ++ Map("end" -> rec.ltime)
-                )
-            }
-        ).flatten.filterNot(
-            inst => {
-                val id = inst("instanceId").asInstanceOf[String]
-                val skip = seen.contains(id)
-                if( !skip ) {
-                    seen = seen + id
-                }
-                skip
-            }
-        )
-        
-        val rec = records.head
-        val data = rec.data.asInstanceOf[Map[String,Any]] ++ Map("instances" -> instances, "end" -> rec.ltime)
-        return rec.copy(data=data)
-    }
+    // used in GroupCollection
+    val mergeKeys = Map("instances" -> "instanceId")
 
     override protected
     def delta(newRecords: Seq[Record], oldRecords: Seq[Record]) =  {
         // newRecords will be from the ASG crawler, we need to convert it
-        // to the Group records
-
-        val oldMap = oldRecords.map( rec => rec.id -> rec).toMap
+        // to the Group records then call groupDelta
 
         val instanceSlots = oldRecords.flatMap( rec => {
             rec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[List[Map[String,Any]]].map(
@@ -344,51 +305,6 @@ class GroupAutoScalingGroups(
                 asgRec.copy(data=data)
             }
         )
-
-        val newMap = modNewRecords.map( rec => rec.id -> rec).toMap
-        
-        val now=DateTime.now
-
-        val removed = oldRecords.filterNot(
-            rec => newMap.contains(rec.id)
-        ).map(
-            rec => rec.copy(mtime=now,ltime=now)
-        )
-
-        val added = modNewRecords.filterNot( rec => oldMap.contains(rec.id) )
-        
-        val changes = modNewRecords.filter( rec => {
-            oldMap.contains(rec.id) && newMap.contains(rec.id) && !newMap(rec.id).sameData(oldMap(rec.id))
-        }).map( rec => {
-            // if we have new instances then we increment stime, otherwise just update to new document
-            val newInstanceSet = rec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[List[Map[String,Any]]].map(
-                inst => inst("instanceId").asInstanceOf[String]
-            ).toSet
-
-            val oldInstanceSet = oldMap(rec.id).data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[List[Map[String,Any]]].map(
-                inst => inst("instanceId").asInstanceOf[String]
-            ).toSet
-            
-            val oldRec = oldMap(rec.id)
-            if( newInstanceSet == oldInstanceSet ) {
-                rec.id -> Collection.RecordUpdate(oldRec, rec.copy(stime=oldRec.stime))
-            } else {
-                // sets dont have same instances, so create new document revision
-                rec.id -> Collection.RecordUpdate(oldRec.copy(mtime=now,ltime=now), rec)
-            }
-        }).toMap
-
-        // need to reset stime,ctime,tags for crawled records to match what we have in memory
-        val fixedRecords = modNewRecords.collect {
-            case rec: Record if changes.contains(rec.id) => {
-                val newRec = changes(rec.id).newRecord
-                oldMap(rec.id).copy(data=rec.data, mtime=newRec.mtime, stime=newRec.stime)
-            }
-            case rec: Record if oldMap.contains(rec.id) => 
-                oldMap(rec.id).copy(data=rec.data, mtime=rec.mtime)
-            case rec: Record => rec
-        }
-
-        Collection.Delta(fixedRecords, changed=changes.values.toSeq, added=added, removed=removed)
+        groupDelta(modNewRecords,oldRecords)
     }
 }

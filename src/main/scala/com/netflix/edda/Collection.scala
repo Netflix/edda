@@ -41,11 +41,11 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
     def elector: Elector
     
     protected
-    def doQuery(queryMap: Map[String,Any], limit: Int, live: Boolean, state: StateMachine.State): Seq[Record] = {
+    def doQuery(queryMap: Map[String,Any], limit: Int, live: Boolean, keys: Set[String], state: StateMachine.State): Seq[Record] = {
         // generate function
         if( live ) {
             if( datastore.isDefined ) {
-                return datastore.get.query(queryMap, limit)
+                return datastore.get.query(queryMap, limit, keys)
             } else {
                 logger.warn("Datastore is not available, applying query to cached records")
             }

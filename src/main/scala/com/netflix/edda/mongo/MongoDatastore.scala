@@ -121,23 +121,24 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
     private[this] val logger = LoggerFactory.getLogger(getClass)
 
     override
-    def query(queryMap: Map[String,Any], limit: Int): List[Record] = {
+    def query(queryMap: Map[String,Any], limit: Int, keys: Set[String]): Seq[Record] = {
         import collection.JavaConverters.iterableAsScalaIterableConverter
         logger.info("mongo query: " + queryMap)
-        val cursor = mongo.find(mapToMongo(queryMap)).sort(stimeIdSort);
+        val mongoKeys = if( keys.isEmpty ) null else mapToMongo(keys.map(_ -> 1).toMap)
+        val cursor = mongo.find(mapToMongo(queryMap), mongoKeys).sort(stimeIdSort);
         try {
-            cursor.asScala.map( mongoToRecord(_) ).toList
+            cursor.asScala.toStream.map( mongoToRecord(_) )
         } finally {
             cursor.close();
         }
     }
 
     override
-    def load(): List[Record] = {
+    def load(): Seq[Record] = {
         import collection.JavaConverters.iterableAsScalaIterableConverter
         val cursor = mongo.find(nullLtimeQuery).sort(stimeIdSort);
         try {
-            val x = cursor.asScala.map( mongoToRecord(_) ).toList
+            val x = cursor.asScala.map( mongoToRecord(_) ).toSeq
             logger.info(this + " Loaded " + x.size + " records")
             x
         } finally {
