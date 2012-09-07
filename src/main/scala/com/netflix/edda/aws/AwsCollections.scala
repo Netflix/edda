@@ -89,17 +89,9 @@ object AwsCollection {
 
     private[this] val logger = LoggerFactory.getLogger(getClass)
     // used for the group collections
-    def makeGroupInstances(asgRec: Record, instanceMap: Map[String,Record], slotMap: Map[String,Map[String,Int]]): Seq[Map[String,Any]] = {
+
+    def makeGroupInstances(asgRec: Record, instanceMap: Map[String,Record]): Seq[Map[String,Any]] = {
         val instances = asgRec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[List[Map[String,Any]]]
-        val usedSlots: Set[Int] = instances.map(
-            inst => inst("instanceId").asInstanceOf[String]
-        ) collect {
-            case id: String if slotMap("instances").contains(id) => slotMap("instances")(id)
-        } toSet
-        var unusedSlots = Range(0, instances.size).collect {
-            case slot if !usedSlots.contains(slot) => slot
-        }
-        
         val newInstances = instances.filter(
             inst => {
                 val id = inst("instanceId").asInstanceOf[String]
@@ -113,14 +105,6 @@ object AwsCollection {
             val id = asgInst("instanceId").asInstanceOf[String]
             val instance = instanceMap(id);
             val instanceData = instance.data.asInstanceOf[Map[String,Any]]
-            val slot = slotMap("instances").get(id) match {
-                case Some(slot) => slot
-                case None => {
-                    val slot = unusedSlots.head
-                    unusedSlots = unusedSlots.tail
-                    slot
-                }
-            }
             Map(
                 "availabilityZone" -> asgInst("availabilityZone"),
                 "imageId" -> instanceData.get("imageId").getOrElse(null),
@@ -131,12 +115,10 @@ object AwsCollection {
                 "privateIpAddress" -> instanceData.get("privateIpAddress").getOrElse(null),
                 "publicDnsName" -> instanceData.get("publicDnsName").getOrElse(null),
                 "publicIpAddress" -> instanceData.get("publicIpAddress").getOrElse(null),
-                "slot"  -> slot,
                 "start" -> instance.ctime,
                 "state" -> asgInst("lifecycleState")
             )
-        }).sortWith( (a,b) => a("slot").asInstanceOf[Int] < b("slot").asInstanceOf[Int] )
-
+        })
         newInstances
     }
 }
@@ -293,8 +275,11 @@ class GroupAutoScalingGroups(
 
         val modNewRecords = newRecords.map(
             asgRec => {
-
-                val newInstances = AwsCollection.makeGroupInstances(asgRec, instanceMap, slotMap)
+                val newInstances = assignSlots(
+                    AwsCollection.makeGroupInstances(asgRec, instanceMap),
+                    "instanceId",
+                    slotMap("instances")
+                )
                 val asgData = asgRec.data.asInstanceOf[Map[String,Any]]
                 val data = Map(
                     "desiredCapacity" -> asgData.get("desiredCapacity").getOrElse(null),

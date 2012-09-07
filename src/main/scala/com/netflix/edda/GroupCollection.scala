@@ -69,6 +69,34 @@ trait GroupCollection extends Collection {
         ).toMap
     }
 
+    def assignSlots(group: Seq[Map[String,Any]], groupKey: String, slotMap: Map[String,Int]): Seq[Map[String,Any]] = {
+
+        val usedSlots: Set[Int] = group.map(
+            item => item(groupKey).asInstanceOf[String]
+        ) collect {
+            case id: String if slotMap.contains(id) => slotMap(id)
+        } toSet
+
+        var unusedSlots = Range(0, group.size).collect {
+            case slot if !usedSlots.contains(slot) => slot
+        }
+        
+        group.map(
+            item => {
+                val id = item(groupKey).asInstanceOf[String]
+                val slot = slotMap.get(id) match {
+                    case Some(slot) => slot
+                    case None => {
+                        val slot = unusedSlots.head
+                        unusedSlots = unusedSlots.tail
+                        slot
+                    }
+                }
+                item + ("slot" -> slot)
+            }
+        ).sortWith( (a,b) => a("slot").asInstanceOf[Int] < b("slot").asInstanceOf[Int] )
+    }
+
     def groupDelta(newRecords: Seq[Record], oldRecords: Seq[Record]): Collection.Delta = {
         val oldMap = oldRecords.map( rec => rec.id -> rec).toMap
         val newMap = newRecords.map( rec => rec.id -> rec).toMap
