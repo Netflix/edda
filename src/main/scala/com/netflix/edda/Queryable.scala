@@ -12,7 +12,7 @@ object Queryable extends StateMachine.LocalState[CollectionState] {
 abstract class Queryable extends Observable {
     import Queryable._
 
-    def query(queryMap: Map[String,Any], limit: Int=0, live: Boolean = false, keys: Set[String] = Set()): Seq[Record] = {
+    def query(queryMap: Map[String,Any] = Map(), limit: Int=0, live: Boolean = false, keys: Set[String] = Set()): Seq[Record] = {
         val self = this
         this !? Query(this,queryMap,limit,live,keys) match {
             case QueryResult(`self`,results) => results

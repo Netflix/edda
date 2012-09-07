@@ -55,6 +55,20 @@ trait GroupCollection extends Collection {
         return rec.copy(data=data)
     }
 
+    def groupSlots(oldRecords: Seq[Record]): Map[String, Map[String,Int]] = {
+        mergeKeys.map(
+            pair => {
+                val groupName = pair._1
+                val groupKey  = pair._2
+                
+                groupName -> oldRecords.flatMap( rec => {
+                    rec.data.asInstanceOf[Map[String,Any]](groupName).asInstanceOf[List[Map[String,Any]]].map(
+                        item => item(groupKey).asInstanceOf[String] -> item("slot").asInstanceOf[Int] )
+                }).toMap
+            }
+        ).toMap
+    }
+
     def groupDelta(newRecords: Seq[Record], oldRecords: Seq[Record]): Collection.Delta = {
         val oldMap = oldRecords.map( rec => rec.id -> rec).toMap
         val newMap = newRecords.map( rec => rec.id -> rec).toMap

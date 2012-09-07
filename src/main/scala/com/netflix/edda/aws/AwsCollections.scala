@@ -86,6 +86,59 @@ object AwsCollectionBuilder {
 
 object AwsCollection {
     abstract class Context() extends Collection.Context with AwsCrawler.Context;
+
+    private[this] val logger = LoggerFactory.getLogger(getClass)
+    // used for the group collections
+    def makeGroupInstances(asgRec: Record, instanceMap: Map[String,Record], slotMap: Map[String,Map[String,Int]]): Seq[Map[String,Any]] = {
+        val instances = asgRec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[List[Map[String,Any]]]
+        val usedSlots: Set[Int] = instances.map(
+            inst => inst("instanceId").asInstanceOf[String]
+        ) collect {
+            case id: String if slotMap("instances").contains(id) => slotMap("instances")(id)
+        } toSet
+        var unusedSlots = Range(0, instances.size).collect {
+            case slot if !usedSlots.contains(slot) => slot
+        }
+        
+        val newInstances = instances.filter(
+            inst => {
+                val id = inst("instanceId").asInstanceOf[String]
+                val bool = instanceMap.contains(id)
+                if( !bool ) {
+                    logger.warn("asg: " + asgRec.id + " contains unknown instance: " + id)
+                }
+                bool
+            }
+        ).map(asgInst => { 
+            val id = asgInst("instanceId").asInstanceOf[String]
+            val instance = instanceMap(id);
+            val instanceData = instance.data.asInstanceOf[Map[String,Any]]
+            val slot = slotMap("instances").get(id) match {
+                case Some(slot) => slot
+                case None => {
+                    val slot = unusedSlots.head
+                    unusedSlots = unusedSlots.tail
+                    slot
+                }
+            }
+            Map(
+                "availabilityZone" -> asgInst("availabilityZone"),
+                "imageId" -> instanceData.get("imageId").getOrElse(null),
+                "instanceId" -> id,
+                "instanceType" -> instanceData.get("instanceType").getOrElse(null),
+                "launchTime" -> instance.ctime,
+                "platform" -> instanceData.get("platform").getOrElse(null),
+                "privateIpAddress" -> instanceData.get("privateIpAddress").getOrElse(null),
+                "publicDnsName" -> instanceData.get("publicDnsName").getOrElse(null),
+                "publicIpAddress" -> instanceData.get("publicIpAddress").getOrElse(null),
+                "slot"  -> slot,
+                "start" -> instance.ctime,
+                "state" -> asgInst("lifecycleState")
+            )
+        }).sortWith( (a,b) => a("slot").asInstanceOf[Int] < b("slot").asInstanceOf[Int] )
+
+        newInstances
+    }
 }
 
 abstract class AwsCollection(val rootName: String, ctx: AwsCollection.Context) extends Collection(ctx) {
@@ -234,62 +287,14 @@ class GroupAutoScalingGroups(
         // newRecords will be from the ASG crawler, we need to convert it
         // to the Group records then call groupDelta
 
-        val instanceSlots = oldRecords.flatMap( rec => {
-            rec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[List[Map[String,Any]]].map(
-                inst => inst("instanceId").asInstanceOf[String] -> inst("slot").asInstanceOf[Int] )
-        }).toMap
+        val slotMap = groupSlots(oldRecords)
 
         val instanceMap = instanceCollection.query(Map.empty).map(rec => rec.id -> rec).toMap
 
         val modNewRecords = newRecords.map(
             asgRec => {
-                val instances = asgRec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[List[Map[String,Any]]]
-                val usedSlots: Set[Int] = instances.map(
-                    inst => inst("instanceId").asInstanceOf[String]
-                ) collect {
-                    case id: String if instanceSlots.contains(id) => instanceSlots(id)
-                } toSet
-                var unusedSlots = Range(0, instances.size).collect {
-                    case slot if !usedSlots.contains(slot) => slot
-                }
 
-                val newInstances = instances.filter(
-                    inst => {
-                        val id = inst("instanceId").asInstanceOf[String]
-                        val bool = instanceMap.contains(id)
-                        if( !bool ) {
-                            logger.warn("asg: " + asgRec.id + " contains unknown instance: " + id)
-                        }
-                        bool
-                    }
-                ).map(asgInst => { 
-                    val id = asgInst("instanceId").asInstanceOf[String]
-                    val instance = instanceMap(id);
-                    val instanceData = instance.data.asInstanceOf[Map[String,Any]]
-                    val slot = instanceSlots.get(id) match {
-                        case Some(slot) => slot
-                        case None => {
-                            val slot = unusedSlots.head
-                            unusedSlots = unusedSlots.tail
-                            slot
-                        }
-                    }
-                    Map(
-                        "availabilityZone" -> asgInst("availabilityZone"),
-                        "imageId" -> instanceData.get("imageId").getOrElse(null),
-                        "instanceId" -> id,
-                        "instanceType" -> instanceData.get("instanceType").getOrElse(null),
-                        "launchTime" -> instance.ctime,
-                        "platform" -> instanceData.get("platform").getOrElse(null),
-                        "privateIpAddress" -> instanceData.get("privateIpAddress").getOrElse(null),
-                        "publicDnsName" -> instanceData.get("publicDnsName").getOrElse(null),
-                        "publicIpAddress" -> instanceData.get("publicIpAddress").getOrElse(null),
-                        "slot"  -> slot,
-                        "start" -> instance.ctime,
-                        "state" -> asgInst("lifecycleState")
-                    )
-                }).sortWith( (a,b) => a("slot").asInstanceOf[Int] < b("slot").asInstanceOf[Int] )
-
+                val newInstances = AwsCollection.makeGroupInstances(asgRec, instanceMap, slotMap)
                 val asgData = asgRec.data.asInstanceOf[Map[String,Any]]
                 val data = Map(
                     "desiredCapacity" -> asgData.get("desiredCapacity").getOrElse(null),
