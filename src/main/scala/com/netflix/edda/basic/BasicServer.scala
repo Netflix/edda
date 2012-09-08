@@ -37,11 +37,8 @@ class BasicServer extends HttpServlet {
         val elector = new MongoElector(BasicContext)
         
         val bm = new BasicBeanMapper(BasicContext) with AwsBeanMapper
-        AwsCollectionBuilder.buildAll(BasicContext, bm, elector, dsFactory).foreach(
-            pair => {
-                CollectionManager.register(pair._1, pair._2)
-            }
-        )
+        AwsCollectionBuilder.buildAll(BasicContext, bm, elector, dsFactory)
+
         logger.info("Starting Collections");
         CollectionManager.start
 

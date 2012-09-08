@@ -17,7 +17,7 @@ import org.slf4j.{Logger, LoggerFactory}
 import org.joda.time.DateTime
 
 object AwsCollectionBuilder {
-    def buildAll(ctx: Collection.Context, bm: BeanMapper, elector: Elector, dsFactory: String => Option[Datastore]): Map[String,Queryable] = {
+    def buildAll(ctx: Collection.Context, bm: BeanMapper, elector: Elector, dsFactory: String => Option[Datastore]) {
         val accounts = ctx.config.getProperty("edda.accounts","").split(",");
         val accountContexts = accounts.map(
             account => account -> new AwsCollection.Context {
@@ -33,7 +33,7 @@ object AwsCollectionBuilder {
             }
         ).toMap
 
-        if( accounts.size > 1 ) {
+        val collMap = if( accounts.size > 1 ) {
             // this give us:
             // Map[String,Array[com.netflix.edda.Collection]]
             val accountCollections = accounts.flatMap(
@@ -58,6 +58,8 @@ object AwsCollectionBuilder {
                 collection => collection.rootName -> collection
             ).toMap
         }
+
+        collMap.foreach( pair => CollectionManager.register(pair._1,pair._2) )
     }
         
     def mkCollections(  ctx: AwsCollection.Context, elector: Elector, dsFactory: String => Option[Datastore]): Seq[AwsCollection] = {
