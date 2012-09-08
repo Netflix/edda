@@ -1,6 +1,7 @@
 package com.netflix.edda.aws
 
 import com.netflix.edda.Collection
+import com.netflix.edda.CollectionManager
 import com.netflix.edda.MergedCollection
 import com.netflix.edda.GroupCollection
 import com.netflix.edda.Crawler
