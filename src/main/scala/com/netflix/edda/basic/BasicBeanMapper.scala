@@ -69,18 +69,9 @@ class BasicBeanMapper(val ctx: ConfigContext) extends BeanMapper {
         }
     }
 
-    private[this] var keyMappers: PartialFunction[(AnyRef,String,Option[Any]),Option[Any]] = {
-        case (obj,key,value) => value
-    }
-    
-    def fromBean(obj: AnyRef): AnyRef = {
-        import scala.collection.JavaConverters._
-        if (obj.getClass.isEnum) {
-            Map(
-                "class" -> obj.getClass.getName,
-                "name" -> obj.getClass.getMethod("name").invoke(obj).asInstanceOf[String]
-            )
-        } else {
+    private[this] var objMappers: PartialFunction[AnyRef,AnyRef] = {
+        case obj => {
+            import scala.collection.JavaConverters._
             val beanMap = new BeanMap(obj)
             val entries = beanMap.entrySet.asScala.toList.sortBy(_.asInstanceOf[java.util.Map.Entry[String,Any]].getKey.toLowerCase)
             entries.map(
@@ -90,11 +81,29 @@ class BasicBeanMapper(val ctx: ConfigContext) extends BeanMapper {
                     entry.getKey -> keyMappers(obj,entry.getKey,value)
                 }
             ).collect({
-//                case (name: String, Some(value)) if ignorePattern.findFirstIn(name) == None =>
                 case (name: String, Some(value)) =>
                     argPattern.replaceAllIn(name,"_") -> value
             }).toMap
         }
+    }
+
+    private[this] var keyMappers: PartialFunction[(AnyRef,String,Option[Any]),Option[Any]] = {
+        case (obj,key,value) => value
+    }
+    
+    def fromBean(obj: AnyRef): AnyRef = {
+        if (obj.getClass.isEnum) {
+            Map(
+                "class" -> obj.getClass.getName,
+                "name" -> obj.getClass.getMethod("name").invoke(obj).asInstanceOf[String]
+            )
+        } else {
+            objMappers(obj)
+        }
+    }
+
+    def addObjMapper( pf: PartialFunction[AnyRef,AnyRef] ) {
+        objMappers = pf orElse objMappers
     }
 
     def addKeyMapper( pf: PartialFunction[(AnyRef,String,Option[Any]),Option[Any]] ) {
