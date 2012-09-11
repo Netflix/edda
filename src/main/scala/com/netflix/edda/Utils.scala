@@ -5,6 +5,7 @@ import scala.actors.Actor
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.util.Date
+import java.util.Properties
 import java.text.SimpleDateFormat
 
 import org.joda.time.DateTime
@@ -26,6 +27,21 @@ object Utils {
         override def toString = name
         override def act = body
         start
+    }
+
+    // allow for heirarchical properties
+    // so if we have prefix = "p", propName = "n", nameContext  = "a.b.c" then 
+    // it will look for p.a.b.c.n, then p.a.b.n, then p.a.n, then p.n else return dflt
+    def getProperty(props: Properties, prefix: String, propName: String, nameContext: String, dflt: String): String = {
+        val parts = nameContext.split('.')
+        Range(1, parts.size+1).reverse.map(
+            ix => prefix + "." + parts.take(ix).mkString(".") + "." + propName
+        ) collectFirst {
+            case prop: String if props.containsKey(prop) => props.getProperty(prop)
+        } match {
+            case Some(value) => value.asInstanceOf[String]
+            case None => props.getProperty(prefix + "." + propName, dflt)
+        }
     }
 
     def toObjects(args: Any*): Array[AnyRef] = {

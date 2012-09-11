@@ -33,7 +33,7 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
     import Utils._
 
     private[this] val logger = LoggerFactory.getLogger(getClass)
-    lazy val enabled = ctx.config.getProperty("edda.collection." + name + ".enabled", "true").toBoolean
+    lazy val enabled = Utils.getProperty(ctx.config,"edda.collection", "enabled", name, "true").toBoolean
 
     def name: String
     def crawler: Crawler
@@ -132,14 +132,8 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
     protected
     def refresher {
         if( Option(crawler) == None || Option(elector) == None ) return
-        val refresh = ctx.config.getProperty(
-            "edda.collection." + name + ".refresh",
-            ctx.config.getProperty("edda.collection.refresh", "60000")
-        ).toLong
-        val cacheRefresh = ctx.config.getProperty(
-            "edda.collection." + name + ".cache.refresh",
-            ctx.config.getProperty("edda.collection.cache.refresh", "10000")
-        ).toLong
+        val refresh = Utils.getProperty(ctx.config, "edda.collection", "refresh", name, "60000").toLong
+        val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
         NamedActor(this + " refresher") {
             elector.addObserver(Actor.self)
             var amLeader = elector.isLeader()
@@ -285,5 +279,13 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
         Option(elector).foreach( _.stop )
         Option(crawler).foreach( _.stop )
         super.stop()
+    }
+}
+
+// for having many accounts with same root name but for various accounts
+abstract class RootCollection(val rootName: String, accountName: String, ctx: Collection.Context) extends Collection(ctx) {
+    val name = accountName match {
+        case "" => rootName
+        case x: String => x + "." + rootName
     }
 }

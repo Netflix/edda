@@ -1,16 +1,6 @@
 package com.netflix.edda.basic
 
 import com.netflix.edda.Collection
-// import com.netflix.edda.Queryable
-// import com.netflix.edda.MergedCollection
-// import com.netflix.edda.aws.AwsClient
-// import com.netflix.edda.aws.AwsCrawler
-// import com.netflix.edda.aws.AwsCrawlerBuilder
-// import com.netflix.edda.Crawler
-// import com.netflix.edda.ConfigContext
-
-// import com.netflix.edda.mongo.MongoDatastore
-// import com.netflix.edda.mongo.MongoElector
 
 import java.util.Properties
 
@@ -33,7 +23,7 @@ object BasicContext extends Collection.Context {
     }
     val config    = props
     
-    val recordMatcher = new BasicRecordMatcher
+    lazy val recordMatcher = new BasicRecordMatcher
 }
 
     // def build(): Map[String,Queryable] = {

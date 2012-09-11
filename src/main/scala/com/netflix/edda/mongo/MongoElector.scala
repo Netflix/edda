@@ -13,9 +13,9 @@ class MongoElector(ctx: ConfigContext) extends Elector(ctx)  {
     private[this] val logger = LoggerFactory.getLogger(getClass)
 
     val instance = Option(
-        System.getenv( ctx.config.getProperty("edda.mongo.elector.uniqueEnvName", "EC2_INSTANCE_ID") )
+        System.getenv( ctx.config.getProperty("edda.elector.mongo.uniqueEnvName", "EC2_INSTANCE_ID") )
     ).getOrElse("dev")
-    val name = ctx.config.getProperty("edda.mongo.elector.collectionName", "sys.monitor")
+    val name = ctx.config.getProperty("edda.elector.mongo.collectionName", "sys.monitor")
     val mongo: DBCollection = try {
         MongoDatastore.mongoCollection(name, ctx)
     } catch {
@@ -24,7 +24,7 @@ class MongoElector(ctx: ConfigContext) extends Elector(ctx)  {
             null
         }
     }
-    val leaderTimeout = ctx.config.getProperty("edda.mongo.elector.leaderTimeout", "5000").toInt
+    val leaderTimeout = ctx.config.getProperty("edda.elector.mongo.leaderTimeout", "5000").toInt
 
     override
     def init() = {

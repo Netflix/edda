@@ -4,6 +4,7 @@ import com.netflix.edda.Record
 import com.netflix.edda.Collection
 import com.netflix.edda.Datastore
 import com.netflix.edda.ConfigContext
+import com.netflix.edda.Utils
 
 // http://www.mongodb.org/display/DOCS/Java+Tutorial
 
@@ -17,6 +18,7 @@ import com.mongodb.ServerAddress
 
 import org.joda.time.DateTime
 import java.util.Date
+import java.util.Properties
 
 import org.slf4j.{Logger, LoggerFactory}
 
@@ -88,9 +90,13 @@ object MongoDatastore {
         }
     }
 
+    def mongoProperty(props: Properties, propName: String, dsName: String, dflt: String): String = {
+        Utils.getProperty(props, "edda", "mongo." + propName, "datastore." + dsName, dflt)
+    }
+
     def mongoCollection(name: String,  ctx: ConfigContext) = {
         import collection.JavaConverters._
-        val servers = ctx.config.getProperty("edda.mongo.address").split(',').map(
+        val servers = mongoProperty(ctx.config, "address", name, "").split(',').map(
             hostport => {
                 val parts = hostport.split(':')
                 if( parts.length > 1 ) {
@@ -101,11 +107,12 @@ object MongoDatastore {
             }
         ).toList
         val conn = new Mongo( servers.asJava )
-        val db = conn.getDB( ctx.config.getProperty("edda.mongo.database", "edda") )
-        if( ctx.config.getProperty("edda.mongo.user") != null ) {
+        val db = conn.getDB(mongoProperty(ctx.config, "database", name, "edda"))
+        val user = mongoProperty(ctx.config, "user", name, null)
+        if( user != null ) {
             db.authenticate(
-                ctx.config.getProperty("edda.mongo.user"),
-                ctx.config.getProperty("edda.mongo.password").toArray
+                user,
+                mongoProperty(ctx.config, "password", name, "").toArray
             )
         }
         if( db.collectionExists(name) ) db.getCollection(name) else db.createCollection(name, null)

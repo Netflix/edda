@@ -7,6 +7,7 @@ import com.netflix.edda.Observable
 import com.netflix.edda.Record
 import com.netflix.edda.BeanMapper
 import com.netflix.edda.ConfigContext
+import com.netflix.edda.Utils
 
 import org.joda.time.DateTime
 
@@ -133,7 +134,7 @@ class AwsAutoScalingGroupCrawler(val name: String, val ctx : AwsCrawler.Context)
         }
         val list = it.toList.flatten
         if(tagCount == 0) {
-            if(ctx.config.getProperty("edda.crawler." + name + ".abortWithoutTags", "false").toBoolean) {
+            if(Utils.getProperty(ctx.config, "edda.crawler", "abortWithoutTags", name, "false").toBoolean) {
                 throw new java.lang.RuntimeException("no tags found for any record in " + name + ", ignoring crawl results")
             }
             else logger.warn("no tags found for any record in " + name + ".  " +
@@ -153,7 +154,7 @@ class AwsImageCrawler(val name: String, val ctx : AwsCrawler.Context) extends Cr
                 Record(item.getImageId, ctx.beanMapper(item))
             }
         ).toSeq
-        if(tagCount == 0 && ctx.config.getProperty("edda.crawler." + name + ".abortWithoutTags", "false").toBoolean) {
+        if(tagCount == 0 && Utils.getProperty(ctx.config, "edda.crawler", "abortWithoutTags", name, "false").toBoolean) {
             throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
         }
         list
@@ -236,7 +237,7 @@ class AwsReservationCrawler(val name: String, val ctx : AwsCrawler.Context) exte
                 Record(item.getReservationId, ctx.beanMapper(item))
             }
         ).toSeq
-        if(tagCount == 0 && ctx.config.getProperty("edda.crawler." + name + ".abortWithoutTags", "false").toBoolean) {
+        if(tagCount == 0 && Utils.getProperty(ctx.config, "edda.crawler", "abortWithoutTags", name, "false").toBoolean) {
             throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
         }
         list
@@ -300,7 +301,7 @@ class AwsSecurityGroupCrawler(val name: String, val ctx : AwsCrawler.Context) ex
                 Record(item.getGroupId, ctx.beanMapper(item))
             }
         ).toSeq
-        if(tagCount == 0 && ctx.config.getProperty("edda.crawler." + name + ".abortWithoutTags", "false").toBoolean) {
+        if(tagCount == 0 && Utils.getProperty(ctx.config, "edda.crawler", "abortWithoutTags", name, "false").toBoolean) {
             throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
         }
         list
@@ -317,7 +318,7 @@ class AwsSnapshotCrawler(val name: String, val ctx : AwsCrawler.Context) extends
                 Record(item.getSnapshotId, new DateTime(item.getStartTime), ctx.beanMapper(item))
             }
         ).toSeq
-        if(tagCount == 0 && ctx.config.getProperty("edda.crawler." + name + ".abortWithoutTags", "false").toBoolean) {
+        if(tagCount == 0 && Utils.getProperty(ctx.config, "edda.crawler", "abortWithoutTags", name, "false").toBoolean) {
             throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
         }
         list
@@ -341,7 +342,7 @@ class AwsVolumeCrawler(val name: String, val ctx : AwsCrawler.Context) extends C
                 Record(item.getVolumeId, new DateTime(item.getCreateTime), ctx.beanMapper(item))
             }
         ).toSeq
-        if(tagCount == 0 && ctx.config.getProperty("edda.crawler." + name + ".abortWithoutTags", "false").toBoolean) {
+        if(tagCount == 0 && Utils.getProperty(ctx.config, "edda.crawler", "abortWithoutTags", name, "false").toBoolean) {
             throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
         }
         list

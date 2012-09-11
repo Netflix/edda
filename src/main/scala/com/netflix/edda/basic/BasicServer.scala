@@ -17,8 +17,10 @@
  */
 package com.netflix.edda.basic;
 
+import com.netflix.edda.Utils
 import com.netflix.edda.aws.AwsBeanMapper
 import com.netflix.edda.aws.AwsCollectionBuilder
+import com.netflix.edda.aws.AwsClient
 import com.netflix.edda.CollectionManager
 import com.netflix.edda.mongo.MongoDatastore
 import com.netflix.edda.mongo.MongoElector
@@ -37,7 +39,19 @@ class BasicServer extends HttpServlet {
         val elector = new MongoElector(BasicContext)
         
         val bm = new BasicBeanMapper(BasicContext) with AwsBeanMapper
-        AwsCollectionBuilder.buildAll(BasicContext, bm, elector, dsFactory)
+
+        val awsClientFactory = (region: String) => {
+            Option(BasicContext.config.getProperty("edda.aws.accessKey")) match {
+                case None => new AwsClient(region)
+                case Some(accessKey) => new AwsClient(
+                    accessKey,
+                    BasicContext.config.getProperty("edda.aws.secretKey"),
+                    region
+                )
+            }
+        }
+
+        AwsCollectionBuilder.buildAll(BasicContext, awsClientFactory, bm, elector, dsFactory)
 
         logger.info("Starting Collections");
         CollectionManager.start

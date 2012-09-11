@@ -26,7 +26,7 @@ abstract class Crawler( ctx: ConfigContext ) extends Observable {
     import Crawler._
     import Utils._
     private[this] val logger = LoggerFactory.getLogger(getClass)
-    lazy val enabled = ctx.config.getProperty("edda.crawler." + name + ".enabled", "true").toBoolean
+    lazy val enabled = Utils.getProperty(ctx.config, "edda.crawler", "enabled", name, "true").toBoolean
 
     def crawl() {
         if( enabled ) this ! Crawl(this)
@@ -48,18 +48,9 @@ abstract class Crawler( ctx: ConfigContext ) extends Observable {
         Monitors.registerObject("edda.crawler." + name, this);
     }
 
-    // val minCycle = ctx.config.getProperty(
-    //     "edda.crawler." + name + ".minimumCycle",
-    //     ctx.config.getProperty("edda.crawler.minimumCycle", "60000")
-    // ).toInt
-    
     private
     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
         case (Crawl(from),state) => {
-            // val crawlTime = localState(state).crawlTime
-            // val now = DateTime.now()
-            // if( crawlTime == None || crawlTime.get.isBefore(now.minusMillis(minCycle)) ) {
-            
             // this is blocking so we dont crawl in parallel
             val stopwatch = crawlTimer.start()
             val newRecords = try {
