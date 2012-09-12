@@ -23,40 +23,49 @@ import org.joda.time.DateTime
 
 object AwsCollectionBuilder {
     def buildAll(ctx: Collection.Context, clientFactory: String => AwsClient, bm: BeanMapper, elector: Elector, dsFactory: String => Option[Datastore]) {
-        val accounts = ctx.config.getProperty("edda.accounts","").split(",");
-        val accountContexts = accounts.map(
-            account => account -> new AwsCollection.Context {
-                val config = ctx.config
-                val beanMapper = bm
-                val recordMatcher = ctx.recordMatcher
-                val awsClient = clientFactory(Utils.getProperty(config, "edda", "region", account, null))
+        val collMap = Option(ctx.config.getProperty("edda.accounts")) match {
+            case Some(accountString) => {
+                val accounts = accountString.split(",");
+                val accountContexts = accounts.map(
+                    account => account -> new AwsCollection.Context {
+                        val config = ctx.config
+                        val beanMapper = bm
+                        val recordMatcher = ctx.recordMatcher
+                        val awsClient = clientFactory(Utils.getProperty(config, "edda", "region", account, null))
+                    }
+                ).toMap
+                
+                // this give us:
+                // Map[String,Array[com.netflix.edda.Collection]]
+                val accountCollections = accounts.flatMap(
+                    account => {
+                        mkCollections(accountContexts(account), account, elector, dsFactory).map(
+                            collection => collection.rootName -> collection
+                        )
+                    }
+                ).groupBy(_._1).mapValues(c => c.map(x => x._2))
+                // now map the Array's to a MergedCollection
+                // need to return name -> _ for each array element
+                // concat with MergedCollection(Array)
+                accountCollections.flatMap(
+                    pair => {
+                        val name = pair._1
+                        val collections = pair._2
+                        collections.map( coll => coll.name -> coll ).toMap ++ Map(name -> new MergedCollection(name, collections))
+                    }
+                )
             }
-        ).toMap
-
-        val collMap = if( accounts.size > 1 ) {
-            // this give us:
-            // Map[String,Array[com.netflix.edda.Collection]]
-            val accountCollections = accounts.flatMap(
-                account => {
-                    mkCollections(accountContexts(account), account, elector, dsFactory).map(
-                        collection => collection.rootName -> collection
-                    )
+            case None => {
+                val context = new AwsCollection.Context {
+                    val config = ctx.config
+                    val beanMapper = bm
+                    val recordMatcher = ctx.recordMatcher
+                    val awsClient = clientFactory(config.getProperty("edda.region", null))
                 }
-            ).groupBy(_._1).mapValues(c => c.map(x => x._2))
-            // now map the Array's to a MergedCollection
-            // need to return name -> _ for each array element
-            // concat with MergedCollection(Array)
-            accountCollections.flatMap(
-                pair => {
-                    val name = pair._1
-                    val collections = pair._2
-                    collections.map( coll => coll.name -> coll ).toMap ++ Map(name -> new MergedCollection(name, collections))
-                }
-            )
-        } else {
-            mkCollections(accountContexts(accounts(0)), accounts(0), elector, dsFactory).map( 
-                collection => collection.rootName -> collection
-            ).toMap
+                mkCollections(context, "", elector, dsFactory).map( 
+                    collection => collection.rootName -> collection
+                ).toMap
+            }
         }
 
         collMap.foreach( pair => CollectionManager.register(pair._1,pair._2) )

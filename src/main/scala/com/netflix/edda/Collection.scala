@@ -40,6 +40,14 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
     def datastore: Option[Datastore]
     def elector: Elector
     
+    override
+    def query(queryMap: Map[String,Any] = Map(), limit: Int=0, live: Boolean = false, keys: Set[String] = Set()): Seq[Record] = {
+        if(enabled) super.query(queryMap,limit,live,keys) else Seq.empty
+    }
+
+    override def addObserver(actor: Actor) = if(enabled) super.addObserver(actor)
+    override def delObserver(actor: Actor) = if(enabled) super.delObserver(actor)
+
     protected
     def doQuery(queryMap: Map[String,Any], limit: Int, live: Boolean, keys: Set[String], state: StateMachine.State): Seq[Record] = {
         // generate function

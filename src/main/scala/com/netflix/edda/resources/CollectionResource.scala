@@ -238,7 +238,7 @@ class CollectionResource {
     def dispatch(collName: String, details: ReqDetails): Response = {
         collName match {
             case c if CollectionManager.names.contains(c) => handleBasicCollection(collName,details)
-            case _ => fail("invalid collection: " + collName, Response.Status.BAD_REQUEST)
+            case _ => fail("invalid collection: " + collName + "." + details.id, Response.Status.BAD_REQUEST)
         }
     }
     
@@ -284,7 +284,8 @@ class CollectionResource {
     def selectRecords(collName: String, details: ReqDetails): Seq[Record] = {
         val coll = CollectionManager.get(collName).get
         val query = if(details.id != null) makeQuery(details) + ("id" -> details.id) else makeQuery(details)
-        return unique(coll.query(query, details.limit, details.timeTravelling), details)
+        val keys: Set[String] = if(details.expand) Set.empty else Set("id")
+        return unique(coll.query(query, details.limit, details.timeTravelling, keys), details)
     }
 
     @GET
