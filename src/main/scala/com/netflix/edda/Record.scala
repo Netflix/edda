@@ -49,7 +49,7 @@ class Record(
     val ltime: DateTime,
     val mtime: DateTime,
     val data: Any,
-    val tags: Map[String,String]
+    val tags: Map[String,Any]
 ) {
     import Record._
 
@@ -62,7 +62,7 @@ class Record(
         ltime: DateTime = ltime,
         mtime: DateTime = mtime,
         data: Any=data,
-        tags: Map[String,String] = tags
+        tags: Map[String,Any] = tags
     ) = new Record(id,ctime,stime,ltime,mtime,data,tags)
 
     def toMap = {
