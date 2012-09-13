@@ -38,7 +38,7 @@ object Record {
         ltime: DateTime,
         mtime: DateTime,
         data: Any,
-        tags: Map[String,String]
+        tags: Map[String,Any]
     ) = new Record(id,ctime,stime,ltime,mtime,data,tags)
 }
 

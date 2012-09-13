@@ -37,7 +37,7 @@ object MongoDatastore {
                     Option(o.get("ltime")) match { case Some(date: Date) => new DateTime(date); case None => null },
                     new DateTime(o.get("mtime").asInstanceOf[Date]),
                     mongoToScala(o.get("data")),
-                    mongoToScala(o.get("tags")).asInstanceOf[Map[String,String]]
+                    mongoToScala(o.get("tags")).asInstanceOf[Map[String,Any]]
                 )
             case other => throw new java.lang.RuntimeException("cannot turn " + other + " into a Record")
         }
