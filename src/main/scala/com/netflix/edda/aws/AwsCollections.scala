@@ -122,12 +122,12 @@ object AwsCollection {
                 "instanceId" -> id,
                 "instanceType" -> instanceData.get("instanceType").getOrElse(null),
                 "launchTime" -> instance.ctime,
+                "lifecycleState" -> asgInst("lifecycleState"),
                 "platform" -> instanceData.get("platform").getOrElse(null),
                 "privateIpAddress" -> instanceData.get("privateIpAddress").getOrElse(null),
                 "publicDnsName" -> instanceData.get("publicDnsName").getOrElse(null),
                 "publicIpAddress" -> instanceData.get("publicIpAddress").getOrElse(null),
-                "start" -> instance.ctime,
-                "state" -> asgInst("lifecycleState")
+                "start" -> instance.ctime
             )
         })
         newInstances
