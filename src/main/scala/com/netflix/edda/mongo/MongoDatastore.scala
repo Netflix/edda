@@ -94,7 +94,7 @@ object MongoDatastore {
         Utils.getProperty(props, "edda", "mongo." + propName, "datastore." + dsName, dflt)
     }
 
-    def mongoCollection(name: String,  ctx: ConfigContext) = {
+    def mongoConnection(name: String, ctx: ConfigContext) = {
         import collection.JavaConverters._
         val servers = mongoProperty(ctx.config, "address", name, "").split(',').map(
             hostport => {
@@ -106,7 +106,11 @@ object MongoDatastore {
                 }
             }
         ).toList
-        val conn = new Mongo( servers.asJava )
+        new Mongo( servers.asJava )
+    }        
+
+    def mongoCollection(name: String,  ctx: ConfigContext) = {
+        val conn = mongoConnection(name, ctx)
         val db = conn.getDB(mongoProperty(ctx.config, "database", name, "edda"))
         val user = mongoProperty(ctx.config, "user", name, null)
         if( user != null ) {
