@@ -281,6 +281,11 @@ class GroupAutoScalingGroups(
     // used in GroupCollection
     val mergeKeys = Map("instances" -> "instanceId")
 
+
+    val instanceQuery = Map(
+        "data.state.name" ->  Map("$nin" -> Seq("terminating", "terminated"))
+    )
+
     override protected
     def delta(newRecords: Seq[Record], oldRecords: Seq[Record]) =  {
         // newRecords will be from the ASG crawler, we need to convert it
@@ -288,7 +293,7 @@ class GroupAutoScalingGroups(
 
         val slotMap = groupSlots(oldRecords)
 
-        val instanceMap = instanceCollection.query(Map.empty).map(rec => rec.id -> rec).toMap
+        val instanceMap = instanceCollection.query(instanceQuery).map(rec => rec.id -> rec).toMap
 
         val oldMap = oldRecords.map( rec => rec.id -> rec).toMap
 

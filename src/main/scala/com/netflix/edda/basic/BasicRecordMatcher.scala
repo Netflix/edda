@@ -129,11 +129,10 @@ class BasicRecordMatcher extends RecordMatcher {
     def inMatcher =
         (found: Any, expected: Any) =>
             found match {
-                case seq: Seq[_] => seq.find( item => cmpPartialMatcher.lift(found,item) == Some(0) ) match {
+                case _ : Any => expected.asInstanceOf[Seq[Any]].find( item => cmpPartialMatcher.lift(found,item) == Some(0) ) match {
                     case Some(_) => true
                     case _ => false
                 }
-                case unk => throw new java.lang.RuntimeException("attempted to use $in operator on non-sequence value: " + found)
             }
 
     protected
