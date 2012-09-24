@@ -25,14 +25,14 @@ object Collection extends StateMachine.LocalState[CollectionState] {
     case class DeltaResult(from: Actor, delta: Delta) extends StateMachine.Message
 
     // internal messages
-    private case class Load(from: Actor) extends StateMachine.Message
+    case class Load(from: Actor) extends StateMachine.Message
 }
 
-abstract class Collection( ctx: Collection.Context ) extends Queryable {
+abstract class Collection( val ctx: Collection.Context ) extends Queryable {
     import Collection._
     import Utils._
 
-    private[this] val logger = LoggerFactory.getLogger(getClass)
+    val logger = LoggerFactory.getLogger(getClass)
     lazy val enabled = Utils.getProperty(ctx.config,"edda.collection", "enabled", name, "true").toBoolean
 
     def name: String
@@ -61,6 +61,7 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
         if(queryMap.isEmpty) {
             firstOf( limit, localState(state).records)
         } else {
+            logger.info("query on records: " + localState(state).records.hashCode)
             firstOf( limit, localState(state).records.filter( record => ctx.recordMatcher.doesMatch(queryMap, record.toMap ) ))
         }
     }
@@ -224,7 +225,7 @@ abstract class Collection( ctx: Collection.Context ) extends Queryable {
                             logger.info("\n{}", diff)
                         }
                     )
-
+                    
                     Observable.localState(state).observers.foreach( _ ! DeltaResult(this, d) )
                 }
                 setLocalState(state, localState(state).copy(crawled=newRecords))

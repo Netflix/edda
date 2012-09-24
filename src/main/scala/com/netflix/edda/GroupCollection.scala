@@ -1,12 +1,42 @@
 package com.netflix.edda
 
+import scala.actors.Actor
+import scala.actors.TIMEOUT
+
 import org.joda.time.DateTime
+import org.slf4j.Logger
 
 trait GroupCollection extends Collection {
-    // we dont need to refresh out crawler/collection, it will be 
-    // done for us by the grouped collections
+
+    val logger: Logger
+
+    // we only need to refresh cache if we are not leader.  When we are leader
+    // then we will get events from the crawler
     override protected
-    def refresher = Unit
+    def refresher {
+        if( Option(crawler) == None || Option(elector) == None ) return
+        val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
+        Utils.NamedActor(this + " refresher") {
+            elector.addObserver(Actor.self)
+            var amLeader = elector.isLeader()
+            var lastRun = DateTime.now
+            Actor.loop {
+                val timeout = cacheRefresh
+                Actor.reactWithin( timeLeft(lastRun, timeout) ) {
+                    case TIMEOUT => {
+                        if( !amLeader ) this ! Collection.Load(this)
+                        lastRun = DateTime.now
+                    }
+                    case Elector.ElectionResult(from, result) => {
+                        amLeader = result
+                    }
+                    case message => {
+                        logger.error("Invalid message " + message + " from sender " + sender)
+                    }
+                }
+            }
+        }
+    }
 
     implicit def recordOrdering: Ordering[Record] = Ordering.fromLessThan(_.stime isBefore _.stime)
     

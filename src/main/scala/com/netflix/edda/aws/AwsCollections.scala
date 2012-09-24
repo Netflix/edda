@@ -138,7 +138,7 @@ class AwsAddressCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("aws.addresses", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsAddressCrawler(name, ctx)
@@ -148,7 +148,7 @@ class AwsAutoScalingGroupCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("aws.autoScalingGroups", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsAutoScalingGroupCrawler(name, ctx)
@@ -158,7 +158,7 @@ class AwsImageCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("aws.images", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsImageCrawler(name, ctx)
@@ -168,7 +168,7 @@ class AwsLoadBalancerCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("aws.loadBalancers", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsLoadBalancerCrawler(name, ctx)
@@ -179,7 +179,7 @@ class AwsInstanceHealthCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("view.loadBalancerInstances", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsInstanceHealthCrawler(name, ctx, elbCrawler)
@@ -189,7 +189,7 @@ class AwsLaunchConfigurationCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("aws.launchConfigurations", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsLaunchConfigurationCrawler(name, ctx)
@@ -199,7 +199,7 @@ class AwsReservationCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("aws.instances", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsReservationCrawler(name, ctx)
@@ -210,7 +210,7 @@ class AwsInstanceCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("view.instances", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsInstanceCrawler(name, ctx, resCrawler)
@@ -220,7 +220,7 @@ class AwsSecurityGroupCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("aws.securityGroups", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsSecurityGroupCrawler(name, ctx)
@@ -230,7 +230,7 @@ class AwsSnapshotCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("aws.snapshots", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsSnapshotCrawler(name, ctx)
@@ -240,7 +240,7 @@ class AwsTagCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("aws.tags", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsTagCrawler(name, ctx)
@@ -250,7 +250,7 @@ class AwsVolumeCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("aws.volumes", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsVolumeCrawler(name, ctx)
@@ -260,7 +260,7 @@ class AwsBucketCollection(
     dsFactory: String => Option[Datastore],
     val accountName: String,
     val elector: Elector,
-    val ctx : AwsCollection.Context
+    override val ctx : AwsCollection.Context
 ) extends RootCollection("aws.buckets", accountName, ctx) {
     val datastore: Option[Datastore] = dsFactory(name)
     val crawler = new AwsBucketCrawler(name, ctx)
@@ -271,7 +271,7 @@ class GroupAutoScalingGroups(
     val instanceCollection: AwsInstanceCollection,
     dsFactory: String => Option[Datastore],
     val elector: Elector,
-    val ctx: AwsCollection.Context
+    override val ctx: AwsCollection.Context
 ) extends RootCollection("group.autoScalingGroups", asgCollection.accountName, ctx) with GroupCollection {
     val crawler = asgCollection.crawler
     val datastore: Option[Datastore] = dsFactory(name)
