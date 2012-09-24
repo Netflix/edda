@@ -5,8 +5,10 @@ import com.netflix.edda.RecordMatcher
 import java.util.Date
 import org.joda.time.DateTime
 
+import org.slf4j.{Logger, LoggerFactory}
 
 class BasicRecordMatcher extends RecordMatcher {
+    private val logger = LoggerFactory.getLogger(getClass)
 
     def doesMatch (queryMap: Map[String,Any], record: Map[String,Any]): Boolean = {
         // find the first rule where rule does not match record
@@ -127,13 +129,14 @@ class BasicRecordMatcher extends RecordMatcher {
 
     protected
     def inMatcher =
-        (found: Any, expected: Any) =>
+        (found: Any, expected: Any) => {
             found match {
-                case _ : Any => expected.asInstanceOf[Seq[Any]].find( item => cmpPartialMatcher.lift(found,item) == Some(0) ) match {
+                case _ => expected.asInstanceOf[Seq[Any]].find( item => cmpPartialMatcher.lift(found,item) == Some(0) ) match {
                     case Some(_) => true
                     case _ => false
                 }
             }
+        }
 
     protected
     def regexMatcher = 

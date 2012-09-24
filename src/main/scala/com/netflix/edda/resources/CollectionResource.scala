@@ -72,6 +72,8 @@ class CollectionResource {
 
         details.matrixArgs.foreach {
             case (k,null) => query += prefix + k -> Map("$nin" -> List(null,""))
+            case (k,v: String) if v.contains(',') =>
+                query += prefix + k -> Map("$in" -> v.split(',').toList)
             case (k,v)    => query += prefix + k -> v
         }
 
@@ -174,7 +176,8 @@ class CollectionResource {
         val live    = boolArg(metaArgs.get("_live"));
         val updated = boolArg(metaArgs.get("_updated"));
         val cb      = if(metaArgs.contains("_callback")) metaArgs("_callback") else null
-        val limit   = if(id != null && !all) 1 else intArg(metaArgs.get("_limit"))
+        val single  = id != null && !id.contains(',') && !all
+        val limit   = if(single) 1 else intArg(metaArgs.get("_limit"))
         val expand  = id != null || meta || all || boolArg(metaArgs.get("_expand"))
 
         // if user requested pretty-print then reformat
@@ -244,7 +247,7 @@ class CollectionResource {
     
     def handleBasicCollection(collName: String, details: ReqDetails): Response = {
         var recs = selectRecords(collName,details)
-        if( details.id != null && !details.all) {
+        if( details.single ) {
             if( recs.isEmpty ) {
                 if( !details.timeTravelling ) {
                     var recs = selectRecords(collName,details.copy(metaArgs=details.metaArgs ++ Map("_live" -> null, "_since" -> "0","_limit" -> "1")));
@@ -255,7 +258,7 @@ class CollectionResource {
                 return fail("record \"" + details.id + "\" not found in collection " + collName, Response.Status.NOT_FOUND)
             }
         }
-        else if( details.diff == None ) details.gen.writeStartArray
+        else if( details.diff == None && !details.single ) details.gen.writeStartArray
         if( details.diff != None && details.id != null ) {
             if( recs.size == 1 ) {
                 return fail("_diff requires at least 2 documents, only 1 found", Response.Status.BAD_REQUEST)
@@ -277,13 +280,19 @@ class CollectionResource {
                 case _    => recs.map( r => r.id ).foreach(details.gen.writeString(_))
             }
         }
-        if( details.diff == None && (details.id == null || details.all) ) details.gen.writeEndArray
+        if( details.diff == None && (!details.single) ) details.gen.writeEndArray
         details.response
     }
 
     def selectRecords(collName: String, details: ReqDetails): Seq[Record] = {
         val coll = CollectionManager.get(collName).get
-        val query = if(details.id != null) makeQuery(details) + ("id" -> details.id) else makeQuery(details)
+        val query = if(details.id != null) {
+            val idQuery = if( details.id.contains(',') ) {
+                Map("$in" -> details.id.split(',').toList)
+            } else details.id
+            makeQuery(details) + ("id" -> idQuery) 
+        } else makeQuery(details)
+        logger.info("query: " + Utils.toJson(query))
         val keys: Set[String] = if(details.expand) Set.empty else Set("id")
         return unique(coll.query(query, details.limit, details.timeTravelling, keys), details)
     }
