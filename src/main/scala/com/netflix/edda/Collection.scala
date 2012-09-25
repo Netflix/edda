@@ -61,7 +61,6 @@ abstract class Collection( val ctx: Collection.Context ) extends Queryable {
         if(queryMap.isEmpty) {
             firstOf( limit, localState(state).records)
         } else {
-            logger.info("query on records: " + localState(state).records.hashCode)
             firstOf( limit, localState(state).records.filter( record => ctx.recordMatcher.doesMatch(queryMap, record.toMap ) ))
         }
     }
@@ -206,8 +205,15 @@ abstract class Collection( val ctx: Collection.Context ) extends Queryable {
             // only propagate if newRecords are not the same as the last crawled result
             if( newRecords ne localState(state).crawled ) {
                 NamedActor(this + " CrawlResult processor") {
-                    val d: Delta = delta(newRecords, localState(state).records)
-
+                    val d: Delta = 
+                        if( from == this ) {
+                            // this is from a Load so no need to calculate Delta
+                            Delta(newRecords,Seq(),Seq(),Seq())
+                        }
+                        else {
+                            delta(newRecords, localState(state).records)
+                        }
+                    
                     lazy val path = name.replace('.','/')
                     d.added.foreach(
                         rec => {
