@@ -46,6 +46,7 @@ object Utils {
 
     def toObjects(args: Any*): Array[AnyRef] = {
         args.map(arg => arg match {
+            case null => null
             case v: Char    => v.asInstanceOf[java.lang.Character]
             case v: Byte    => v.asInstanceOf[java.lang.Byte]
             case v: Short   => v.asInstanceOf[java.lang.Short]
