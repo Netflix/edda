@@ -4,6 +4,7 @@ import scala.actors.Actor
 import scala.actors.TIMEOUT
 
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.Callable
 import org.joda.time.DateTime
 import org.slf4j.{Logger, LoggerFactory}
 

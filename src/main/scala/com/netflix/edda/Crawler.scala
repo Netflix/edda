@@ -4,7 +4,6 @@ import scala.actors.Actor
 import org.joda.time.DateTime
 
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.Callable
 
 import com.netflix.servo.monitor.Monitors
 
