@@ -8,6 +8,8 @@ import org.joda.time.DateTime
 import org.slf4j.{Logger, LoggerFactory}
 
 import com.netflix.servo.monitor.Monitors
+import com.netflix.servo.monitor.MonitorConfig
+import com.netflix.servo.monitor.BasicGauge
 
 case class CollectionState(records: Seq[Record] = Seq[Record](), crawled: Seq[Record] = Seq[Record](), amLeader: Boolean = false)
 

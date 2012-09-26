@@ -7,8 +7,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.Callable
 
 import com.netflix.servo.monitor.Monitors
-import com.netflix.servo.monitor.MonitorConfig
-import com.netflix.servo.monitor.BasicGauge
 
 import org.slf4j.{Logger, LoggerFactory}
 
