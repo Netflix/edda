@@ -169,13 +169,23 @@ abstract class Collection( val ctx: Collection.Context ) extends Queryable {
         }
     }
 
-    private[this] val loadTimer   = Monitors.newTimer("edda.collection." + name + ".load")
-    private[this] val loadCounter = Monitors.newCounter("edda.collection." + name + ".load.count")
-    private[this] val loadErrorCounter = Monitors.newCounter("edda.collection." + name + ".load.errors")
+    private[this] val loadTimer   = Monitors.newTimer("load")
+    private[this] val loadCounter = Monitors.newCounter("load.count")
+    private[this] val loadErrorCounter = Monitors.newCounter("load.errors")
 
-    private[this] val updateTimer   = Monitors.newTimer("edda.collection." + name + ".update")
-    private[this] val updateCounter = Monitors.newCounter("edda.collection." + name + ".update.count")
-    private[this] val updateErrorCounter = Monitors.newCounter("edda.collection." + name + ".update.errors")
+    private[this] val updateTimer   = Monitors.newTimer("update")
+    private[this] val updateCounter = Monitors.newCounter("update.count")
+    private[this] val updateErrorCounter = Monitors.newCounter("update.errors")
+
+    private[this] var lastCrawl    = DateTime.now
+    private[this] val crawlGauge   = new BasicGauge[java.lang.Long](
+        MonitorConfig.builder("lastCrawl").build(),
+        new Callable[java.lang.Long] {
+            def call() = {
+                DateTime.now.getMillis - lastCrawl.getMillis
+            }
+        }
+    )
 
     private
     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
@@ -203,6 +213,7 @@ abstract class Collection( val ctx: Collection.Context ) extends Queryable {
         }
         case (Crawler.CrawlResult(from, newRecords),state) => {
             // only propagate if newRecords are not the same as the last crawled result
+            lastCrawl = DateTime.now
             if( newRecords ne localState(state).crawled ) {
                 NamedActor(this + " CrawlResult processor") {
                     val d: Delta = 

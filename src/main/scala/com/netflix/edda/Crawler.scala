@@ -38,18 +38,9 @@ abstract class Crawler( ctx: ConfigContext ) extends Observable {
     
     def name: String
     
-    private[this] val crawlTimer   = Monitors.newTimer("edda.crawler." + name + ".crawl")
-    private[this] val crawlCounter = Monitors.newCounter("edda.crawler." + name + ".crawl.count")
-    private[this] val errorCounter = Monitors.newCounter("edda.crawler." + name + ".crawl.errors")
-    private[this] var lastCrawl    = DateTime.now
-    private[this] val crawlGauge   = new BasicGauge[java.lang.Long](
-        MonitorConfig.builder("edda.crawler." + name + ".lastCrawl").build(),
-        new Callable[java.lang.Long] {
-            def call() = {
-                DateTime.now.getMillis - lastCrawl.getMillis
-            }
-        }
-    )
+    private[this] val crawlTimer   = Monitors.newTimer("crawl")
+    private[this] val crawlCounter = Monitors.newCounter("crawl.count")
+    private[this] val errorCounter = Monitors.newCounter("crawl.errors")
 
     protected def doCrawl(): Seq[Record]
 
@@ -80,7 +71,6 @@ abstract class Crawler( ctx: ConfigContext ) extends Observable {
             logger.info("{} Crawled {} records in {} sec", toObjects(
                 this, newRecords.size, stopwatch.getDuration(TimeUnit.MILLISECONDS)/1000D -> "%.2f"
             ))
-            lastCrawl = DateTime.now
             crawlCounter.increment(newRecords.size)
             Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(this, newRecords) )
             setLocalState(state, CrawlerState(records=newRecords))
