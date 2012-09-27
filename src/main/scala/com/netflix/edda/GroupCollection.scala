@@ -46,7 +46,16 @@ trait GroupCollection extends Collection {
         // sure "id" is in there so we can group
         val requiredKeys = if( keys.isEmpty ) keys else (keys + "id")
         val records = super.doQuery(queryMap,limit,live,requiredKeys,state)
-        records.groupBy(_.id).values.toSeq.sortBy(_.head).map( mergeRecords(_) )
+        if( keys.isEmpty || mergeKeys.find(pair => keys.contains(pair._1)) != None ) {
+            records.groupBy(_.id).values.toSeq.sortBy(_.head).map( mergeRecords(_) )
+        }
+        else if( keys.contains("end") ) {
+            records.map( rec => {
+                val data = rec.data.asInstanceOf[Map[String,Any]] + ("end" -> rec.ltime)
+                rec.copy(data=data)
+            })
+        }
+        else records
     }
 
     def mergeKeys: Map[String,String]
