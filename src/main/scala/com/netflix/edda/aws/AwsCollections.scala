@@ -283,7 +283,7 @@ class GroupAutoScalingGroups(
 
 
     val instanceQuery = Map(
-        "data.state.name" ->  Map("$nin" -> Seq("terminating", "terminated"))
+        "data.state.name" ->  Map("$nin" -> Seq("shutting-down", "terminating", "terminated"))
     )
 
     override protected
