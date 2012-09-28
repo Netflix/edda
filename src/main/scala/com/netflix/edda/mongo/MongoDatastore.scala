@@ -174,7 +174,11 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
         d.removed.foreach( upsert(_) )
     }
 
-    def init() = mongo.ensureIndex(stimeIdSort)
+    def init() = {
+        mongo.ensureIndex(stimeIdSort)
+        mongo.ensureIndex(mapToMongo(Map("ltime" -> 1)))
+        mongo.ensureIndex(mapToMongo(Map("id" -> 1)))
+    }
 
     protected
     def upsert( record: Record ) {
