@@ -16,7 +16,7 @@ import org.codehaus.jackson.util.DefaultPrettyPrinter
 import org.codehaus.jackson.map.MappingJsonFactory
 import org.codehaus.jackson.JsonNode
 
-import org.slf4j.{Logger, LoggerFactory}
+import org.slf4j.{ Logger, LoggerFactory }
 
 object Utils {
     private[this] val logger = LoggerFactory.getLogger(getClass)
@@ -34,29 +34,29 @@ object Utils {
     // it will look for p.a.b.c.n, then p.a.b.n, then p.a.n, then p.n else return dflt
     def getProperty(props: Properties, prefix: String, propName: String, nameContext: String, dflt: String): String = {
         val parts = nameContext.split('.')
-        Range(1, parts.size+1).reverse.map(
+        Range(1, parts.size + 1).reverse.map(
             ix => prefix + "." + parts.take(ix).mkString(".") + "." + propName
         ) collectFirst {
-            case prop: String if props.containsKey(prop) => props.getProperty(prop)
-        } match {
-            case Some(value) => value.asInstanceOf[String]
-            case None => props.getProperty(prefix + "." + propName, dflt)
-        }
+                case prop: String if props.containsKey(prop) => props.getProperty(prop)
+            } match {
+                case Some(value) => value.asInstanceOf[String]
+                case None        => props.getProperty(prefix + "." + propName, dflt)
+            }
     }
 
     def toObjects(args: Any*): Array[AnyRef] = {
         args.map(arg => arg match {
-            case null => null
-            case v: Char    => v.asInstanceOf[java.lang.Character]
-            case v: Byte    => v.asInstanceOf[java.lang.Byte]
-            case v: Short   => v.asInstanceOf[java.lang.Short]
-            case v: Int     => v.asInstanceOf[java.lang.Integer]
-            case v: Long    => v.asInstanceOf[java.lang.Long]
-            case v: Float   => v.asInstanceOf[java.lang.Float]
-            case v: Double  => v.asInstanceOf[java.lang.Double]
-            case v: Boolean => v.asInstanceOf[java.lang.Boolean]
+            case null                => null
+            case v: Char             => v.asInstanceOf[java.lang.Character]
+            case v: Byte             => v.asInstanceOf[java.lang.Byte]
+            case v: Short            => v.asInstanceOf[java.lang.Short]
+            case v: Int              => v.asInstanceOf[java.lang.Integer]
+            case v: Long             => v.asInstanceOf[java.lang.Long]
+            case v: Float            => v.asInstanceOf[java.lang.Float]
+            case v: Double           => v.asInstanceOf[java.lang.Double]
+            case v: Boolean          => v.asInstanceOf[java.lang.Boolean]
             case (v: Any, f: String) => f.format(v)
-            case v: AnyRef  => v
+            case v: AnyRef           => v
         }).toArray[AnyRef]
     }
 
@@ -81,20 +81,20 @@ object Utils {
 
     def toJson(gen: JsonGenerator, obj: Any, fmt: (Any) => Any = (x: Any) => x) {
         fmt(obj) match {
-            case v: Boolean => gen.writeBoolean(v)
-            case v: Byte => gen.writeNumber(v)
-            case v: Short => gen.writeNumber(v)
-            case v: Int => gen.writeNumber(v)
-            case v: Long => gen.writeNumber(v)
-            case v: Float => gen.writeNumber(v)
-            case v: Double => gen.writeNumber(v)
-            case v: Char => gen.writeString("" + v)
-            case v: String => gen.writeString(v)
-            case v: Date => gen.writeNumber(v.getTime)
+            case v: Boolean  => gen.writeBoolean(v)
+            case v: Byte     => gen.writeNumber(v)
+            case v: Short    => gen.writeNumber(v)
+            case v: Int      => gen.writeNumber(v)
+            case v: Long     => gen.writeNumber(v)
+            case v: Float    => gen.writeNumber(v)
+            case v: Double   => gen.writeNumber(v)
+            case v: Char     => gen.writeString("" + v)
+            case v: String   => gen.writeString(v)
+            case v: Date     => gen.writeNumber(v.getTime)
             case v: DateTime => gen.writeNumber(v.getMillis)
-            case v: Map[_,_] => {
+            case v: Map[_, _] => {
                 gen.writeStartObject
-                v.toSeq.sortBy(_._1.asInstanceOf[String]).foreach( pair => {
+                v.toSeq.sortBy(_._1.asInstanceOf[String]).foreach(pair => {
                     gen.writeFieldName(pair._1.toString)
                     toJson(gen, pair._2, fmt)
                 })
@@ -102,11 +102,11 @@ object Utils {
             }
             case v: Seq[_] => {
                 gen.writeStartArray
-                v.foreach( toJson(gen, _, fmt) )
+                v.foreach(toJson(gen, _, fmt))
                 gen.writeEndArray
             }
             case null => gen.writeNull
-            case v => { 
+            case v => {
                 throw new java.lang.RuntimeException("unable to convert \"" + v + "\" to json")
             }
         }
@@ -123,37 +123,37 @@ object Utils {
             case _ if node.isDouble     => node.getDoubleValue
             case _ if node.isTextual    => node.getTextValue
             case _ if node.isNull       => null
-            case _ if node.isObject     => {
+            case _ if node.isObject => {
                 node.getFieldNames.asScala.map(
-                    key => key -> fromJson( node.get(key) )
+                    key => key -> fromJson(node.get(key))
                 ).toMap
             }
-            case _ if node.isArray      => node.getElements.asScala.map( fromJson(_) ).toList
-            case _ => throw new java.lang.RuntimeException("unable to convert from Json to Scala: " + node)
+            case _ if node.isArray => node.getElements.asScala.map(fromJson(_)).toList
+            case _                 => throw new java.lang.RuntimeException("unable to convert from Json to Scala: " + node)
         }
     }
 
     def dateFormatter(arg: Any): Any = {
         arg match {
-            case v: Date => dateFormat.format(v)
+            case v: Date     => dateFormat.format(v)
             case v: DateTime => dateFormat.format(v.toDate)
-            case v => v
+            case v           => v
         }
     }
 
     // most recent records first
-    def diffRecords(recs: Seq[Record], context: Option[Int] = None, prefix: String  = ""): String = {
+    def diffRecords(recs: Seq[Record], context: Option[Int] = None, prefix: String = ""): String = {
         import difflib.DiffUtils;
         import difflib.Patch;
         import scala.collection.JavaConverters._
-        if( recs.size < 2 ) {
+        if (recs.size < 2) {
             throw new java.lang.RuntimeException("diff requires at least 2 records")
         }
         // map each record to a tuple of it's id uri and pretty-printed string output
         // then use 2-wide sliding window and create unified diffs for each pair
         val result = new collection.mutable.StringBuilder
         recs.map(rec => {
-            if( rec == null ) {
+            if (rec == null) {
                 ("/dev/null", "")
             } else {
                 val baos = new ByteArrayOutputStream()
@@ -165,15 +165,15 @@ object Utils {
                 gen.close;
                 (prefix + "/" + rec.id + ";_pp;_at=" + rec.stime.getMillis, baos.toString)
             }
-        }).sliding(2).foreach( v => {
-            var(a,b) = (v.head,v.tail.head)
+        }).sliding(2).foreach(v => {
+            var (a, b) = (v.head, v.tail.head)
             val alines = a._2.split("\n").toList
             val blines = b._2.split("\n").toList
             val size =
-                if ( context != None  ) context.get
-                else if( alines.length > blines.length ) alines.length else blines.length
-            val patch: Patch = DiffUtils.diff(blines.asJava,alines.asJava)
-            DiffUtils.generateUnifiedDiff(b._1,a._1,blines.asJava,patch,size).asScala.foreach(l => {
+                if (context != None) context.get
+                else if (alines.length > blines.length) alines.length else blines.length
+            val patch: Patch = DiffUtils.diff(blines.asJava, alines.asJava)
+            DiffUtils.generateUnifiedDiff(b._1, a._1, blines.asJava, patch, size).asScala.foreach(l => {
                 result.append(l)
                 result.append('\n')
             });

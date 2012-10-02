@@ -27,41 +27,38 @@ import com.netflix.edda.mongo.MongoElector
 
 import javax.servlet.http.HttpServlet
 
-import org.slf4j.{Logger, LoggerFactory}
+import org.slf4j.{ Logger, LoggerFactory }
 
 class BasicServer extends HttpServlet {
-    private[this] val logger = LoggerFactory.getLogger(getClass)
-    
-    override
-    def init = {
-        logger.info("Staring Server");
-        val dsFactory = (name: String) => Some(new MongoDatastore(BasicContext, name))
-        val elector = new MongoElector(BasicContext)
-        
-        val bm = new BasicBeanMapper(BasicContext) with AwsBeanMapper
+  private[this] val logger = LoggerFactory.getLogger(getClass)
 
-        val awsClientFactory = (region: String) => {
-            Option(BasicContext.config.getProperty("edda.aws.accessKey")) match {
-                case None => new AwsClient(region)
-                case Some(accessKey) => new AwsClient(
-                    accessKey,
-                    BasicContext.config.getProperty("edda.aws.secretKey"),
-                    region
-                )
-            }
-        }
+  override def init = {
+    logger.info("Staring Server");
+    val dsFactory = (name: String) => Some(new MongoDatastore(BasicContext, name))
+    val elector = new MongoElector(BasicContext)
 
-        AwsCollectionBuilder.buildAll(BasicContext, awsClientFactory, bm, elector, dsFactory)
+    val bm = new BasicBeanMapper(BasicContext) with AwsBeanMapper
 
-        logger.info("Starting Collections");
-        CollectionManager.start
-
-        super.init
+    val awsClientFactory = (region: String) => {
+      Option(BasicContext.config.getProperty("edda.aws.accessKey")) match {
+        case None => new AwsClient(region)
+        case Some(accessKey) => new AwsClient(
+          accessKey,
+          BasicContext.config.getProperty("edda.aws.secretKey"),
+          region)
+      }
     }
 
-    override 
-    def destroy = {
-        CollectionManager.stop
-        super.destroy
-    }
+    AwsCollectionBuilder.buildAll(BasicContext, awsClientFactory, bm, elector, dsFactory)
+
+    logger.info("Starting Collections");
+    CollectionManager.start
+
+    super.init
+  }
+
+  override def destroy = {
+    CollectionManager.stop
+    super.destroy
+  }
 }
