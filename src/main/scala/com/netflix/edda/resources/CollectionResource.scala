@@ -10,6 +10,7 @@ import java.util.Date
 
 import com.netflix.edda.web.FieldSelectorParser
 import com.netflix.edda.web.FieldSelectorExpr
+import com.netflix.edda.web.KeySelectExpr
 import com.netflix.edda.web.MatchAnyExpr
 import com.netflix.edda.CollectionManager
 import com.netflix.edda.Record
@@ -179,6 +180,27 @@ class CollectionResource {
 
     var timeTravelling = all || metaArgs.contains("_at") || metaArgs.contains("_since") || live
 
+    val fields: Set[String] = extractFields(expr) match {
+      case Some(set) => if( meta ) set else set.map("data." + _)
+      case None => Set.empty
+    }
+     
+    def extractFields(expr: FieldSelectorExpr): Option[Set[String]] = {
+      expr match {
+        case e: KeySelectExpr => {
+          val results: Set[String] = e.keys.map( pair => pair._1 -> extractFields(pair._2) ).flatMap(
+            pair => pair match {
+              case (prefix: String, Some(set)) => set.map(v => prefix + "." + v)
+              case (prefix: String, None) => Set(prefix)
+            }
+          ).toSet
+
+          Some(results)
+        }
+        case _ => None
+      }
+    }
+
     def response(): Response = {
       val builder = Response.status(Response.Status.OK);
 
@@ -282,7 +304,7 @@ class CollectionResource {
       makeQuery(details) + ("id" -> idQuery)
     } else makeQuery(details)
     logger.info("query: " + Utils.toJson(query))
-    val keys: Set[String] = if (details.expand) Set.empty else Set("id")
+    val keys: Set[String] = if (details.expand) details.fields else Set("id")
     return unique(coll.query(query, details.limit, details.timeTravelling, keys), details)
   }
 
