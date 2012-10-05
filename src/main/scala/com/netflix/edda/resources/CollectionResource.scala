@@ -319,7 +319,7 @@ class CollectionResource {
           if (CollectionManager.names.contains(name)) {
             (name, null)
           } else {
-            val parts = name.split('.')
+            val parts = collPath.split('/')
             (parts.init mkString ".", parts.last)
           }
         val details = ReqDetails(req, id, matrixStr, exprStr)
