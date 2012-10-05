@@ -168,7 +168,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
   }
 
   def init() = {
-    mongo.ensureIndex(stimeIdSort)
+    mongo.ensureIndex(mapToMongo(Map("stime" -> -1))
     mongo.ensureIndex(mapToMongo(Map("ltime" -> 1)))
     mongo.ensureIndex(mapToMongo(Map("id" -> 1)))
   }
