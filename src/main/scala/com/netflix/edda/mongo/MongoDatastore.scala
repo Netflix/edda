@@ -130,7 +130,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
 
   override def query(queryMap: Map[String, Any], limit: Int, keys: Set[String]): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
-    logger.info("mongo query: " + queryMap)
+    logger.info(this + " query: " + queryMap)
     val mongoKeys = if (keys.isEmpty) null else mapToMongo(keys.map(_ -> 1).toMap)
     val cursor = mongo.find(mapToMongo(queryMap), mongoKeys).sort(stimeIdSort);
     try {
@@ -168,7 +168,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
   }
 
   def init() = {
-    mongo.ensureIndex(mapToMongo(Map("stime" -> -1))
+    mongo.ensureIndex(mapToMongo(Map("stime" -> -1)))
     mongo.ensureIndex(mapToMongo(Map("ltime" -> 1)))
     mongo.ensureIndex(mapToMongo(Map("id" -> 1)))
   }
