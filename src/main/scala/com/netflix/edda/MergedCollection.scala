@@ -31,7 +31,7 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
   }
 
   override def start() = {
-    logger.info("Staring " + this);
+    logger.info("Starting " + this);
     super.start()
   }
 

@@ -270,7 +270,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   override def start(): Actor = {
     if (enabled) {
-      logger.info("Staring " + this);
+      logger.info("Starting " + this);
       Option(elector).foreach(_.start)
       Option(crawler).foreach(_.start)
       super.start()

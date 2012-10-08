@@ -107,7 +107,7 @@ object Utils {
             }
             case null => gen.writeNull
             case v => {
-                throw new java.lang.RuntimeException("unable to convert \"" + v + "\" to json")
+                throw new java.lang.RuntimeException("unable to convert \"" + v + "\" [" + v.getClass + "] to json")
             }
         }
     }

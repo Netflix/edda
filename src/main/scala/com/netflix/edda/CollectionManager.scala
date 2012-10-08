@@ -18,7 +18,7 @@ object CollectionManager {
   def names(): Set[String] = collections.keySet
 
   def start() {
-    logger.info("Staring collections")
+    logger.info("Starting collections")
     collections.values.foreach(_.start())
   }
 
