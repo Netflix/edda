@@ -186,7 +186,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       NamedActor(this + " Load processor") {
         val stopwatch = loadTimer.start()
         var records = try {
-          load()
+          val now = DateTime.now
+          load().map(_.copy(mtime=now))
         } catch {
           case e => {
             loadErrorCounter.increment
