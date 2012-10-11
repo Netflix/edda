@@ -45,7 +45,12 @@ class StateMachine extends Actor {
     }
   }
 
-  protected def transitions: PartialFunction[(Message, State), State] = Map()
+  protected def transitions: PartialFunction[(Message, State), State] = {
+      case (UnknownMessageError(from,reason,message),state) => 
+          throw new java.lang.RuntimeException(reason)
+      case (InvalidMessageError(from,reason,message),state) => 
+          throw new java.lang.RuntimeException(reason)
+  }
 
   final def act() {
     init
