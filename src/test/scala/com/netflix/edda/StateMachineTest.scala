@@ -61,11 +61,14 @@ class StateMachineTest extends FunSuite {
     test("Parallel Counter") {
         val counter = new Counter
         counter.start
+        expect(1000) {
+            val tasks = Range(0,1000).map(i => future {counter.inc})
+            awaitAll(3000L, tasks: _*)
+            counter.get
+        }
         expect(0) {
-            var tasks = Range(1,1000).map(i => future {counter.inc})
-            awaitAll(300000L, tasks: _*)
-            tasks = Range(1,1000).map(i => future {counter.dec})
-            awaitAll(300000L, tasks: _*)
+            val tasks = Range(0,1000).map(i => future {counter.dec})
+            awaitAll(3000L, tasks: _*)
             counter.get
         }
     }
