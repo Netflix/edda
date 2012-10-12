@@ -36,7 +36,7 @@ class UtilsTest extends FunSuite {
     test("toPrettyJson") {
         val date = new DateTime(0, UTC)
         val expected = """{
-  "date" : "1969-12-31T16:00:00.0Z",
+  "date" : "1970-01-01T00:00:00.0Z",
   "foo" : "bar",
   "list" : [
     1,

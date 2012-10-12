@@ -136,7 +136,7 @@ object Utils {
     def dateFormatter(arg: Any): Any = {
         arg match {
             case v: Date     => dateFormat.format(v)
-            case v: DateTime => dateFormat.format(v.toDate)
+            case v: DateTime => v.toString("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
             case v           => v
         }
     }
