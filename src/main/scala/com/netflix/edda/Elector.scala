@@ -23,9 +23,10 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
 
   def isLeader(): Boolean = {
     val self = this
-    this !? IsLeader(this) match {
-      case ElectionResult(`self`, result) => result
-      case message => throw new java.lang.UnsupportedOperationException("Failed to determine leadership: " + message);
+    this !? (10000, IsLeader(this)) match {
+      case Some(ElectionResult(`self`, result)) => result
+      case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to determine leadership: " + message);
+      case None => throw new java.lang.RuntimeException("TIMEOUT: isLeader response within 10s")
     }
   }
 
@@ -70,7 +71,7 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
       setLocalState(state, ElectorState(result))
     }
     case (IsLeader(from), state) => {
-      sender ! ElectionResult(this, localState(state).isLeader)
+      reply(ElectionResult(this, localState(state).isLeader))
       state
     }
   }

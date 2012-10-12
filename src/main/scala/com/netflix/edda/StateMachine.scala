@@ -3,6 +3,11 @@ package com.netflix.edda
 import scala.actors.Actor
 import org.slf4j.{ Logger, LoggerFactory }
 
+import java.util.concurrent.Callable
+
+import com.netflix.servo.monitor.MonitorConfig
+import com.netflix.servo.monitor.BasicGauge
+
 object StateMachine {
   type State = Map[String, Any]
   trait Message {
@@ -51,6 +56,13 @@ class StateMachine extends Actor {
       case (InvalidMessageError(from,reason,message),state) => 
           throw new java.lang.RuntimeException(reason)
   }
+
+  private[this] val self = this
+  private[this] val mailboxSizeGauge = new BasicGauge[java.lang.Long](
+    MonitorConfig.builder("mailboxSize").build(),
+    new Callable[java.lang.Long] {
+      def call() = self.mailboxSize
+    })
 
   final def act() {
     init

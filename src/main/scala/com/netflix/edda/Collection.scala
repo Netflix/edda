@@ -29,6 +29,8 @@ object Collection extends StateMachine.LocalState[CollectionState] {
 
   // internal messages
   case class Load(from: Actor) extends StateMachine.Message
+  case class SyncLoad(from: Actor) extends StateMachine.Message
+  case class OK(from: Actor) extends StateMachine.Message
 }
 
 abstract class Collection(val ctx: Collection.Context) extends Queryable {
@@ -150,6 +152,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           case Elector.ElectionResult(from, result) => {
             // if we just became leader, then start a crawl
             if (!amLeader && result) {
+              this !? (120000,SyncLoad(this)) match {
+                case Some(OK(from)) => Unit
+                case None => throw new java.lang.RuntimeException("TIMEOUT: Failed to reload data as we became leader in 2m")
+              }
               crawler.crawl()
               lastRun = DateTime.now
             }
@@ -180,26 +186,40 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       }
     })
 
+  private def doLoad(): Seq[Record] = {
+    val stopwatch = loadTimer.start()
+    var records = try {
+      val now = DateTime.now
+      load().map(_.copy(mtime=now))
+    } catch {
+      case e => {
+        loadErrorCounter.increment
+        throw e
+      }
+    } finally {
+      stopwatch.stop()
+    }
+    loadCounter.increment
+    logger.info("{} Loaded {} records in {} sec", toObjects(
+      this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
+    records
+  }
+
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
+    case (SyncLoad(from), state) => {
+      // SyncLoad allows us to make sure we have a current cache in memory of "live" records
+      // before we take over as "Leader" and start writing to the DataStore
+      NamedActor(this + " SyncLoad processor") {
+        val records = doLoad()
+        this ! Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
+        reply(OK(this))
+      }
+      state
+    }
     case (Load(from), state) => {
-      val self: Actor = this
       NamedActor(this + " Load processor") {
-        val stopwatch = loadTimer.start()
-        var records = try {
-          val now = DateTime.now
-          load().map(_.copy(mtime=now))
-        } catch {
-          case e => {
-            loadErrorCounter.increment
-            throw e
-          }
-        } finally {
-          stopwatch.stop()
-        }
-        loadCounter.increment
-        logger.info("{} Loaded {} records in {} sec", toObjects(
-          this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
-        self ! Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
+        val records = doLoad()
+        this ! Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
       }
       state
     }

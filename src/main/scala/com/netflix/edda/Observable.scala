@@ -18,16 +18,18 @@ abstract class Observable extends StateMachine {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
   def addObserver(actor: Actor) {
-    this !? Observe(this, actor) match {
-      case OK(from) =>
-      case message => throw new java.lang.UnsupportedOperationException("Failed to add observer " + message);
+    this !? (60000, Observe(this, actor)) match {
+      case Some(OK(from)) =>
+      case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to add observer " + message);
+      case None => throw new java.lang.RuntimeException("TIMEOUT: Failed to register observer in 60s")
     }
   }
 
   def delObserver(actor: Actor) {
-    this !? Ignore(this, actor) match {
-      case OK(from) =>
-      case message => throw new java.lang.UnsupportedOperationException("Failed to remove observer " + message);
+    this !? (60000, Ignore(this, actor)) match {
+      case Some(OK(from)) =>
+      case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to remove observer " + message);
+      case None => throw new java.lang.RuntimeException("TIMEOUT: Failed to unregister observer in 60s")
     }
   }
 
@@ -35,11 +37,11 @@ abstract class Observable extends StateMachine {
 
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Observe(from, caller), state) => {
-      sender ! OK(this)
+      reply(OK(this))
       setLocalState(state, ObservableState(caller :: localState(state).observers))
     }
     case (Ignore(from, caller), state) => {
-      sender ! OK(this)
+      reply(OK(this))
       setLocalState(state, ObservableState(localState(state).observers diff List(caller)))
     }
   }
