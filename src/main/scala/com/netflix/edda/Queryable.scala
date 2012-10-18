@@ -14,7 +14,7 @@ abstract class Queryable extends Observable {
 
   def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set()): Seq[Record] = {
     val self = this
-    this !? (60000, Query(this, queryMap, limit, live, keys)) match {
+    self !? (60000, Query(self, queryMap, limit, live, keys)) match {
       case Some(QueryResult(`self`, results)) => results
       case None => throw new java.lang.RuntimeException("TIMEOUT: Failed to fetch query results within 60s")
     }
@@ -27,9 +27,9 @@ abstract class Queryable extends Observable {
   }
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Query(from, queryMap, limit, live, keys), state) => {
-      //val replyTo = sender
+      val replyTo = sender
       Utils.NamedActor(this + " Query processor") {
-          reply(QueryResult(this, doQuery(queryMap, limit, live, keys, state)))
+          replyTo ! QueryResult(this, doQuery(queryMap, limit, live, keys, state))
       }
       state
     }

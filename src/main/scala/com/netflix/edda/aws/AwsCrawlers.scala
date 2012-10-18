@@ -58,45 +58,6 @@ trait AwsBeanMapper extends BeanMapper {
   })
 }
 
-// object AwsCrawlerBuilder {
-
-//     def build(ctx : AwsCrawler.Context): Seq[AwsCrawler] = {
-//         ctx.beanMapper.addKeyMapper(instanceStateKeyMapper)
-//         val tags = ctx.config.getProperty("edda.crawler.aws.suppressTags", "")
-//         tags.split(",").foreach( tag => {
-//             val pf: PartialFunction[(AnyRef,String,Option[Any]),Option[Any]] = {
-//                 case (obj: com.amazonaws.services.ec2.model.Tag, "value", Some(x: Any)) if obj.getKey() == tag => Some("[EDDA_SUPPRESSED]")
-//                 case (obj: com.amazonaws.services.ec2.model.TagDescription, "value", Some(x: Any)) if obj.getKey() == tag => Some("[EDDA_SUPPRESSED]")
-//             }
-//             ctx.beanMapper.addKeyMapper(pf)
-//         })
-
-//         val elb = new LoadBalancerCrawler(ctx)
-//         val inst = new ReservationCrawler(ctx)
-
-//         val aws = List(
-//             new AddressCrawler(ctx),
-//             new AutoScalingGroupCrawler(ctx),
-//             new ImageCrawler(ctx),
-//             new LaunchConfigurationCrawler(ctx),
-//             new SecurityGroupCrawler(ctx),
-//             new SnapshotCrawler(ctx),
-//             new TagCrawler(ctx),
-//             new VolumeCrawler(ctx),
-//             new BucketCrawler(ctx),
-//             elb,
-//             inst
-//         )
-
-//         val views = List(
-//             new InstanceHealthCrawler(ctx, elb),
-//             new InstanceCrawler(ctx, inst)
-//         )
-
-//         views ++ aws
-//     }
-// }
-
 abstract class AwsIterator extends Iterator[Seq[Record]] {
   private[this] val logger = LoggerFactory.getLogger(getClass)
   var nextToken: Option[String] = Some(null)
@@ -330,52 +291,3 @@ class AwsBucketCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
   override def doCrawl = ctx.awsClient.s3.listBuckets(request).asScala.map(
     item => Record(item.getName, new DateTime(item.getCreationDate), ctx.beanMapper(item))).toSeq
 }
-
-// case class GroupAutoScalingGroupsCrawlerState(asgRecords: Seq[Record] = Seq(), slotMap: Map[String,Int] = Map())
-
-// object GroupAutoScalingGroupsCrawler extends StateMachine.LocalState[GroupAutoScalingGroupsCrawlerState]
-
-// class GroupAutoScalingGroupsCrawler(val name: String, val ctx : AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
-//     import GroupAutoScalingGroupsCrawler._
-//     override def crawl() = Unit // we dont crawl, just get updates from crawler when it crawls
-//     override def doCrawl = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on GroupAutoScalingGroupsCrawler")
-//     def doCrawl(asgRecords: Seq[Record]): Seq[Record] = {
-//         asgRecords.flatMap(rec => {
-//             rec.data.asInstanceOf[Map[String,Any]].get("instances") match {
-//                 case instances: Option[Seq[Map[String,Any]]] => instances.get.map(
-//                     (inst: Map[String,Any]) => rec.copy(
-//                         id=inst("instanceId").asInstanceOf[String],
-//                         data=inst,
-//                         ctime=inst("launchTime").asInstanceOf[DateTime]
-//                     )
-//                 )
-//                 case other => throw new java.lang.RuntimeException("failed to crawl instances from reservation, got: " + other)
-//             }
-//         })
-//     }
-
-//     protected override
-//     def initState = addInitialState(super.initState, newLocalState(GroupAutoScalingGroupsCrawlerState()))
-
-//     protected override
-//     def init = crawler.addObserver(this)
-
-//     protected
-//     def localTransitions: PartialFunction[(Any,StateMachine.State),StateMachine.State] = {
-//         case (Crawler.CrawlResult(from, asgRecords),state) => {
-//             // this is blocking so we dont crawl in parallel
-//             // TODO return state if elbRecords == state.elbRecords && minCycle not reached
-//             if( asgRecords ne localState(state).asgRecords ) {
-//                 val newRecords = doCrawl(asgRecords)
-//                 Observable.localState(state).observers.foreach( _ ! Crawler.CrawlResult(this, newRecords) )
-//                 setLocalState(
-//                     Crawler.setLocalState(state, CrawlerState(newRecords)),
-//                     GroupAutoScalingGroupsCrawlerState(asgRecords, asgRecords.map(rec => rec.id -> rec))
-//                 )
-//             } else state
-//         }
-//     }
-
-//     override protected
-//     def transitions = localTransitions orElse super.transitions
-// }

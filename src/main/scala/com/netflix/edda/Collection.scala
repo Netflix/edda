@@ -141,6 +141,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     NamedActor(this + " refresher") {
       elector.addObserver(Actor.self)
       var amLeader = elector.isLeader()
+      // crawl immediately the first time
+      if (amLeader) crawler.crawl()
+
       var lastRun = DateTime.now
       Actor.loop {
         val timeout = if (amLeader) refresh else cacheRefresh
@@ -212,7 +215,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       NamedActor(this + " SyncLoad processor") {
         val records = doLoad()
         this ! Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
-        reply(OK(this))
+        sender ! OK(this)
       }
       state
     }

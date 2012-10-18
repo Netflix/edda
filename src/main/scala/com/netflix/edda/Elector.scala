@@ -71,7 +71,7 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
       setLocalState(state, ElectorState(result))
     }
     case (IsLeader(from), state) => {
-      reply(ElectionResult(this, localState(state).isLeader))
+      sender ! ElectionResult(this, localState(state).isLeader)
       state
     }
   }

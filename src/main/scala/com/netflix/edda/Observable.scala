@@ -37,11 +37,11 @@ abstract class Observable extends StateMachine {
 
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Observe(from, caller), state) => {
-      reply(OK(this))
+      sender ! OK(this)
       setLocalState(state, ObservableState(caller :: localState(state).observers))
     }
     case (Ignore(from, caller), state) => {
-      reply(OK(this))
+      sender ! OK(this)
       setLocalState(state, ObservableState(localState(state).observers diff List(caller)))
     }
   }

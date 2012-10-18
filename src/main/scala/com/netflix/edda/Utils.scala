@@ -1,6 +1,6 @@
 package com.netflix.edda
 
-import scala.actors.Actor
+import scala.actors.DaemonActor
 
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
@@ -23,7 +23,7 @@ object Utils {
     private lazy val factory = new MappingJsonFactory
     private lazy val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
 
-    case class NamedActor[T](name: String)(body: => T) extends Actor {
+    case class NamedActor[T](name: String)(body: => T) extends DaemonActor {
         override def toString = name
         override def act = body
         start

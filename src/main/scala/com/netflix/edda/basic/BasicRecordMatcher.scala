@@ -11,44 +11,29 @@ class BasicRecordMatcher extends RecordMatcher {
   private val logger = LoggerFactory.getLogger(getClass)
 
   def doesMatch(queryMap: Map[String, Any], record: Map[String, Any]): Boolean = {
-    // find the first rule where rule does not match record
-    // if a rule is expected then the query does *not* match and false
-    // is returned
-    queryMap.find(
-      rule => !matchRule(rule, record)) match {
-        case Some(_) => false
-        case _ => true
-      }
+      // find the first rule where rule does not match record
+      !queryMap.exists( !matchRule(_,record) )
   }
 
   protected def matchRule(rule: Any, record: Map[String, Any]): Boolean = {
     rule match {
       // { key: { $op1: val, $op2: val } } ==>
       // { key: { $op1: val }, key: { $op2: val } {
-      case (key: String, value: Map[_, _]) =>
-        value.find(
-          subrule => !matchRule((key, subrule), record)) match {
-            case Some(_) => false
-            case _ => true
-          }
+      case map: Map[_,_] => !map.exists(!matchRule(_, record))
+      case (key: String, value: Map[_, _]) => !value.exists(subrule => !matchRule((key -> subrule), record))
       // { $or: [ {key: value}, {key: value} ] }
-      case ("$or", value: Seq[_]) =>
-        value.find(
-          subrule => matchRule(subrule, record)) match {
-            case Some(_) => true
-            case _ => false
-          }
+      case ("$or", value: Seq[_]) => value.exists(matchRule(_,record))
       // { $and: [ {key: value}, {key: value} ] }
-      case ("$and", value: Seq[_]) =>
-        value.find(
-          subrule => !matchRule(subrule, record)) match {
-            case Some(_) => false
-            case _ => true
-          }
+      case ("$and", value: Seq[_]) => !value.exists(!matchRule(_, record))
       case (key: String, (op: String, value: Any)) => matchOp(key, value, op, record)
       case (key: String, value: Any) => matchOp(key, value, "$eq", record)
+      case (key: String, null) => matchOp(key, null, "$eq", record)
     }
   }
+
+    trait Doubleable {
+        def toDouble: Double
+    }
 
   protected def cmpPartialMatcher: PartialFunction[(Any, Any), Int] = {
     case (null, null) => 0
@@ -61,33 +46,62 @@ class BasicRecordMatcher extends RecordMatcher {
 
     case (found: DateTime, expected: Long) => found.getMillis.compareTo(expected)
     case (found: DateTime, expected: DateTime) => found.compareTo(expected)
+    case (found: DateTime, expected: Date) => found.toDate.compareTo(expected)
 
     case (found: Date, expected: Long) => found.getTime.compareTo(expected)
     case (found: Date, expected: Date) => found.compareTo(expected)
+    case (found: Date, expected: DateTime) => found.compareTo(expected.toDate)
 
-    case (found: String, expected) => found.compareTo(expected.asInstanceOf[String])
-    case (found, expected: String) => found.asInstanceOf[String].compareTo(expected)
+    case (found: String, expected: Byte) => found.compareTo(expected.toChar.toString)
+    case (found: String, expected) => found.compareTo(expected.toString)
+    case (found, expected: String) => found.toString.compareTo(expected)
 
-    case (found, expected: Double) => found.asInstanceOf[Double].compareTo(expected)
-    case (found: Double, expected) => found.compareTo(expected.asInstanceOf[Double])
+    case (found: Double, expected: Double) => found.compareTo(expected)
+    case (found: Double, expected: Float)  => found.compareTo(expected.toString.toDouble)
+    case (found: Double, expected: Long)   => found.compareTo(expected)
+    case (found: Double, expected: Int)    => found.compareTo(expected)
+    case (found: Double, expected: Short)  => found.compareTo(expected)
+    case (found: Double, expected: Byte)   => found.compareTo(expected)
+      
+    case (found: Float, expected: Double) if expected.toFloat.toString.toDouble == expected => found.compareTo(expected.toFloat)
+    case (found: Float, expected: Float)  => found.compareTo(expected)
+    case (found: Float, expected: Long)   => found.compareTo(expected)
+    case (found: Float, expected: Int)    => found.compareTo(expected)
+    case (found: Float, expected: Short)  => found.compareTo(expected)
+    case (found: Float, expected: Byte)   => found.compareTo(expected)
 
-    case (found, expected: Float) => found.asInstanceOf[Float].compareTo(expected)
-    case (found: Float, expected) => found.compareTo(expected.asInstanceOf[Float])
+    case (found: Long, expected: Double) if expected.toLong.toDouble == expected => found.compareTo(expected.toLong)
+    case (found: Long, expected: Float)  if expected.toLong.toFloat == expected  => found.compareTo(expected.toLong)
+    case (found: Long, expected: Long)   => found.compareTo(expected)
+    case (found: Long, expected: Int)    => found.compareTo(expected)
+    case (found: Long, expected: Short)  => found.compareTo(expected)
+    case (found: Long, expected: Byte)   => found.compareTo(expected)
 
-    case (found, expected: Long) => found.asInstanceOf[Long].compareTo(expected)
-    case (found: Long, expected) => found.compareTo(expected.asInstanceOf[Long])
+    case (found: Int, expected: Double) if expected.toInt.toDouble == expected => found.compareTo(expected.toInt)
+    case (found: Int, expected: Float)  if expected.toInt.toFloat == expected  => found.compareTo(expected.toInt)
+    case (found: Int, expected: Long)   if expected.toInt.toLong == expected   => found.compareTo(expected.toInt)
+    case (found: Int, expected: Int)    => found.compareTo(expected)
+    case (found: Int, expected: Short)  => found.compareTo(expected)
+    case (found: Int, expected: Byte)   => found.compareTo(expected)
 
-    case (found, expected: Int) => found.asInstanceOf[Int].compareTo(expected)
-    case (found: Int, expected) => found.compareTo(expected.asInstanceOf[Int])
+    case (found: Short, expected: Double) if expected.toShort.toDouble == expected => found.compareTo(expected.toShort)
+    case (found: Short, expected: Float)  if expected.toShort.toFloat == expected  => found.compareTo(expected.toShort)
+    case (found: Short, expected: Long)   if expected.toShort.toLong == expected   => found.compareTo(expected.toShort)
+    case (found: Short, expected: Int)    if expected.toShort.toInt == expected    => found.compareTo(expected.toShort)
+    case (found: Short, expected: Short)  => found.compareTo(expected)
+    case (found: Short, expected: Byte)   => found.compareTo(expected)
 
-    case (found, expected: Short) => found.asInstanceOf[Short].compareTo(expected)
-    case (found: Short, expected) => found.compareTo(expected.asInstanceOf[Short])
+    case (found: Char, expected: Long)   if expected.toString.size == 1 => found.compareTo(expected.toString.head)
+    case (found: Char, expected: Int)    if expected.toString.size == 1 => found.compareTo(expected.toString.head)
+    case (found: Char, expected: Short)  if expected.toString.size == 1 => found.compareTo(expected.toString.head)
+    case (found: Char, expected: Char)   => found.compareTo(expected)
+    case (found: Char, expected: Byte)   if expected.toChar.toByte == expected => found.compareTo(expected.toChar)
 
-    case (found, expected: Char) => found.asInstanceOf[Char].compareTo(expected)
-    case (found: Char, expected) => found.compareTo(expected.asInstanceOf[Char])
-
-    case (found, expected: Byte) => found.asInstanceOf[Byte].compareTo(expected)
-    case (found: Byte, expected) => found.compareTo(expected.asInstanceOf[Byte])
+    case (found: Byte, expected: Long)   if expected.toByte.toLong == expected => found.compareTo(expected.toByte)
+    case (found: Byte, expected: Int)    if expected.toByte.toInt == expected => found.compareTo(expected.toByte)
+    case (found: Byte, expected: Short)  if expected.toByte.toShort == expected => found.compareTo(expected.toByte)
+    case (found: Byte, expected: Char)   if expected.toByte.toChar == expected => found.compareTo(expected.toByte)
+    case (found: Byte, expected: Byte)   => found.compareTo(expected)
   }
 
   protected def noPartialMatch: PartialFunction[(Any, Any), Int] = {
@@ -96,13 +110,18 @@ class BasicRecordMatcher extends RecordMatcher {
   }
 
   protected def eqMatcher =
-    // for practical reasons if a.b.c=10 is what we are provided
-    // and a.b.c = [5,10,15] then treat $eq as $in
-    (found: Any, expected: Any) =>
-      found match {
-        case seq: Seq[_] => inMatcher(found, expected)
-        case value => cmpPartialMatcher.lift(value, expected) == Some(0)
-      }
+      // for practical reasons if a.b.c=10 is what we are provided
+      // and a.b.c = [5,10,15] then treat $eq as $in
+      (found: Any, expected: Any) =>
+          (found, expected) match {
+              case (foundSeq: Seq[_], expSeq: Seq[_]) => {
+                  !expSeq.exists(inMatcher(found,_) == false)
+              }
+              case (foundSeq: Seq[_], _) => {
+                  inMatcher(foundSeq, expected)
+              }
+              case _ => cmpPartialMatcher.lift(found, expected) == Some(0)
+          }
 
   protected def cmpMatcher =
     (found: Any, expected: Any) => {
@@ -113,26 +132,25 @@ class BasicRecordMatcher extends RecordMatcher {
   protected def existsMatcher =
     (found: Any, expected: Any) =>
       found match {
-        case null | None | Nil => found == false
-        case _ => found == true
+        case None | Nil => expected == false
+        case _ => expected == true
       }
 
   protected def inMatcher =
     (found: Any, expected: Any) => {
-      found match {
-        case _ => expected.asInstanceOf[Seq[Any]].find(item => cmpPartialMatcher.lift(found, item) == Some(0)) match {
-          case Some(_) => true
-          case _ => false
-        }
+      (found, expected) match {
+          case (foundSeq: Seq[_], _) => {
+              foundSeq.exists(cmpPartialMatcher.lift(_, expected) == Some(0))
+          }
+          case (_, expSeq: Seq[_]) => {
+              expSeq.exists(cmpPartialMatcher.lift(found, _) == Some(0))
+          }
       }
     }
 
   protected def regexMatcher =
     (found: Any, expected: Any) =>
-      expected.toString.r findFirstIn found.toString match {
-        case Some(_) => true
-        case _ => false
-      }
+      (expected.toString.r findFirstIn found.toString) != None
 
   protected def matchOp(key: String, value: Any, op: String, record: Map[String, Any]): Boolean = {
     // $eq $ne $gt $lt $gte $lte $exists $in $nin $regex
@@ -157,7 +175,7 @@ class BasicRecordMatcher extends RecordMatcher {
     def _findObj(parts: Array[String], value: Any, data: Map[String, Any]): Boolean = {
       val dataHead = data.get(parts.head) match {
         case Some(value) => value
-        case _ => null
+        case _ => None
       }
 
       if (parts.size == 1) {
@@ -172,14 +190,11 @@ class BasicRecordMatcher extends RecordMatcher {
 
     def _findList(parts: Array[String], value: Any, data: Seq[Any]): Boolean = {
       // return true if any item in the list matches the value
-      data.find(v => v match {
+      data.exists(v => v match {
         case v: Map[_, _] => _findObj(parts, value, v.asInstanceOf[Map[String, Any]])
         case v: Seq[_] => _findList(parts, value, v.asInstanceOf[Seq[Any]])
         case v => false
-      }) match {
-        case Some(_) => true
-        case _ => false
-      }
+      })
     }
     _findObj(key.split('.'), value, record)
   }
