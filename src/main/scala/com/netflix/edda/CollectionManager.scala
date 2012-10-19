@@ -15,7 +15,7 @@
  */
 package com.netflix.edda
 
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 
 object CollectionManager {
   private[this] val logger = LoggerFactory.getLogger(getClass)

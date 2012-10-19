@@ -27,7 +27,7 @@ class RecordTest extends FunSuite {
         val stime = date
         val ltime = null
         val mtime = date
-        val data = 1;
+        val data = 1
         val tags = Map[String,Any]()
         
         val expected = new Record("id",ctime,stime,ltime,mtime,data,tags)

@@ -22,7 +22,7 @@ import java.util.Date
 
 import org.joda.time.DateTime
 
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 
 import org.apache.commons.beanutils.BeanMap
 
@@ -35,7 +35,7 @@ class BasicBeanMapper(val ctx: ConfigContext) extends BeanMapper {
 
   val argPattern = ctx.config.getProperty("edda.bean.argPattern", "[^a-zA-Z0-9_]").r
 
-  /** Create a mongo db list from a java collection object. */
+  /** Create a Mongodb list from a java collection object. */
   def mkList(c: java.util.Collection[_ <: Any]): List[Any] = {
     import collection.JavaConverters._
     c.asScala
@@ -44,7 +44,7 @@ class BasicBeanMapper(val ctx: ConfigContext) extends BeanMapper {
       .sortBy(v => if (v == null) "" else v.toString.toLowerCase)
   }
 
-  /** Create a mongo db object from a java map object. */
+  /** Create a Mongodb object from a java map object. */
   def mkMap(m: java.util.Map[_ <: Any, _ <: Any]): Map[Any, Any] = {
     import scala.collection.JavaConverters._
     if (m.getClass.isEnum)

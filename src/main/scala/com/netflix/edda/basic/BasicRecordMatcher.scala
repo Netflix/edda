@@ -20,11 +20,7 @@ import com.netflix.edda.RecordMatcher
 import java.util.Date
 import org.joda.time.DateTime
 
-import org.slf4j.{ Logger, LoggerFactory }
-
 class BasicRecordMatcher extends RecordMatcher {
-  private val logger = LoggerFactory.getLogger(getClass)
-
   def doesMatch(queryMap: Map[String, Any], record: Map[String, Any]): Boolean = {
       // find the first rule where rule does not match record
       !queryMap.exists( !matchRule(_,record) )
@@ -180,7 +176,7 @@ class BasicRecordMatcher extends RecordMatcher {
       case "$in" => inMatcher(_, _)
       case "$nin" => !inMatcher(_, _)
       case "$regex" => regexMatcher(_, _)
-      case op => throw new java.lang.RuntimeException("uknown match operation: " + op)
+      case unk => throw new java.lang.RuntimeException("uknown match operation: " + unk)
     }
 
     runMatcher(key, value, opMatcher, record)
@@ -189,7 +185,7 @@ class BasicRecordMatcher extends RecordMatcher {
   protected def runMatcher(key: String, value: Any, opMatcher: (Any, Any) => Boolean, record: Map[String, Any]): Boolean = {
     def _findObj(parts: Array[String], value: Any, data: Map[String, Any]): Boolean = {
       val dataHead = data.get(parts.head) match {
-        case Some(value) => value
+        case Some(v) => v
         case _ => None
       }
 
@@ -206,9 +202,9 @@ class BasicRecordMatcher extends RecordMatcher {
     def _findList(parts: Array[String], value: Any, data: Seq[Any]): Boolean = {
       // return true if any item in the list matches the value
       data.exists(v => v match {
-        case v: Map[_, _] => _findObj(parts, value, v.asInstanceOf[Map[String, Any]])
-        case v: Seq[_] => _findList(parts, value, v.asInstanceOf[Seq[Any]])
-        case v => false
+        case x: Map[_, _] => _findObj(parts, value, x.asInstanceOf[Map[String, Any]])
+        case x: Seq[_] => _findList(parts, value, x.asInstanceOf[Seq[Any]])
+        case _ => false
       })
     }
     _findObj(key.split('.'), value, record)

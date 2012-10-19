@@ -23,16 +23,16 @@ import org.slf4j.Logger
 
 trait GroupCollection extends Collection {
 
-  val logger: Logger
+  def logger: Logger
 
   // we only need to refresh cache if we are not leader.  When we are leader
   // then we will get events from the crawler
-  override protected def refresher {
+  override protected def refresher() {
     if (Option(crawler) == None || Option(elector) == None) return
     val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
     Utils.NamedActor(this + " refresher") {
       elector.addObserver(Actor.self)
-      var amLeader = elector.isLeader()
+      var amLeader = elector.isLeader
       var lastRun = DateTime.now
       Actor.loop {
         val timeout = cacheRefresh
@@ -98,7 +98,7 @@ trait GroupCollection extends Collection {
 
     val rec = records.head
     val data = rec.data.asInstanceOf[Map[String, Any]] ++ merge + ("end" -> rec.ltime)
-    return rec.copy(data = data)
+    rec.copy(data = data)
   }
 
   def groupSlots(oldRecords: Seq[Record]): Map[String, Map[String, Int]] = {
@@ -117,9 +117,9 @@ trait GroupCollection extends Collection {
   def assignSlots(group: Seq[Map[String, Any]], groupKey: String, slotMap: Map[String, Int]): Seq[Map[String, Any]] = {
 
     val usedSlots: Set[Int] = group.map(
-      item => item(groupKey).asInstanceOf[String]) collect {
+      item => item(groupKey).asInstanceOf[String]).collect({
         case id: String if slotMap.contains(id) => slotMap(id)
-      } toSet
+      }).toSet
 
     var unusedSlots = Range(0, group.size).collect {
       case slot if !usedSlots.contains(slot) => slot
@@ -129,7 +129,7 @@ trait GroupCollection extends Collection {
       item => {
         val id = item(groupKey).asInstanceOf[String]
         val slot = slotMap.get(id) match {
-          case Some(slot) => slot
+          case Some(s) => s
           case None => {
             val slot = unusedSlots.head
             unusedSlots = unusedSlots.tail
@@ -173,12 +173,12 @@ trait GroupCollection extends Collection {
       if (changes.isEmpty) {
         rec.id -> Collection.RecordUpdate(oldRec, rec.copy(stime = oldRec.stime))
       } else {
-        // sets dont have same sets, so create new document revision
+        // sets don't have same sets, so create new document revision
         rec.id -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), rec)
       }
     }).toMap
 
-    // need to reset stime,ctime,tags for crawled records to match what we have in memory
+    // need to reset stime, ctime, tags for crawled records to match what we have in memory
     val fixedRecords = newRecords.collect {
       case rec: Record if changes.contains(rec.id) => {
         val newRec = changes(rec.id).newRecord

@@ -17,13 +17,11 @@ package com.netflix.edda.web
 
 import org.scalatest.FunSuite
 
-import FieldSelectorExpr._
-
 class FieldSelectorParserTest extends FunSuite {
 
     test("ParseSingleKey") {
         val expr = ":(a)"
-        expect(KeySelectExpr(Map("a" -> FixedExpr(true)))) {
+        expect(KeySelectExpr(Map("a" -> FixedExpr(matches=true)))) {
             FieldSelectorParser.parse(expr)
         }
     }
@@ -31,9 +29,9 @@ class FieldSelectorParserTest extends FunSuite {
     test("ParseManyKeys") {
         val expr = ":(a,b,c)"
         expect(KeySelectExpr(Map(
-                "a" -> FixedExpr(true),
-                "b" -> FixedExpr(true),
-                "c" -> FixedExpr(true)
+                "a" -> FixedExpr(matches=true),
+                "b" -> FixedExpr(matches=true),
+                "c" -> FixedExpr(matches=true)
             ))) {
             FieldSelectorParser.parse(expr)
         }
@@ -42,9 +40,9 @@ class FieldSelectorParserTest extends FunSuite {
     test("ParseFlatten") {
         val expr = "::(a,b,c)"
         expect(FlattenExpr(KeySelectExpr(Map(
-                "a" -> FixedExpr(true),
-                "b" -> FixedExpr(true),
-                "c" -> FixedExpr(true)
+                "a" -> FixedExpr(matches=true),
+                "b" -> FixedExpr(matches=true),
+                "c" -> FixedExpr(matches=true)
             )))) {
             FieldSelectorParser.parse(expr)
         }
@@ -53,15 +51,15 @@ class FieldSelectorParserTest extends FunSuite {
     test("ParseSubExpr") {
         val expr = ":(a,b:(d,e),c::(f,g,h))"
         expect(KeySelectExpr(Map(
-                "a" -> FixedExpr(true),
+                "a" -> FixedExpr(matches=true),
                 "b" -> KeySelectExpr(Map(
-                    "d" -> FixedExpr(true),
-                    "e" -> FixedExpr(true)
+                    "d" -> FixedExpr(matches=true),
+                    "e" -> FixedExpr(matches=true)
                 )),
                 "c" -> FlattenExpr(KeySelectExpr(Map(
-                    "f" -> FixedExpr(true),
-                    "g" -> FixedExpr(true),
-                    "h" -> FixedExpr(true)
+                    "f" -> FixedExpr(matches=true),
+                    "g" -> FixedExpr(matches=true),
+                    "h" -> FixedExpr(matches=true)
                 )))
             ))) {
             FieldSelectorParser.parse(expr)
@@ -84,14 +82,14 @@ class FieldSelectorParserTest extends FunSuite {
 
     test("ParseRegexExpr") {
         val expr = ":(a~/^.*Id$/)"
-        expect(KeySelectExpr(Map("a" -> RegexExpr("^.*Id$", false)))) {
+        expect(KeySelectExpr(Map("a" -> RegexExpr("^.*Id$", invert=false)))) {
             FieldSelectorParser.parse(expr)
         }
     }
 
     test("ParseInvRegexExpr") {
         val expr = ":(a!~/^.*Id$/)"
-        expect(KeySelectExpr(Map("a" -> RegexExpr("^.*Id$", true)))) {
+        expect(KeySelectExpr(Map("a" -> RegexExpr("^.*Id$", invert=true)))) {
             FieldSelectorParser.parse(expr)
         }
     }

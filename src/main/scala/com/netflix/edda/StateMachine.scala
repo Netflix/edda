@@ -16,7 +16,7 @@
 package com.netflix.edda
 
 import scala.actors.Actor
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 
 import java.util.concurrent.Callable
 
@@ -31,8 +31,8 @@ object StateMachine {
   case class Stop(from: Actor) extends Message {}
 
   trait ErrorMessage extends Message {}
-  case class InvalidMessageError(from: Actor, reason: String, message: Any) extends ErrorMessage;
-  case class UnknownMessageError(from: Actor, reason: String, message: Any) extends ErrorMessage;
+  case class InvalidMessageError(from: Actor, reason: String, message: Any) extends ErrorMessage
+  case class UnknownMessageError(from: Actor, reason: String, message: Any) extends ErrorMessage
 
   class LocalState[T] {
     def localStateKey = this.getClass.getName
@@ -49,7 +49,7 @@ class StateMachine extends Actor {
   import StateMachine._
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
-  protected def init: Unit = {}
+  protected def init() {}
 
   protected def initState: State = Map()
 
@@ -80,7 +80,7 @@ class StateMachine extends Actor {
     })
 
   final def act() {
-    init
+    init()
     var state = initState
     var keepLooping = true
     loopWhile(keepLooping) {
@@ -97,7 +97,7 @@ class StateMachine extends Actor {
           try {
             state = transitions(message, state)
           } catch {
-            case e => {
+            case e: Exception => {
               logger.error("failed to handle event " + message, e)
             }
           }

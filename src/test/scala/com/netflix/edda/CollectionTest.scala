@@ -15,7 +15,7 @@
  */
 package com.netflix.edda
 
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 
 import com.netflix.edda.basic.BasicContext
 
@@ -25,12 +25,12 @@ class CollectionTest extends FunSuite {
     val logger = LoggerFactory.getLogger(getClass)
     test("load") {
         val coll = new TestCollection
-        coll.start
+        coll.start()
         expect(Nil) {
             coll.query(Map("id" -> "b"))
         }
         
-        coll.datastore.get.records = Seq(Record("a", 1), Record("b", 2), Record("c", 3))
+        coll.dataStore.get.records = Seq(Record("a", 1), Record("b", 2), Record("c", 3))
         coll ! Collection.Load(coll)
         // allow for collection to load
         Thread.sleep(1000)
@@ -44,13 +44,13 @@ class CollectionTest extends FunSuite {
         expect("b") {
             records.head.id
         }
-        coll.stop
+        coll.stop()
     }
 
     test("update") {
         val coll = new TestCollection
-        coll.datastore.get.records = Seq(Record("a", 1), Record("b", 2), Record("c", 3))
-        coll.start
+        coll.dataStore.get.records = Seq(Record("a", 1), Record("b", 2), Record("c", 3))
+        coll.start()
 
         expect(3) {
             coll.query().size
@@ -75,18 +75,18 @@ class CollectionTest extends FunSuite {
         BasicContext.config.setProperty("edda.collection.refresh", "200")
         BasicContext.config.setProperty("edda.collection.cache.refresh", "200")
         val coll = new TestCollection
-        val datastoreResults =  Seq(Record("a", 1), Record("b", 2), Record("c", 3))
+        val dataStoreResults =  Seq(Record("a", 1), Record("b", 2), Record("c", 3))
         val crawlResults = Seq(Record("a", 1), Record("b", 3), Record("c", 4), Record("d", 5))
 
-        coll.datastore.get.records = datastoreResults
-        coll.start
+        coll.dataStore.get.records = dataStoreResults
+        coll.start()
         
-        // expect data loaded form datastore
+        // expect data loaded form dataStore
         expect(3) {
             coll.query().size
         }
 
-        // set crawler results and wait for the crawler results to propagete
+        // set crawler results and wait for the crawler results to propagate
         coll.crawler.records = crawlResults
         Thread.sleep(1000)
         
@@ -95,9 +95,9 @@ class CollectionTest extends FunSuite {
             coll.query().size
         }
         
-        // now drop leader role and wait for datastore results to reload
+        // now drop leader role and wait for dataStore results to reload
         coll.elector.leader = false
-        coll.datastore.get.records = datastoreResults
+        coll.dataStore.get.records = dataStoreResults
         Thread.sleep(1000)
 
         expect(3) {

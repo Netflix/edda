@@ -17,8 +17,6 @@ package com.netflix.edda.web
 
 import org.scalatest.FunSuite
 
-import FieldSelectorExpr._
-
 class FieldSelectorExprTest extends FunSuite {
 
     test("FlattenExpr") {
@@ -32,7 +30,7 @@ class FieldSelectorExprTest extends FunSuite {
             Map("f" -> 2, "g" -> 27)
         ))
 
-        val expr = FlattenExpr(FixedExpr(true))
+        val expr = FlattenExpr(FixedExpr(matches=true))
 
         expect(output) {
             expr.flattenValue(None, input)
@@ -45,7 +43,7 @@ class FieldSelectorExprTest extends FunSuite {
 
     test("KeySelectExpr") {
         val expr1 = KeySelectExpr(Map(
-            "a" -> FixedExpr(true),
+            "a" -> FixedExpr(matches=true),
             "b" -> EqualExpr(42),
             "c" -> EqualExpr("def")
         ))
@@ -115,13 +113,13 @@ class FieldSelectorExprTest extends FunSuite {
 
     test("RegexExpr") {
         expect(Some(42)) {
-            RegexExpr("42", false).select(42)
+            RegexExpr("42", invert=false).select(42)
         }
         expect(None) {
-            RegexExpr("42", true).select(42)
+            RegexExpr("42", invert=true).select(42)
         }
         expect(Some(42)) {
-            RegexExpr("[0-9]+", false).select(42)
+            RegexExpr("[0-9]+", invert=false).select(42)
         }
     }
 }

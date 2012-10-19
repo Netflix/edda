@@ -15,8 +15,6 @@
  */
 package com.netflix.edda.aws
 
-import com.netflix.edda.Record
-
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
@@ -27,13 +25,13 @@ import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingCli
 import com.amazonaws.services.s3.AmazonS3Client
 
 trait AwsClientComponent {
-  val awsClient: AwsClient
+  def awsClient: AwsClient
 }
 
 class AwsClient(val credentials: AWSCredentials, val region: String) {
 
   def this(region: String) =
-    this(new DefaultAWSCredentialsProviderChain().getCredentials(), region)
+    this(new DefaultAWSCredentialsProviderChain().getCredentials, region)
 
   def this(accessKey: String, secretKey: String, region: String) =
     this(new BasicAWSCredentials(accessKey, secretKey), region)

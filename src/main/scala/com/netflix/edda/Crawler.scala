@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
 
 import com.netflix.servo.monitor.Monitors
 
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 
 case class CrawlerState(records: Seq[Record] = Seq[Record](), crawlTime: Option[DateTime] = None)
 
@@ -42,10 +42,16 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
   private[this] val logger = LoggerFactory.getLogger(getClass)
   lazy val enabled = Utils.getProperty(ctx.config, "edda.crawler", "enabled", name, "true").toBoolean
 
-  def crawl() = if (enabled) this ! Crawl(this)
+  def crawl() {
+    if (enabled) this ! Crawl(this)
+  }
 
-  override def addObserver(actor: Actor) = if (enabled) super.addObserver(actor)
-  override def delObserver(actor: Actor) = if (enabled) super.delObserver(actor)
+  override def addObserver(actor: Actor) {
+    if (enabled) super.addObserver(actor)
+  }
+  override def delObserver(actor: Actor) {
+    if (enabled) super.delObserver(actor)
+  }
 
   def name: String
 
@@ -57,23 +63,23 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
 
   protected override def initState = addInitialState(super.initState, newLocalState(CrawlerState()))
 
-  protected override def init() {
-    Monitors.registerObject("edda.crawler." + name, this);
+  protected override def init {
+    Monitors.registerObject("edda.crawler." + name, this)
   }
 
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Crawl(from), state) => {
-      // this is blocking so we dont crawl in parallel
+      // this is blocking so we don't crawl in parallel
       val stopwatch = crawlTimer.start()
       val newRecords = try {
         doCrawl()
       } catch {
-        case e => {
-          errorCounter.increment
+        case e: Exception => {
+          errorCounter.increment()
           throw e
         }
       } finally {
-        stopwatch.stop
+        stopwatch.stop()
       }
 
       logger.info("{} Crawled {} records in {} sec", toObjects(

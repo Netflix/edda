@@ -17,7 +17,7 @@ package com.netflix.edda
 
 import com.netflix.edda.basic.BasicContext
 
-class TestDatastore extends Datastore {
+class TestDataStore extends DataStore {
     var records = Seq[Record]()
 
     def init() {
@@ -53,7 +53,7 @@ class TestElector(ctx: ConfigContext) extends Elector(ctx) {
 class TestCollection extends Collection(BasicContext) {
     val name = "test.collection"
     val crawler = new TestCrawler(BasicContext)
-    val datastore = Some(new TestDatastore)
+    val dataStore = Some(new TestDataStore)
     val elector = new TestElector(BasicContext)
 }
 

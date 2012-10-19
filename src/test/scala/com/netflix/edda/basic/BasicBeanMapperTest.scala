@@ -15,7 +15,7 @@
  */
 package com.netflix.edda.basic
 
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 import org.joda.time.DateTime
 import java.util.{ LinkedList => JList }
 import java.util.Date
@@ -34,7 +34,7 @@ class BasicBeanMapperTest extends FunSuite {
         asg.setVPCZoneIdentifier("")
         asg.setAutoScalingGroupARN("ARN")
         asg.setAutoScalingGroupName("asgName")
-        val azs = new JList[String]();
+        val azs = new JList[String]()
         azs.add("us-east-1c")
         asg.setAvailabilityZones(azs)
         asg.setCreatedTime(new Date(0))
@@ -114,7 +114,7 @@ class BasicBeanMapperTest extends FunSuite {
         }
 
         val pf1: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]] = {
-            case (obj: com.amazonaws.services.autoscaling.model.TagDescription, "value", Some(x: Any)) if obj.getKey() == "tagName" => None
+            case (obj: com.amazonaws.services.autoscaling.model.TagDescription, "value", Some(x: Any)) if obj.getKey == "tagName" => None
         }
         mapper.addKeyMapper(pf1)
 
@@ -123,7 +123,7 @@ class BasicBeanMapperTest extends FunSuite {
         }
 
         val pf2: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]] = {
-            case (obj: com.amazonaws.services.autoscaling.model.TagDescription, "value", Some(x: Any)) if obj.getKey() == "tagName" => Some("newValue")
+            case (obj: com.amazonaws.services.autoscaling.model.TagDescription, "value", Some(x: Any)) if obj.getKey == "tagName" => Some("newValue")
         }
         mapper.addKeyMapper(pf2)
 

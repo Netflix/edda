@@ -20,7 +20,7 @@ import scala.actors.Actor
 object Queryable extends StateMachine.LocalState[CollectionState] {
   private case class Query(from: Actor, query: Map[String, Any], limit: Int, live: Boolean, keys: Set[String]) extends StateMachine.Message
   private case class QueryResult(from: Actor, records: Seq[Record]) extends StateMachine.Message {
-    override def toString = "QueryResult(records=" + records.size + ")";
+    override def toString = "QueryResult(records=" + records.size + ")"
   }
 }
 

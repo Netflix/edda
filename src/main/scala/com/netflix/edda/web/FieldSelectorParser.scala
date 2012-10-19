@@ -16,13 +16,13 @@
 package com.netflix.edda.web
 
 import scala.util.parsing.combinator._
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 
 // https://developer.linkedin.com/documents/field-selectors
 
 object FieldSelectorExpr {
   case class Result(objectMatches: Boolean, newValue: Option[Any])
-  val NoMatch = Result(false, None)
+  val NoMatch = Result(objectMatches=false, None)
   val logger = LoggerFactory.getLogger(getClass)
 }
 
@@ -52,7 +52,7 @@ sealed trait FieldSelectorExpr {
 }
 
 case object MatchAnyExpr extends FieldSelectorExpr {
-  def checkValue(value: Any): Result = Result(true, Some(value))
+  def checkValue(value: Any): Result = Result(objectMatches=true, Some(value))
 }
 
 case class FixedExpr(matches: Boolean) extends FieldSelectorExpr {
@@ -61,7 +61,7 @@ case class FixedExpr(matches: Boolean) extends FieldSelectorExpr {
 
 case class FlattenExpr(expr: FieldSelectorExpr) extends FieldSelectorExpr {
   def checkValue(value: Any): Result = {
-    Result(true, Some(flattenValue(None, value)))
+    Result(objectMatches=true, Some(flattenValue(None, value)))
   }
 
   def flattenValue(prefix: Option[String], value: Any): Any = value match {
@@ -136,7 +136,7 @@ class FieldSelectorParser extends RegexParsers {
 
   def keySelectExpr = ":(" ~> repsep(subExpr, ",") <~ ")" ^^ (values => {
     KeySelectExpr(Map.empty ++ values.map(t => {
-      t._1 -> t._2.getOrElse(FixedExpr(true))
+      t._1 -> t._2.getOrElse(FixedExpr(matches=true))
     }))
   })
 
@@ -153,9 +153,9 @@ class FieldSelectorParser extends RegexParsers {
 
   def notEqualExpr = "!=" ~> literalExpr ^^ (value => NotEqualExpr(value))
 
-  def regexExpr = "~" ~> regexLiteral ^^ (value => RegexExpr(value, false))
+  def regexExpr = "~" ~> regexLiteral ^^ (value => RegexExpr(value, invert=false))
 
-  def invRegexExpr = "!~" ~> regexLiteral ^^ (value => RegexExpr(value, true))
+  def invRegexExpr = "!~" ~> regexLiteral ^^ (value => RegexExpr(value, invert=true))
 
   def id = regex("[a-zA-Z0-9_\\.\\-]*".r)
 
@@ -188,11 +188,11 @@ class FieldSelectorParser extends RegexParsers {
     }
 
     val result = parseAll(expression, expr) match {
-      case Success(result, _) => result
+      case Success(res, _) => res
       case Failure(msg, _) => fail(expr, msg)
       case Error(msg, _) => fail(expr, msg)
       case _ => fail(expr, "unknown")
     }
-    return result.asInstanceOf[FieldSelectorExpr]
+    result
   }
 }

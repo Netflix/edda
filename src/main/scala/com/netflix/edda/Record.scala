@@ -17,8 +17,6 @@ package com.netflix.edda
 
 import org.joda.time.DateTime
 
-import org.slf4j.{ Logger, LoggerFactory }
-
 object Record {
   def apply(id: String, data: Any): Record = {
     val now = DateTime.now
@@ -62,9 +60,6 @@ class Record(
   val mtime: DateTime,
   val data: Any,
   val tags: Map[String, Any]) {
-  import Record._
-
-  private[this] val logger = LoggerFactory.getLogger(getClass)
 
   def copy(
     id: String = id,

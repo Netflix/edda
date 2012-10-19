@@ -15,9 +15,8 @@
  *     limitations under the License.
  *
  */
-package com.netflix.edda.basic;
+package com.netflix.edda.basic
 
-import com.netflix.edda.Utils
 import com.netflix.edda.aws.AwsBeanMapper
 import com.netflix.edda.aws.AwsCollectionBuilder
 import com.netflix.edda.aws.AwsClient
@@ -27,13 +26,13 @@ import com.netflix.edda.mongo.MongoElector
 
 import javax.servlet.http.HttpServlet
 
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 
 class BasicServer extends HttpServlet {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
-  override def init = {
-    logger.info("Staring Server");
+  override def init() {
+    logger.info("Staring Server")
     val dsFactory = (name: String) => Some(new MongoDatastore(BasicContext, name))
     val elector = new MongoElector(BasicContext)
 
@@ -51,14 +50,14 @@ class BasicServer extends HttpServlet {
 
     AwsCollectionBuilder.buildAll(BasicContext, awsClientFactory, bm, elector, dsFactory)
 
-    logger.info("Starting Collections");
-    CollectionManager.start
+    logger.info("Starting Collections")
+    CollectionManager.start()
 
-    super.init
+    super.init()
   }
 
-  override def destroy = {
-    CollectionManager.stop
-    super.destroy
+  override def destroy() {
+    CollectionManager.stop()
+    super.destroy()
   }
 }

@@ -17,7 +17,7 @@ package com.netflix.edda
 
 import scala.actors.Futures.{ future, awaitAll }
 
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 
 class MergedCollection(val name: String, val collections: Seq[Collection]) extends Queryable {
   override def toString = "[MergedCollection " + name + "]"
@@ -46,14 +46,14 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
   }
 
   override def start() = {
-    logger.info("Starting " + this);
-    collections.foreach(_.start)
+    logger.info("Starting " + this)
+    collections.foreach(_.start())
     super.start()
   }
 
   override def stop() {
-    logger.info("Stoping " + this);
-    collections.foreach(_.stop)
+    logger.info("Stoping " + this)
+    collections.foreach(_.stop())
     super.stop()
   }
 }

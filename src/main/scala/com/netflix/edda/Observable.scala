@@ -17,8 +17,6 @@ package com.netflix.edda
 
 import scala.actors.Actor
 
-import org.slf4j.{ Logger, LoggerFactory }
-
 case class ObservableState(observers: List[Actor] = List[Actor]())
 
 object Observable extends StateMachine.LocalState[ObservableState] {
@@ -30,12 +28,11 @@ object Observable extends StateMachine.LocalState[ObservableState] {
 
 abstract class Observable extends StateMachine {
   import Observable._
-  private[this] val logger = LoggerFactory.getLogger(getClass)
 
   def addObserver(actor: Actor) {
     this !? (60000, Observe(this, actor)) match {
       case Some(OK(from)) =>
-      case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to add observer " + message);
+      case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to add observer " + message)
       case None => throw new java.lang.RuntimeException("TIMEOUT: Failed to register observer in 60s")
     }
   }
@@ -43,7 +40,7 @@ abstract class Observable extends StateMachine {
   def delObserver(actor: Actor) {
     this !? (60000, Ignore(this, actor)) match {
       case Some(OK(from)) =>
-      case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to remove observer " + message);
+      case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to remove observer " + message)
       case None => throw new java.lang.RuntimeException("TIMEOUT: Failed to unregister observer in 60s")
     }
   }

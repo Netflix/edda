@@ -37,7 +37,6 @@ import com.amazonaws.services.ec2.model.DescribeVolumesRequest
 import com.amazonaws.services.s3.model.ListBucketsRequest
 
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
-import com.amazonaws.services.autoscaling.model.AutoScalingGroup
 import com.amazonaws.services.autoscaling.model.DescribeLaunchConfigurationsRequest
 
 import com.amazonaws.services.elasticloadbalancing.model.DescribeLoadBalancersRequest
@@ -45,9 +44,8 @@ import com.amazonaws.services.elasticloadbalancing.model.DescribeInstanceHealthR
 
 import collection.JavaConverters._
 import scala.actors.Futures.{ future, awaitAll }
-import scala.actors.Actor
 
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 
 object AwsCrawler {
   trait Context extends ConfigContext {
@@ -57,7 +55,7 @@ object AwsCrawler {
 }
 
 trait AwsBeanMapper extends BeanMapper {
-  val ctx: ConfigContext
+  def ctx: ConfigContext
   val instanceStateKeyMapper: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]] = {
     case (obj: com.amazonaws.services.ec2.model.InstanceState, "code", Some(value: Int)) => Some(0x00FF & value)
   }
@@ -66,23 +64,22 @@ trait AwsBeanMapper extends BeanMapper {
   val tags = ctx.config.getProperty("edda.crawler.aws.suppressTags", "")
   tags.split(",").foreach(tag => {
     val pf: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]] = {
-      case (obj: com.amazonaws.services.ec2.model.Tag, "value", Some(x: Any)) if obj.getKey() == tag => Some("[EDDA_SUPPRESSED]")
-      case (obj: com.amazonaws.services.ec2.model.TagDescription, "value", Some(x: Any)) if obj.getKey() == tag => Some("[EDDA_SUPPRESSED]")
+      case (obj: com.amazonaws.services.ec2.model.Tag, "value", Some(x: Any)) if obj.getKey == tag => Some("[EDDA_SUPPRESSED]")
+      case (obj: com.amazonaws.services.ec2.model.TagDescription, "value", Some(x: Any)) if obj.getKey == tag => Some("[EDDA_SUPPRESSED]")
     }
     this.addKeyMapper(pf)
   })
 }
 
 abstract class AwsIterator extends Iterator[Seq[Record]] {
-  private[this] val logger = LoggerFactory.getLogger(getClass)
   var nextToken: Option[String] = Some(null)
   def hasNext = nextToken != None
-  def next: List[Record]
+  def next(): List[Record]
 }
 
 class AwsAddressCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeAddressesRequest
-  override def doCrawl =
+  override def doCrawl() =
     ctx.awsClient.ec2.describeAddresses(request).getAddresses.asScala.map(
       item => Record(item.getPublicIp, ctx.beanMapper(item))).toSeq
 }
@@ -91,10 +88,10 @@ class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) 
   private[this] val logger = LoggerFactory.getLogger(getClass)
   val request = new DescribeAutoScalingGroupsRequest
   request.setMaxRecords(50)
-  override def doCrawl = {
+  override def doCrawl() = {
     var tagCount = 0
     val it = new AwsIterator() {
-      def next = {
+      def next() = {
         val response = ctx.awsClient.asg.describeAutoScalingGroups(request.withNextToken(this.nextToken.get))
         this.nextToken = Option(response.getNextToken)
         response.getAutoScalingGroups.asScala.map(
@@ -117,7 +114,7 @@ class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) 
 
 class AwsImageCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeImagesRequest
-  override def doCrawl = {
+  override def doCrawl() = {
     var tagCount = 0
     val list = ctx.awsClient.ec2.describeImages(request).getImages.asScala.map(
       item => {
@@ -133,7 +130,7 @@ class AwsImageCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cra
 
 class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeLoadBalancersRequest
-  override def doCrawl = ctx.awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions.asScala.map(
+  override def doCrawl() = ctx.awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions.asScala.map(
     item => Record(item.getLoadBalancerName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))).toSeq
 }
 
@@ -142,10 +139,9 @@ case class AwsInstanceHealthCrawlerState(elbRecords: Seq[Record] = Seq[Record]()
 object AwsInstanceHealthCrawler extends StateMachine.LocalState[AwsInstanceHealthCrawlerState]
 
 class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
-  private[this] val logger = LoggerFactory.getLogger(getClass)
   import AwsInstanceHealthCrawler._
-  override def crawl() = Unit // we dont crawl, just get updates from crawler when it crawls
-  override def doCrawl = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceHealthCrawler")
+  override def crawl() {} // we dont crawl, just get updates from crawler when it crawls
+  override def doCrawl() = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceHealthCrawler")
   def doCrawl(elbRecords: Seq[Record]): Seq[Record] = {
     val tasks = elbRecords.map(elb => future {
       val instances = ctx.awsClient.elb.describeInstanceHealth(new DescribeInstanceHealthRequest(elb.id)).getInstanceStates
@@ -159,7 +155,9 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
 
   protected override def initState = addInitialState(super.initState, newLocalState(AwsInstanceHealthCrawlerState()))
 
-  protected override def init = crawler.addObserver(this)
+  protected override def init() {
+    crawler.addObserver(this)
+  }
 
   protected def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Crawler.CrawlResult(from, elbRecords), state) => {
@@ -178,9 +176,9 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
 class AwsLaunchConfigurationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeLaunchConfigurationsRequest
   request.setMaxRecords(50)
-  override def doCrawl = {
+  override def doCrawl() = {
     val it = new AwsIterator() {
-      def next = {
+      def next() = {
         val response = ctx.awsClient.asg.describeLaunchConfigurations(request.withNextToken(this.nextToken.get))
         this.nextToken = Option(response.getNextToken)
         response.getLaunchConfigurations.asScala.map(
@@ -193,7 +191,7 @@ class AwsLaunchConfigurationCrawler(val name: String, val ctx: AwsCrawler.Contex
 
 class AwsReservationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeInstancesRequest
-  override def doCrawl = {
+  override def doCrawl() = {
     var tagCount = 0
     val list = ctx.awsClient.ec2.describeInstances(request).getReservations.asScala.map(
       item => {
@@ -213,8 +211,8 @@ object AwsInstanceCrawler extends StateMachine.LocalState[AwsInstanceCrawlerStat
 
 class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
   import AwsInstanceCrawler._
-  override def crawl() = Unit // we dont crawl, just get updates from crawler when it crawls
-  override def doCrawl = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceCrawler")
+  override def crawl() {} // we dont crawl, just get updates from crawler when it crawls
+  override def doCrawl() = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceCrawler")
   def doCrawl(resRecords: Seq[Record]): Seq[Record] = {
     resRecords.flatMap(rec => {
       rec.data.asInstanceOf[Map[String, Any]].get("instances") match {
@@ -230,12 +228,13 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
 
   protected override def initState = addInitialState(super.initState, newLocalState(AwsInstanceCrawlerState()))
 
-  protected override def init = crawler.addObserver(this)
+  protected override def init() {
+    crawler.addObserver(this)
+  }
 
   protected def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Crawler.CrawlResult(from, reservations), state) => {
       // this is blocking so we dont crawl in parallel
-      // TODO return state if elbRecords == state.elbRecords && minCycle not reached
       if (reservations ne localState(state).reservationRecords) {
         val newRecords = doCrawl(reservations)
         Observable.localState(state).observers.foreach(_ ! Crawler.CrawlResult(this, newRecords))
@@ -249,7 +248,7 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
 
 class AwsSecurityGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeSecurityGroupsRequest
-  override def doCrawl = {
+  override def doCrawl() = {
     var tagCount = 0
     val list = ctx.awsClient.ec2.describeSecurityGroups(request).getSecurityGroups.asScala.map(
       item => {
@@ -265,7 +264,7 @@ class AwsSecurityGroupCrawler(val name: String, val ctx: AwsCrawler.Context) ext
 
 class AwsSnapshotCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeSnapshotsRequest
-  override def doCrawl = {
+  override def doCrawl() = {
     var tagCount = 0
     val list = ctx.awsClient.ec2.describeSnapshots(request).getSnapshots.asScala.map(
       item => {
@@ -281,13 +280,13 @@ class AwsSnapshotCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
 
 class AwsTagCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeTagsRequest
-  override def doCrawl = ctx.awsClient.ec2.describeTags(request).getTags.asScala.map(
-    item => Record(item.getKey() + "|" + item.getResourceType() + "|" + item.getResourceId(), ctx.beanMapper(item))).toSeq
+  override def doCrawl() = ctx.awsClient.ec2.describeTags(request).getTags.asScala.map(
+    item => Record(item.getKey + "|" + item.getResourceType + "|" + item.getResourceId, ctx.beanMapper(item))).toSeq
 }
 
 class AwsVolumeCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeVolumesRequest
-  override def doCrawl = {
+  override def doCrawl() = {
     var tagCount = 0
     val list = ctx.awsClient.ec2.describeVolumes(request).getVolumes.asScala.map(
       item => {
@@ -303,6 +302,6 @@ class AwsVolumeCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
 
 class AwsBucketCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new ListBucketsRequest
-  override def doCrawl = ctx.awsClient.s3.listBuckets(request).asScala.map(
+  override def doCrawl() = ctx.awsClient.s3.listBuckets(request).asScala.map(
     item => Record(item.getName, new DateTime(item.getCreationDate), ctx.beanMapper(item))).toSeq
 }

@@ -65,7 +65,7 @@ class UtilsTest extends FunSuite {
         }
     }
 
-    test("toJson") {
+    test("writeJson") {
         val date = new DateTime(0, UTC)
         val expected = """{"date":0,"foo":"bar","list":[1,2,3,4]}"""
         expect(expected) {

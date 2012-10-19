@@ -21,11 +21,12 @@ import scala.actors.TIMEOUT
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.Callable
 import org.joda.time.DateTime
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 
 import com.netflix.servo.monitor.Monitors
 import com.netflix.servo.monitor.MonitorConfig
 import com.netflix.servo.monitor.BasicGauge
+import java.lang
 
 case class CollectionState(records: Seq[Record] = Seq[Record](), crawled: Seq[Record] = Seq[Record](), amLeader: Boolean = false)
 
@@ -36,7 +37,7 @@ object Collection extends StateMachine.LocalState[CollectionState] {
 
   case class RecordUpdate(oldRecord: Record, newRecord: Record)
   case class Delta(records: Seq[Record], changed: Seq[RecordUpdate], added: Seq[Record], removed: Seq[Record]) {
-    override def toString = "Delta(records=" + records.size + ", changed=" + changed.size + ", added=" + added.size + ", removed=" + removed.size + ")";
+    override def toString = "Delta(records=" + records.size + ", changed=" + changed.size + ", added=" + added.size + ", removed=" + removed.size + ")"
   }
 
   // message sent to observers
@@ -57,23 +58,27 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   def name: String
   def crawler: Crawler
-  def datastore: Option[Datastore]
+  def dataStore: Option[DataStore]
   def elector: Elector
 
   override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set()): Seq[Record] = {
     if (enabled) super.query(queryMap, limit, live, keys) else Seq.empty
   }
 
-  override def addObserver(actor: Actor) = if (enabled) super.addObserver(actor)
-  override def delObserver(actor: Actor) = if (enabled) super.delObserver(actor)
+  override def addObserver(actor: Actor) {
+    if (enabled) super.addObserver(actor)
+  }
+  override def delObserver(actor: Actor) {
+    if (enabled) super.delObserver(actor)
+  }
 
   protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], state: StateMachine.State): Seq[Record] = {
     // generate function
     if (live) {
-      if (datastore.isDefined) {
-        return datastore.get.query(queryMap, limit, keys)
+      if (dataStore.isDefined) {
+        return dataStore.get.query(queryMap, limit, keys)
       } else {
-        logger.warn("Datastore is not available, applying query to cached records")
+        logger.warn("DataStore is not available, applying query to cached records")
       }
     }
     if (queryMap.isEmpty) {
@@ -84,19 +89,19 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   }
 
   protected def load(): Seq[Record] = {
-    if (datastore.isDefined) {
-      datastore.get.load()
+    if (dataStore.isDefined) {
+      dataStore.get.load()
     } else {
-      logger.warn("Datastore is not available for load()")
+      logger.warn("DataStore is not available for load()")
       Seq()
     }
   }
 
   protected def update(d: Delta) {
-    if (datastore.isDefined) {
-      datastore.get.update(d)
+    if (dataStore.isDefined) {
+      dataStore.get.update(d)
     } else {
-      logger.warn("Datastore is not available, skipping update")
+      logger.warn("DataStore is not available, skipping update")
     }
   }
 
@@ -114,7 +119,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       oldMap.contains(pair._1) && newMap.contains(pair._1) && !newMap(pair._1).sameData(oldMap(pair._1))
     }).map(pair => pair._1 -> RecordUpdate(oldMap(pair._1).copy(mtime = now, ltime = now), pair._2))
 
-    // need to reset stime,ctime,tags for crawled records to match what we have in memory
+    // need to reset stime, ctime, tags for crawled records to match what we have in memory
     val fixedRecords = newRecords.collect {
       case rec: Record if changes.contains(rec.id) =>
         oldMap(rec.id).copy(data = rec.data, mtime = rec.mtime, stime = rec.stime)
@@ -129,10 +134,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   protected override def initState = addInitialState(super.initState, newLocalState(CollectionState(records = load())))
 
-  protected override def init() {
-    Monitors.registerObject("edda.collection." + name, this);
-    if (datastore.isDefined) {
-      datastore.get.init
+  protected override def init {
+    Monitors.registerObject("edda.collection." + name, this)
+    if (dataStore.isDefined) {
+      dataStore.get.init()
     }
     Option(elector).foreach(_.addObserver(this))
     Option(crawler).foreach(_.addObserver(this))
@@ -141,7 +146,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     Actor.actor {
       this.addObserver(this)
     }
-    refresher
+    refresher()
   }
 
   def timeLeft(lastRun: DateTime, millis: Long): Long = {
@@ -149,13 +154,13 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     if (timeLeft < 0) 0 else timeLeft
   }
 
-  protected def refresher {
+  protected def refresher() {
     if (Option(crawler) == None || Option(elector) == None) return
     val refresh = Utils.getProperty(ctx.config, "edda.collection", "refresh", name, "60000").toLong
     val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
     NamedActor(this + " refresher") {
       elector.addObserver(Actor.self)
-      var amLeader = elector.isLeader()
+      var amLeader = elector.isLeader
       // crawl immediately the first time
       if (amLeader) crawler.crawl()
 
@@ -171,7 +176,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             // if we just became leader, then start a crawl
             if (!amLeader && result) {
               this !? (120000,SyncLoad(this)) match {
-                case Some(OK(from)) => Unit
+                case Some(OK(frm)) => Unit
                 case None => throw new java.lang.RuntimeException("TIMEOUT: Failed to reload data as we became leader in 2m")
               }
               crawler.crawl()
@@ -196,7 +201,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   private[this] val updateErrorCounter = Monitors.newCounter("update.errors")
 
   private[this] var lastCrawl = DateTime.now
-  private[this] val crawlGauge = new BasicGauge[java.lang.Long](
+  private[this] val crawlGauge: BasicGauge[lang.Long] = new BasicGauge[java.lang.Long](
     MonitorConfig.builder("lastCrawl").build(),
     new Callable[java.lang.Long] {
       def call() = {
@@ -206,18 +211,18 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   private def doLoad(): Seq[Record] = {
     val stopwatch = loadTimer.start()
-    var records = try {
+    val records = try {
       val now = DateTime.now
       load().map(_.copy(mtime=now))
     } catch {
-      case e => {
-        loadErrorCounter.increment
+      case e: Exception => {
+        loadErrorCounter.increment()
         throw e
       }
     } finally {
       stopwatch.stop()
     }
-    loadCounter.increment
+    loadCounter.increment()
     logger.info("{} Loaded {} records in {} sec", toObjects(
       this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
     records
@@ -282,10 +287,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             val stopwatch = updateTimer.start()
             try {
               update(d)
-              updateCounter.increment
+              updateCounter.increment()
             } catch {
-              case e => {
-                updateErrorCounter.increment
+              case e: Exception => {
+                updateErrorCounter.increment()
                 throw e
               }
             } finally {
@@ -309,9 +314,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   override def start(): Actor = {
     if (enabled) {
-      logger.info("Starting " + this);
-      Option(elector).foreach(_.start)
-      Option(crawler).foreach(_.start)
+      logger.info("Starting " + this)
+      Option(elector).foreach(_.start())
+      Option(crawler).foreach(_.start())
       super.start()
     } else {
       logger.info("Collection " + name + " is disabled, not starting")
@@ -320,9 +325,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   }
 
   override def stop() {
-    logger.info("Stoping " + this);
-    Option(elector).foreach(_.stop)
-    Option(crawler).foreach(_.stop)
+    logger.info("Stoping " + this)
+    Option(elector).foreach(_.stop())
+    Option(crawler).foreach(_.stop())
     super.stop()
   }
 }

@@ -17,7 +17,7 @@ package com.netflix.edda.mongo
 
 import com.netflix.edda.Record
 import com.netflix.edda.Collection
-import com.netflix.edda.Datastore
+import com.netflix.edda.DataStore
 import com.netflix.edda.ConfigContext
 import com.netflix.edda.Utils
 
@@ -105,7 +105,7 @@ object MongoDatastore {
   }
 
   def mongoProperty(props: Properties, propName: String, dsName: String, dflt: String): String = {
-    Utils.getProperty(props, "edda", "mongo." + propName, "datastore." + dsName, dflt)
+    Utils.getProperty(props, "edda", "mongo." + propName, "dataStore." + dsName, dflt)
   }
 
   def mongoConnection(name: String, ctx: ConfigContext) = {
@@ -136,7 +136,7 @@ object MongoDatastore {
 
 }
 
-class MongoDatastore(ctx: ConfigContext, val name: String) extends Datastore {
+class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
   import MongoDatastore._
 
   val mongo = mongoCollection(name, ctx)

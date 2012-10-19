@@ -34,12 +34,12 @@ class Counter extends StateMachine {
     protected override
     def initState = addInitialState(super.initState, newLocalState(CounterState()))
 
-    def get() = this !? Get(this) match {
+    def get = this !? Get(this) match {
         case GetResult(from, result) => result
     }
 
-    def inc() = this ! Inc(this)
-    def dec() = this ! Dec(this)
+    def inc() { this ! Inc(this) }
+    def dec() { this ! Dec(this) }
 
     private def localTransitions: PartialFunction[(StateMachine.Message, StateMachine.State), StateMachine.State] = {
         case (Inc(from), state) => {
@@ -60,29 +60,29 @@ class Counter extends StateMachine {
 class StateMachineTest extends FunSuite {
     test("Counter") {
         val counter = new Counter
-        counter.start
+        counter.start()
 
         expect(1) {
-            counter.inc
+            counter.inc()
             counter.get
         }
 
         expect(0) {
-            counter.dec
+            counter.dec()
             counter.get
         }
     }
 
     test("Parallel Counter") {
         val counter = new Counter
-        counter.start
+        counter.start()
         expect(1000) {
-            val tasks = Range(0,1000).map(i => future {counter.inc})
+            val tasks = Range(0,1000).map(i => future {counter.inc()})
             awaitAll(3000L, tasks: _*)
             counter.get
         }
         expect(0) {
-            val tasks = Range(0,1000).map(i => future {counter.dec})
+            val tasks = Range(0,1000).map(i => future {counter.dec()})
             awaitAll(3000L, tasks: _*)
             counter.get
         }

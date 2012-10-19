@@ -18,7 +18,6 @@ package com.netflix.edda
 import scala.actors.DaemonActor
 
 import java.io.ByteArrayOutputStream
-import java.io.OutputStream
 import java.util.Date
 import java.util.Properties
 import java.text.SimpleDateFormat
@@ -31,31 +30,30 @@ import org.codehaus.jackson.util.DefaultPrettyPrinter
 import org.codehaus.jackson.map.MappingJsonFactory
 import org.codehaus.jackson.JsonNode
 
-import org.slf4j.{ Logger, LoggerFactory }
-
 object Utils {
-    private[this] val logger = LoggerFactory.getLogger(getClass)
     private lazy val factory = new MappingJsonFactory
     private lazy val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
 
     case class NamedActor[T](name: String)(body: => T) extends DaemonActor {
         override def toString = name
-        override def act = body
-        start
+        override def act() {
+          body
+        }
+        start()
     }
 
-    // allow for heirarchical properties
+    // allow for hierarchical properties
     // so if we have prefix = "p", propName = "n", nameContext  = "a.b.c" then 
-    // it will look for p.a.b.c.n, then p.a.b.n, then p.a.n, then p.n else return dflt
-    def getProperty(props: Properties, prefix: String, propName: String, nameContext: String, dflt: String): String = {
+    // it will look for p.a.b.c.n, then p.a.b.n, then p.a.n, then p.n else return default
+    def getProperty(props: Properties, prefix: String, propName: String, nameContext: String, default: String): String = {
         val parts = nameContext.split('.')
         Range(1, parts.size + 1).reverse.map(
             ix => prefix + "." + parts.take(ix).mkString(".") + "." + propName
         ) collectFirst {
                 case prop: String if props.containsKey(prop) => props.getProperty(prop)
             } match {
-                case Some(value) => value.asInstanceOf[String]
-                case None        => props.getProperty(prefix + "." + propName, dflt)
+                case Some(v) => v
+                case None        => props.getProperty(prefix + "." + propName, default)
             }
     }
 
@@ -81,20 +79,20 @@ object Utils {
         val dpp = new DefaultPrettyPrinter
         dpp.indentArraysWith(new DefaultPrettyPrinter.Lf2SpacesIndenter)
         gen.setPrettyPrinter(dpp)
-        toJson(gen, obj, dateFormatter)
-        gen.close;
+        writeJson(gen, obj, dateFormatter)
+        gen.close()
         baos.toString
     }
 
     def toJson(obj: Any): String = {
         val baos = new ByteArrayOutputStream()
         val gen = factory.createJsonGenerator(baos, UTF8)
-        toJson(gen, obj)
-        gen.close;
+        writeJson(gen, obj)
+        gen.close()
         baos.toString
     }
 
-    def toJson(gen: JsonGenerator, obj: Any, fmt: (Any) => Any = (x: Any) => x) {
+    def writeJson(gen: JsonGenerator, obj: Any, fmt: (Any) => Any = (x: Any) => x) {
         fmt(obj) match {
             case v: Boolean  => gen.writeBoolean(v)
             case v: Byte     => gen.writeNumber(v)
@@ -108,19 +106,19 @@ object Utils {
             case v: Date     => gen.writeNumber(v.getTime)
             case v: DateTime => gen.writeNumber(v.getMillis)
             case v: Map[_, _] => {
-                gen.writeStartObject
+                gen.writeStartObject()
                 v.toSeq.sortBy(_._1.asInstanceOf[String]).foreach(pair => {
                     gen.writeFieldName(pair._1.toString)
-                    toJson(gen, pair._2, fmt)
+                    writeJson(gen, pair._2, fmt)
                 })
-                gen.writeEndObject
+                gen.writeEndObject()
             }
             case v: Seq[_] => {
-                gen.writeStartArray
-                v.foreach(toJson(gen, _, fmt))
-                gen.writeEndArray
+                gen.writeStartArray()
+                v.foreach(writeJson(gen, _, fmt))
+                gen.writeEndArray()
             }
-            case null => gen.writeNull
+            case null => gen.writeNull()
             case v => {
                 throw new java.lang.RuntimeException("unable to convert \"" + v + "\" [" + v.getClass + "] to json")
             }
@@ -158,8 +156,8 @@ object Utils {
 
     // most recent records first
     def diffRecords(recs: Seq[Record], context: Option[Int] = None, prefix: String = ""): String = {
-        import difflib.DiffUtils;
-        import difflib.Patch;
+        import difflib.DiffUtils
+        import difflib.Patch
         import scala.collection.JavaConverters._
         if (recs.size < 2) {
             throw new java.lang.RuntimeException("diff requires at least 2 records")
@@ -176,23 +174,23 @@ object Utils {
                 val dpp = new DefaultPrettyPrinter
                 dpp.indentArraysWith(new DefaultPrettyPrinter.Lf2SpacesIndenter)
                 gen.setPrettyPrinter(dpp)
-                toJson(gen, rec.data, dateFormatter)
-                gen.close;
+                writeJson(gen, rec.data, dateFormatter)
+                gen.close()
                 (prefix + "/" + rec.id + ";_pp;_at=" + rec.stime.getMillis, baos.toString)
             }
         }).sliding(2).foreach(v => {
-            var (a, b) = (v.head, v.tail.head)
-            val alines = a._2.split("\n").toList
-            val blines = b._2.split("\n").toList
+            val (a, b) = (v.head, v.tail.head)
+            val aLines = a._2.split("\n").toList
+            val bLines = b._2.split("\n").toList
             val size =
                 if (context != None) context.get
-                else if (alines.length > blines.length) alines.length else blines.length
-            val patch: Patch = DiffUtils.diff(blines.asJava, alines.asJava)
-            DiffUtils.generateUnifiedDiff(b._1, a._1, blines.asJava, patch, size).asScala.foreach(l => {
+                else if (aLines.length > bLines.length) aLines.length else bLines.length
+            val patch: Patch = DiffUtils.diff(bLines.asJava, aLines.asJava)
+            DiffUtils.generateUnifiedDiff(b._1, a._1, bLines.asJava, patch, size).asScala.foreach(l => {
                 result.append(l)
                 result.append('\n')
-            });
+            })
         })
-        result.toString
+        result.toString()
     }
 }
