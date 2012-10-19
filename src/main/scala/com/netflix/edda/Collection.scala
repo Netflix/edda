@@ -134,7 +134,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   protected override def initState = addInitialState(super.initState, newLocalState(CollectionState(records = load())))
 
-  protected override def init {
+  protected override def init() {
     Monitors.registerObject("edda.collection." + name, this)
     if (dataStore.isDefined) {
       dataStore.get.init()

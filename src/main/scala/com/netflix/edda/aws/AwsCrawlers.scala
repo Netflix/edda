@@ -47,13 +47,24 @@ import scala.actors.Futures.{ future, awaitAll }
 
 import org.slf4j.LoggerFactory
 
+/** static namespace for out Context trait */
 object AwsCrawler {
+
+  /** All AWS Crawlers require the basic ConfigContext
+    * plus an [[com.netflix.edda.aws.AwsClient]] and [[com.netflix.edda.BeanMapper]]
+    */
   trait Context extends ConfigContext {
     def awsClient: AwsClient
     def beanMapper: BeanMapper
   }
 }
 
+/** specialized [[com.netflix.edda.BeanMapper]] trait that can suppress specific AWS resource tags
+  * based on patterns expressed in the config.  This is necessary in case people add tags to
+  * resources that change frequenly (like timestamps).  The AwsBeanMapper trait also works around
+  * some internal state exposed in the bean for [[com.amazonaws.services.ec2.model.InstanceState]]
+  * *code* field.
+  */
 trait AwsBeanMapper extends BeanMapper {
   def ctx: ConfigContext
   val instanceStateKeyMapper: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]] = {
@@ -140,7 +151,7 @@ object AwsInstanceHealthCrawler extends StateMachine.LocalState[AwsInstanceHealt
 
 class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
   import AwsInstanceHealthCrawler._
-  override def crawl() {} // we dont crawl, just get updates from crawler when it crawls
+  override def crawl() {} // we don't crawl, just get updates from crawler when it crawls
   override def doCrawl() = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceHealthCrawler")
   def doCrawl(elbRecords: Seq[Record]): Seq[Record] = {
     val tasks = elbRecords.map(elb => future {

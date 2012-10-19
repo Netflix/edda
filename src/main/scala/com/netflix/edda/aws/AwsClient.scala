@@ -24,36 +24,51 @@ import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.s3.AmazonS3Client
 
-trait AwsClientComponent {
-  def awsClient: AwsClient
-}
-
+/** provides access to AWS service client objects
+  *
+  * @param credentials used to connect to AWS services
+  * @param region used to select endpoint for AWS services
+  */
 class AwsClient(val credentials: AWSCredentials, val region: String) {
 
+  /** uses [[com.amazonaws.auth.DefaultAWSCredentialsProviderChain]] to discover credentials
+    *
+    * @param region to select endpoint for AWS services
+    */
   def this(region: String) =
     this(new DefaultAWSCredentialsProviderChain().getCredentials, region)
 
+  /** create credential from provided arguments
+    *
+    * @param accessKey for account access
+    * @param secretKey for account access
+    * @param region used to select endpoint for AWS service
+    */
   def this(accessKey: String, secretKey: String, region: String) =
     this(new BasicAWSCredentials(accessKey, secretKey), region)
 
+  /** get [[com.amazonaws.services.ec2.AmazonEC2Client]] object */
   def ec2 = {
     val client = new AmazonEC2Client(credentials)
     client.setEndpoint("ec2." + region + ".amazonaws.com")
     client
   }
 
+  /** get [[com.amazonaws.services.autoscaling.AmazonAutoScalingClient]] object */
   def asg = {
     val client = new AmazonAutoScalingClient(credentials)
     client.setEndpoint("autoscaling." + region + ".amazonaws.com")
     client
   }
 
+  /** get [[com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient]] object */
   def elb = {
     val client = new AmazonElasticLoadBalancingClient(credentials)
     client.setEndpoint("elasticloadbalancing." + region + ".amazonaws.com")
     client
   }
 
+  /** get [[com.amazonaws.services.s3.AmazonS3Client]] object */
   def s3 = {
     val client = new AmazonS3Client(credentials)
     if (region == "us-east-1")

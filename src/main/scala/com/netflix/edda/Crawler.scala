@@ -63,7 +63,7 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
 
   protected override def initState = addInitialState(super.initState, newLocalState(CrawlerState()))
 
-  protected override def init {
+  protected override def init() {
     Monitors.registerObject("edda.crawler." + name, this)
   }
 
