@@ -36,6 +36,9 @@ import com.amazonaws.services.ec2.model.DescribeVolumesRequest
 
 import com.amazonaws.services.s3.model.ListBucketsRequest
 
+import com.amazonaws.services.sqs.model.ListQueuesRequest
+import com.amazonaws.services.sqs.model.GetQueueAttributesRequest
+
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
 import com.amazonaws.services.autoscaling.model.DescribeLaunchConfigurationsRequest
 
@@ -315,4 +318,26 @@ class AwsBucketCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
   val request = new ListBucketsRequest
   override def doCrawl() = ctx.awsClient.s3.listBuckets(request).asScala.map(
     item => Record(item.getName, new DateTime(item.getCreationDate), ctx.beanMapper(item))).toSeq
+}
+
+class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+  val request = new ListQueuesRequest
+    override def doCrawl() = {
+        val queues = ctx.awsClient.sqs.listQueues(request).getQueueUrls.asScala
+        val tasks = queues.map(queueUrl => future {
+            val name = queueUrl.split('/').last
+            val attrRequest = new GetQueueAttributesRequest().withQueueUrl(queueUrl).withAttributeNames("All")
+            val attrs = Map[String,String]() ++ ctx.awsClient.sqs.getQueueAttributes(attrRequest).getAttributes.asScala
+            val ctime = attrs.get("CreatedTimestamp") match {
+                case Some(time) => new DateTime(time.toInt * 1000)
+                case None => DateTime.now
+            }
+
+            Record(name, ctime, Map("name" -> name, "url" -> queueUrl, "attributes" -> ( attrs)))
+        })
+        awaitAll(300000L, tasks: _*) match {
+            case Nil => Seq()
+            case x: Seq[Option[Record]] => x.collect { case Some(d) => d }
+        }
+    }
 }

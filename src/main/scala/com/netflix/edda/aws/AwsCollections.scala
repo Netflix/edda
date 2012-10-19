@@ -27,6 +27,8 @@ import com.netflix.edda.Utils
 import com.netflix.edda.DataStore
 import com.netflix.edda.BeanMapper
 
+import org.joda.time.DateTime
+
 import org.slf4j.LoggerFactory
 
 /** Factory to build all known AWS collections
@@ -108,6 +110,7 @@ object AwsCollectionBuilder {
       new AwsTagCollection(dsFactory, accountName, elector, ctx),
       new AwsVolumeCollection(dsFactory, accountName, elector, ctx),
       new AwsBucketCollection(dsFactory, accountName, elector, ctx),
+      new AwsSimpleQueueCollection(dsFactory, accountName, elector, ctx),
       new GroupAutoScalingGroups(asg, inst, dsFactory, elector, ctx))
   }
 }
@@ -415,6 +418,80 @@ class AwsBucketCollection(
   override val ctx: AwsCollection.Context) extends RootCollection("aws.buckets", accountName, ctx) {
   val dataStore: Option[DataStore] = dsFactory(name)
   val crawler = new AwsBucketCrawler(name, ctx)
+}
+
+/** collection for AWS Simple Queue (SQS)
+  *
+  * root collection name: view.simpleQueues
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsSimpleQueueCrawler]]
+  *
+  * @param dsFactory function that creates new DataStore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for configuration and AWS clients objects
+  */
+class AwsSimpleQueueCollection(
+  dsFactory: String => Option[DataStore],
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context) extends RootCollection("view.simpleQueues", accountName, ctx) {
+  val dataStore: Option[DataStore] = dsFactory(name)
+  val crawler = new AwsSimpleQueueCrawler(name, ctx)
+
+  /** this is overriden from [[com.netflix.edda.aws.Collection]] because there are several
+    * keys like ApproximateNumberOfMessages that are changing constatnly.  We want to record
+    * those changes, but not create new document revisions if the only changes are Approx* values
+    */
+  override protected
+  def delta(newRecords: Seq[Record], oldRecords: Seq[Record]): Collection.Delta = {
+    val oldMap = oldRecords.map(rec => rec.id -> rec).toMap
+    val newMap = newRecords.map(rec => rec.id -> rec).toMap
+
+    val now = DateTime.now
+
+    val removedMap = oldMap.filterNot(pair => newMap.contains(pair._1)).map(
+      pair => pair._1 -> pair._2.copy(mtime = now, ltime = now))
+    val addedMap = newMap.filterNot(pair => oldMap.contains(pair._1))
+
+      def sameDataNoApprox(a: Record, b: Record): Boolean = {
+          if (a == null || b == null) return false
+          val aData = a.data.asInstanceOf[Map[String,Any]]
+          val bData = b.data.asInstanceOf[Map[String,Any]]
+          val aNoApprox = a.copy(data = aData + ("attributes" -> aData("attributes").asInstanceOf[Map[String,String]].filterNot(_._1.startsWith("Approx"))))
+          val bNoApprox = b.copy(data = bData + ("attributes" -> bData("attributes").asInstanceOf[Map[String,String]].filterNot(_._1.startsWith("Approx"))))
+          a.data == b.data || aNoApprox.dataString == bNoApprox.dataString
+      }
+
+      val changes = newMap.filter(
+          pair => {
+              oldMap.contains(pair._1) && !pair._2.sameData(oldMap(pair._1))
+          }
+      ).map(
+          pair => {
+              val oldRec = oldMap(pair._1)
+              val newRec = pair._2
+              if( sameDataNoApprox(newRec, oldRec) ) {
+                  pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec.copy(stime=oldRec.stime))
+              } else {
+                  pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec)
+              }
+          }
+      )
+
+              
+    // need to reset stime, ctime, tags for crawled records to match what we have in memory
+    val fixedRecords = newRecords.collect {
+      case rec: Record if changes.contains(rec.id) =>
+        oldMap(rec.id).copy(data = rec.data, mtime = rec.mtime, stime = rec.stime)
+      case rec: Record if oldMap.contains(rec.id) =>
+        oldMap(rec.id).copy(data = rec.data, mtime = rec.mtime)
+      case rec: Record => rec
+    }
+
+    logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + removedMap.size)
+    Collection.Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = removedMap.values.toSeq)
+  }
 }
 
 /** collection for abstracted groupings of instances in AutoScalingGroups

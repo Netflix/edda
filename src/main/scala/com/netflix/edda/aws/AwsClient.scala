@@ -23,6 +23,7 @@ import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.s3.AmazonS3Client
+import com.amazonaws.services.sqs.AmazonSQSClient
 
 /** provides access to AWS service client objects
   *
@@ -75,6 +76,13 @@ class AwsClient(val credentials: AWSCredentials, val region: String) {
       client.setEndpoint("s3.amazonaws.com")
     else
       client.setEndpoint("s3-" + region + ".amazonaws.com")
+    client
+  }
+
+  /** get [[com.amazonaws.services.sqs.AmazonSQSClient]] object */
+  def sqs = {
+    val client = new AmazonSQSClient(credentials)
+    client.setEndpoint("sqs." + region + ".amazonaws.com")
     client
   }
 }

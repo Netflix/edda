@@ -31,7 +31,7 @@ abstract class Queryable extends Observable {
     val self = this
     self !? (60000, Query(self, queryMap, limit, live, keys)) match {
       case Some(QueryResult(`self`, results)) => results
-      case None => throw new java.lang.RuntimeException("TIMEOUT: Failed to fetch query results within 60s")
+      case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to fetch query results within 60s for query: " + queryMap + " limit: " + limit + " keys: " + keys)
     }
   }
 

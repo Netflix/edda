@@ -116,7 +116,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     val addedMap = newMap.filterNot(pair => oldMap.contains(pair._1))
 
     val changes = newMap.filter(pair => {
-      oldMap.contains(pair._1) && newMap.contains(pair._1) && !newMap(pair._1).sameData(oldMap(pair._1))
+      oldMap.contains(pair._1) && !pair._2.sameData(oldMap(pair._1))
     }).map(pair => pair._1 -> RecordUpdate(oldMap(pair._1).copy(mtime = now, ltime = now), pair._2))
 
     // need to reset stime, ctime, tags for crawled records to match what we have in memory
@@ -177,7 +177,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             if (!amLeader && result) {
               this !? (120000,SyncLoad(this)) match {
                 case Some(OK(frm)) => Unit
-                case None => throw new java.lang.RuntimeException("TIMEOUT: Failed to reload data as we became leader in 2m")
+                case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data as we became leader in 2m")
               }
               crawler.crawl()
               lastRun = DateTime.now

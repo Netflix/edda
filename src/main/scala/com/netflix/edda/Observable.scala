@@ -33,7 +33,7 @@ abstract class Observable extends StateMachine {
     this !? (60000, Observe(this, actor)) match {
       case Some(OK(from)) =>
       case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to add observer " + message)
-      case None => throw new java.lang.RuntimeException("TIMEOUT: Failed to register observer in 60s")
+      case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to register observer in 60s")
     }
   }
 
@@ -41,7 +41,7 @@ abstract class Observable extends StateMachine {
     this !? (60000, Ignore(this, actor)) match {
       case Some(OK(from)) =>
       case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to remove observer " + message)
-      case None => throw new java.lang.RuntimeException("TIMEOUT: Failed to unregister observer in 60s")
+      case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " ailed to unregister observer in 60s")
     }
   }
 
