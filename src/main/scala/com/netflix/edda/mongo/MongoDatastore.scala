@@ -105,7 +105,7 @@ object MongoDatastore {
   }
 
   def mongoProperty(props: Properties, propName: String, dsName: String, dflt: String): String = {
-    Utils.getProperty(props, "edda", "mongo." + propName, "dataStore." + dsName, dflt)
+    Utils.getProperty(props, "edda", "mongo." + propName, "datastore." + dsName, dflt)
   }
 
   def mongoConnection(name: String, ctx: ConfigContext) = {
