@@ -62,8 +62,8 @@ dependencies {
 
 test << {
     ant.taskdef(name: 'scalatest', classname: 'org.scalatest.tools.ScalaTestAntTask', classpath: classpath.asPath)
-    // ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false') {
-    ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false', suite: 'com.netflix.edda.web.FieldSelectorExprTest') {
+    ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false') {
+    // ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false', suite: 'com.netflix.edda.web.FieldSelectorExprTest') {
         reporter(type: 'stdout')
     }
 }
