@@ -166,30 +166,34 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
       var lastRun = DateTime.now
       Actor.loop {
-        val timeout = if (amLeader) refresh else cacheRefresh
-        Actor.reactWithin(timeLeft(lastRun, timeout)) {
-          case TIMEOUT => {
-            if (amLeader) crawler.crawl() else this ! Load(this)
-            lastRun = DateTime.now
-          }
-          case Elector.ElectionResult(from, result) => {
-            // if we just became leader, then start a crawl
-            if (!amLeader && result) {
-              this !? (120000,SyncLoad(this)) match {
-                case Some(OK(frm)) => Unit
-                case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data as we became leader in 2m")
+          val timeout = if (amLeader) refresh else cacheRefresh
+          try {
+              Actor.reactWithin(timeLeft(lastRun, timeout)) {
+                  case TIMEOUT => {
+                      if (amLeader) crawler.crawl() else this ! Load(this)
+                      lastRun = DateTime.now
+                  }
+                  case Elector.ElectionResult(from, result) => {
+                      // if we just became leader, then start a crawl
+                      if (!amLeader && result) {
+                          this !? (300000,SyncLoad(this)) match {
+                              case Some(OK(frm)) => Unit
+                              case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data as we became leader in 5m")
+                          }
+                          crawler.crawl()
+                          lastRun = DateTime.now
+                      }
+                      amLeader = result
+                  }
+                  case message => {
+                      logger.error("Invalid message " + message + " from sender " + sender)
+                  }
               }
-              crawler.crawl()
-              lastRun = DateTime.now
-            }
-            amLeader = result
           }
-          case message => {
-            logger.error("Invalid message " + message + " from sender " + sender)
+          catch {
+              case e: Exception => logger.error(this + " failed to refresh", e)
           }
-        }
       }
-    }
   }
 
   private[this] val loadTimer = Monitors.newTimer("load")
