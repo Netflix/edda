@@ -154,47 +154,47 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     if (timeLeft < 0) 0 else timeLeft
   }
 
-  protected def refresher() {
-    if (Option(crawler) == None || Option(elector) == None) return
-    val refresh = Utils.getProperty(ctx.config, "edda.collection", "refresh", name, "60000").toLong
-    val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
-    NamedActor(this + " refresher") {
-      elector.addObserver(Actor.self)
-      var amLeader = elector.isLeader
-      // crawl immediately the first time
-      if (amLeader) crawler.crawl()
+    protected def refresher() {
+        if (Option(crawler) == None || Option(elector) == None) return
+        val refresh = Utils.getProperty(ctx.config, "edda.collection", "refresh", name, "60000").toLong
+        val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
+        NamedActor(this + " refresher") {
+            elector.addObserver(Actor.self)
+            var amLeader = elector.isLeader
+            // crawl immediately the first time
+            if (amLeader) crawler.crawl()
 
-      var lastRun = DateTime.now
-      Actor.loop {
-          val timeout = if (amLeader) refresh else cacheRefresh
-          try {
-              Actor.reactWithin(timeLeft(lastRun, timeout)) {
-                  case TIMEOUT => {
-                      if (amLeader) crawler.crawl() else this ! Load(this)
-                      lastRun = DateTime.now
-                  }
-                  case Elector.ElectionResult(from, result) => {
-                      // if we just became leader, then start a crawl
-                      if (!amLeader && result) {
-                          this !? (300000,SyncLoad(this)) match {
-                              case Some(OK(frm)) => Unit
-                              case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data as we became leader in 5m")
-                          }
-                          crawler.crawl()
-                          lastRun = DateTime.now
-                      }
-                      amLeader = result
-                  }
-                  case message => {
-                      logger.error("Invalid message " + message + " from sender " + sender)
-                  }
-              }
-          }
-          catch {
-              case e: Exception => logger.error(this + " failed to refresh", e)
-          }
-      }
-  }
+            var lastRun = DateTime.now
+            Actor.loop {
+                val timeout = if (amLeader) refresh else cacheRefresh
+                try {
+                    Actor.reactWithin(timeLeft(lastRun, timeout)) {
+                        case TIMEOUT => {
+                            if (amLeader) crawler.crawl() else this ! Load(this)
+                            lastRun = DateTime.now
+                        }
+                        case Elector.ElectionResult(from, result) => {
+                            // if we just became leader, then start a crawl
+                            if (!amLeader && result) {
+                                this !? (300000,SyncLoad(this)) match {
+                                    case Some(OK(frm)) => Unit
+                                    case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data as we became leader in 5m")
+                                }
+                                crawler.crawl()
+                                lastRun = DateTime.now
+                            }
+                            amLeader = result
+                        }
+                        case message => {
+                            logger.error("Invalid message " + message + " from sender " + sender)
+                        }
+                    }
+                } catch {
+                    case e: Exception => logger.error(this + " failed to refresh", e)
+                }
+            }
+        }
+    }
 
   private[this] val loadTimer = Monitors.newTimer("load")
   private[this] val loadCounter = Monitors.newCounter("load.count")
