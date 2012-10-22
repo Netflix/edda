@@ -73,6 +73,10 @@ class FieldSelectorExprTest extends FunSuite {
         expect(Some(List(base))) {
             expr1.select(List(base, base + ("b" -> "def")))
         }
+
+        expect(Some(base + ("a" -> null))) {
+            expr1.select(base + ("a" -> null)) 
+        }
     }
 
     test("EqualExpr") {

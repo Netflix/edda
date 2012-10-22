@@ -44,7 +44,6 @@ sealed trait FieldSelectorExpr {
       })
       Result(results.size > 0, Some(results.map(_.newValue.get)))
     }
-    case null => NoMatch
     case v => checkValue(v)
   }
 
