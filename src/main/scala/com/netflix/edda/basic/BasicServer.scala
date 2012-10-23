@@ -38,7 +38,7 @@ class BasicServer extends HttpServlet {
 
     val bm = new BasicBeanMapper(BasicContext) with AwsBeanMapper
 
-    val awsClientFactory = (region: String) => {
+    val awsClientFactory = (account: String, region: String) => {
       Option(BasicContext.config.getProperty("edda.aws.accessKey")) match {
         case None => new AwsClient(region)
         case Some(accessKey) => new AwsClient(

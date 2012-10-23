@@ -39,12 +39,12 @@ object AwsCollectionBuilder {
     * CollectionManager.register is called for each generated collection object
     *
     * @param ctx a common collection context to be used by all collections
-    * @param clientFactory  function that returns an AwsClient object to be used by all collections
+    * @param clientFactory  function that takes the account and region strings and returns an AwsClient object to be used by all collections
     * @param bm beanMapper to be used by all the AWS crawlers
     * @param elector elector to be used for leadership selection
     * @param dsFactory function to return a dataStore for each collection
     */
-  def buildAll(ctx: Collection.Context, clientFactory: String => AwsClient, bm: BeanMapper, elector: Elector, dsFactory: String => Option[DataStore]) {
+  def buildAll(ctx: Collection.Context, clientFactory: (String,String) => AwsClient, bm: BeanMapper, elector: Elector, dsFactory: String => Option[DataStore]) {
     val collMap = Option(ctx.config.getProperty("edda.accounts")) match {
       case Some(accountString) => {
         val accounts = accountString.split(",")
@@ -53,7 +53,7 @@ object AwsCollectionBuilder {
             val config = ctx.config
             val beanMapper = bm
             val recordMatcher = ctx.recordMatcher
-            val awsClient = clientFactory(Utils.getProperty(config, "edda", "region", account, null))
+            val awsClient = clientFactory(account, Utils.getProperty(config, "edda", "region", account, null))
           }).toMap
 
         // this give us:
@@ -78,7 +78,7 @@ object AwsCollectionBuilder {
           val config = ctx.config
           val beanMapper = bm
           val recordMatcher = ctx.recordMatcher
-          val awsClient = clientFactory(config.getProperty("edda.region", null))
+          val awsClient = clientFactory("", config.getProperty("edda.region", null))
         }
         mkCollections(context, "", elector, dsFactory).map(
           collection => collection.rootName -> collection).toMap
