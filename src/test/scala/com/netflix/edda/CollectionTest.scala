@@ -30,6 +30,8 @@ class CollectionTest extends FunSuite {
             coll.query(Map("id" -> "b"))
         }
         
+        // dont let the crawler reset our records
+        coll.elector.leader = false
         coll.dataStore.get.records = Seq(Record("a", 1), Record("b", 2), Record("c", 3))
         coll ! Collection.Load(coll)
         // allow for collection to load

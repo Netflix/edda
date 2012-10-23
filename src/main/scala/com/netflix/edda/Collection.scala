@@ -285,22 +285,24 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
     case (DeltaResult(from, d), state) => {
       // only propagate if the delta records are not the same as the current cached records
-      if ((d.records ne localState(state).records) && elector.isLeader) {
-          Actor.actor {
-              val stopwatch = updateTimer.start()
-              try {
-                  update(d)
-                  updateCounter.increment()
-              } catch {
-                  case e: Exception => {
-                      updateErrorCounter.increment()
-                      throw e
+      if ((d.records ne localState(state).records)) {
+          if( elector.isLeader ) {
+              Actor.actor {
+                  val stopwatch = updateTimer.start()
+                  try {
+                      update(d)
+                      updateCounter.increment()
+                  } catch {
+                      case e: Exception => {
+                          updateErrorCounter.increment()
+                          throw e
+                      }
+                  } finally {
+                      stopwatch.stop()
                   }
-              } finally {
-                  stopwatch.stop()
-                  }
-              logger.info("{} Updated {} records(Changed: {}, Added: {}, Removed: {}) in {} sec", toObjects(
-                  this, d.records.size, d.changed.size, d.added.size, d.removed.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
+                  logger.info("{} Updated {} records(Changed: {}, Added: {}, Removed: {}) in {} sec", toObjects(
+                      this, d.records.size, d.changed.size, d.added.size, d.removed.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
+              }
           }
           setLocalState(state, localState(state).copy(records = d.records))
       } else state
