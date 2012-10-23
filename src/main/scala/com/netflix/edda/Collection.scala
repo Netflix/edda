@@ -28,7 +28,7 @@ import com.netflix.servo.monitor.MonitorConfig
 import com.netflix.servo.monitor.BasicGauge
 import java.lang
 
-case class CollectionState(records: Seq[Record] = Seq[Record](), crawled: Seq[Record] = Seq[Record](), amLeader: Boolean = false)
+case class CollectionState(records: Seq[Record] = Seq[Record](), crawled: Seq[Record] = Seq[Record]())
 
 object Collection extends StateMachine.LocalState[CollectionState] {
   trait Context extends ConfigContext {
@@ -139,7 +139,6 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     if (dataStore.isDefined) {
       dataStore.get.init()
     }
-    Option(elector).foreach(_.addObserver(this))
     Option(crawler).foreach(_.addObserver(this))
     // listen to our own DeltaResult events
     // it is a sync call so put it in another actor
@@ -286,30 +285,25 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
     case (DeltaResult(from, d), state) => {
       // only propagate if the delta records are not the same as the current cached records
-      if (d.records ne localState(state).records) {
-        if (localState(state).amLeader) {
+      if ((d.records ne localState(state).records) && elector.isLeader) {
           Actor.actor {
-            val stopwatch = updateTimer.start()
-            try {
-              update(d)
-              updateCounter.increment()
-            } catch {
-              case e: Exception => {
-                updateErrorCounter.increment()
-                throw e
-              }
-            } finally {
-              stopwatch.stop()
-            }
-            logger.info("{} Updated {} records(Changed: {}, Added: {}, Removed: {}) in {} sec", toObjects(
-              this, d.records.size, d.changed.size, d.added.size, d.removed.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
+              val stopwatch = updateTimer.start()
+              try {
+                  update(d)
+                  updateCounter.increment()
+              } catch {
+                  case e: Exception => {
+                      updateErrorCounter.increment()
+                      throw e
+                  }
+              } finally {
+                  stopwatch.stop()
+                  }
+              logger.info("{} Updated {} records(Changed: {}, Added: {}, Removed: {}) in {} sec", toObjects(
+                  this, d.records.size, d.changed.size, d.added.size, d.removed.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
           }
-        }
-        setLocalState(state, localState(state).copy(records = d.records))
+          setLocalState(state, localState(state).copy(records = d.records))
       } else state
-    }
-    case (Elector.ElectionResult(from, result), state) => {
-      setLocalState(state, localState(state).copy(amLeader = result))
     }
   }
 
