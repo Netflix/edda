@@ -44,6 +44,17 @@ class MongoElector(ctx: ConfigContext) extends Elector(ctx) {
     super.init
   }
 
+  override
+  def isLeader: Boolean = {
+      val data = mongo.findOne("leader")
+      if (data != null) {
+          val rec = MongoDatastore.mongoToRecord(data)
+          if( rec.data.asInstanceOf[Map[String,Any]]("instance").asInstanceOf[String] == instance ) {
+              true
+          } else false
+      } else false
+  }
+
   protected override def runElection(): Boolean = {
     val now = DateTime.now
     var leader = instance
