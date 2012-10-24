@@ -77,6 +77,30 @@ class FieldSelectorExprTest extends FunSuite {
         expect(Some(base + ("a" -> null))) {
             expr1.select(base + ("a" -> null)) 
         }
+
+        expect(Some(base + ("a" -> List(1,2,3)))) {
+            expr1.select(base + ("a" -> List(1,2,3))) 
+        }
+
+        // FixedExpr(true) matches empty list
+        expect(Some(base + ("a" -> List()))) {
+            expr1.select(base + ("a" -> List())) 
+        }
+
+        // EqualExpr on list returns empty List if there are not matches
+        expect(Some(base + ("b" -> List()))) {
+            expr1.select(base + ("b" -> List(1,2,3))) 
+        }
+
+        // EqualExpr on list returns just matching items
+        expect(Some(base + ("b" -> List(42)))) {
+            expr1.select(base + ("b" -> List(1,2,42))) 
+        }
+
+        // EqualExpr on empty list return empty list
+        expect(Some(base + ("b" -> List()))) {
+            expr1.select(base + ("b" -> List())) 
+        }
     }
 
     test("EqualExpr") {
