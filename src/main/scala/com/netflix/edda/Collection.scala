@@ -105,6 +105,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
   }
 
+
+  protected def newStateTimeForChange(newRec: Record, oldRec: Record) = true
+
   protected def delta(newRecords: Seq[Record], oldRecords: Seq[Record]): Delta = {
     val oldMap = oldRecords.map(rec => rec.id -> rec).toMap
     val newMap = newRecords.map(rec => rec.id -> rec).toMap
@@ -117,12 +120,24 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
     val changes = newMap.filter(pair => {
       oldMap.contains(pair._1) && !pair._2.sameData(oldMap(pair._1))
-    }).map(pair => pair._1 -> RecordUpdate(oldMap(pair._1).copy(mtime = now, ltime = now), pair._2))
+    }).map(
+        pair => {
+            val oldRec = oldMap(pair._1)
+            val newRec = pair._2
+            if( newStateTimeForChange(newRec, oldRec) ) {
+                pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec)
+            } else {
+                pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec.copy(stime=oldRec.stime))
+            }
+        }
+    )
 
     // need to reset stime, ctime, tags for crawled records to match what we have in memory
     val fixedRecords = newRecords.collect {
-      case rec: Record if changes.contains(rec.id) =>
-        oldMap(rec.id).copy(data = rec.data, mtime = rec.mtime, stime = rec.stime)
+      case rec: Record if changes.contains(rec.id) => {
+          val newRec = changes(rec.id).newRecord
+          oldMap(rec.id).copy(data = rec.data, mtime = newRec.mtime, stime = newRec.stime)
+      }
       case rec: Record if oldMap.contains(rec.id) =>
         oldMap(rec.id).copy(data = rec.data, mtime = rec.mtime)
       case rec: Record => rec

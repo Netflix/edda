@@ -444,54 +444,13 @@ class AwsSimpleQueueCollection(
     * those changes, but not create new document revisions if the only changes are Approx* values
     */
   override protected
-  def delta(newRecords: Seq[Record], oldRecords: Seq[Record]): Collection.Delta = {
-    val oldMap = oldRecords.map(rec => rec.id -> rec).toMap
-    val newMap = newRecords.map(rec => rec.id -> rec).toMap
-
-    val now = DateTime.now
-
-    val removedMap = oldMap.filterNot(pair => newMap.contains(pair._1)).map(
-      pair => pair._1 -> pair._2.copy(mtime = now, ltime = now))
-    val addedMap = newMap.filterNot(pair => oldMap.contains(pair._1))
-
-      def sameDataNoApprox(a: Record, b: Record): Boolean = {
-          if (a == null || b == null) return false
-          val aData = a.data.asInstanceOf[Map[String,Any]]
-          val bData = b.data.asInstanceOf[Map[String,Any]]
-          val aNoApprox = a.copy(data = aData + ("attributes" -> aData("attributes").asInstanceOf[Map[String,String]].filterNot(_._1.startsWith("Approx"))))
-          val bNoApprox = b.copy(data = bData + ("attributes" -> bData("attributes").asInstanceOf[Map[String,String]].filterNot(_._1.startsWith("Approx"))))
-          a.data == b.data || aNoApprox.dataString == bNoApprox.dataString
-      }
-
-      val changes = newMap.filter(
-          pair => {
-              oldMap.contains(pair._1) && !pair._2.sameData(oldMap(pair._1))
-          }
-      ).map(
-          pair => {
-              val oldRec = oldMap(pair._1)
-              val newRec = pair._2
-              if( sameDataNoApprox(newRec, oldRec) ) {
-                  pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec.copy(stime=oldRec.stime))
-              } else {
-                  pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec)
-              }
-          }
-      )
-
-    // need to reset stime, ctime, tags for crawled records to match what we have in memory
-    val fixedRecords = newRecords.collect {
-      case rec: Record if changes.contains(rec.id) => {
-          val newRec = changes(rec.id).newRecord
-          oldMap(rec.id).copy(data = rec.data, mtime = newRec.mtime, stime = newRec.stime)
-      }
-      case rec: Record if oldMap.contains(rec.id) =>
-        oldMap(rec.id).copy(data = rec.data, mtime = rec.mtime)
-      case rec: Record => rec
-    }
-
-    logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + removedMap.size)
-    Collection.Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = removedMap.values.toSeq)
+  def newStateTimeForChange(newRec: Record, oldRec: Record): Boolean = {
+      if (newRec == null || oldRec == null) return true
+      val newData = newRec.data.asInstanceOf[Map[String,Any]]
+      val oldData = oldRec.data.asInstanceOf[Map[String,Any]]
+      val newNoApprox = newRec.copy(data = newData + ("attributes" -> newData("attributes").asInstanceOf[Map[String,String]].filterNot(_._1.startsWith("Approx"))))
+      val oldNoApprox = oldRec.copy(data = oldData + ("attributes" -> oldData("attributes").asInstanceOf[Map[String,String]].filterNot(_._1.startsWith("Approx"))))
+      newRec.data != oldRec.data && newNoApprox.dataString != oldNoApprox.dataString
   }
 }
 
@@ -565,6 +524,6 @@ class GroupAutoScalingGroups(
 
         asgRec.copy(data = data)
       })
-    groupDelta(modNewRecords, oldRecords)
+      super.delta(modNewRecords, oldRecords)
   }
 }
