@@ -17,6 +17,8 @@ package com.netflix.edda
 
 import scala.actors.Actor
 
+import com.netflix.servo.monitor.Monitors
+
 object Queryable extends StateMachine.LocalState[CollectionState] {
   private case class Query(from: Actor, query: Map[String, Any], limit: Int, live: Boolean, keys: Set[String]) extends StateMachine.Message
   private case class QueryResult(from: Actor, records: Seq[Record]) extends StateMachine.Message {
@@ -27,11 +29,24 @@ object Queryable extends StateMachine.LocalState[CollectionState] {
 abstract class Queryable extends Observable {
   import Queryable._
 
+  private[this] val queryTimer = Monitors.newTimer("query")
+  private[this] val queryCounter = Monitors.newCounter("query.count")
+  private[this] val queryErrorCounter = Monitors.newCounter("query.errors")
+
   def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set()): Seq[Record] = {
     val self = this
+    val stopwatch = loadTimer.start()
     self !? (60000, Query(self, queryMap, limit, live, keys)) match {
-      case Some(QueryResult(`self`, results)) => results
-      case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to fetch query results within 60s for query: " + queryMap + " limit: " + limit + " keys: " + keys)
+      case Some(QueryResult(`self`, results)) => {
+          stopwatch.stop()
+          queryCounter.increment()
+          results
+      }
+      case None => {
+          stopwatch.stop()
+          queryErrorCounter.increment()
+          throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to fetch query results within 60s for query: " + queryMap + " limit: " + limit + " keys: " + keys)
+      }
     }
   }
 
