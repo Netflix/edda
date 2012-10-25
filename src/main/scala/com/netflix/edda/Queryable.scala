@@ -35,7 +35,7 @@ abstract class Queryable extends Observable {
 
   def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set()): Seq[Record] = {
     val self = this
-    val stopwatch = loadTimer.start()
+    val stopwatch = queryTimer.start()
     self !? (60000, Query(self, queryMap, limit, live, keys)) match {
       case Some(QueryResult(`self`, results)) => {
           stopwatch.stop()
