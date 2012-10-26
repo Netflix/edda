@@ -413,13 +413,11 @@ class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) exten
                 )
             }
         )
-        var failed: Boolean = false
         val records = futures.map(
             f => {
                 try Some(f.get)
                 catch {
                     case e: Exception => {
-                        failed = true
                         logger.error(this + "exception from SQS getQueueAttributes",e);
                         None
                     }
@@ -429,9 +427,6 @@ class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) exten
             case Some(rec) => rec
         }
 
-        if( failed ) {
-            throw new java.lang.RuntimeException("failed to crawl views.simpleQueues")
-        }
         records
     }
 }
