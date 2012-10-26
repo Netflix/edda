@@ -46,7 +46,10 @@ import com.amazonaws.services.elasticloadbalancing.model.DescribeLoadBalancersRe
 import com.amazonaws.services.elasticloadbalancing.model.DescribeInstanceHealthRequest
 
 import collection.JavaConverters._
-import scala.actors.Futures.{ future, awaitAll }
+
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.Callable
 
 import org.slf4j.LoggerFactory
 
@@ -85,12 +88,20 @@ trait AwsBeanMapper extends BeanMapper {
   })
 }
 
+/** iterator interface for working with the paginated results from some
+  * aws apis
+  */
 abstract class AwsIterator extends Iterator[Seq[Record]] {
   var nextToken: Option[String] = Some(null)
   def hasNext = nextToken != None
   def next(): List[Record]
 }
 
+/** crawler for EIP Addresses
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
 class AwsAddressCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeAddressesRequest
   override def doCrawl() =
@@ -98,6 +109,11 @@ class AwsAddressCrawler(val name: String, val ctx: AwsCrawler.Context) extends C
       item => Record(item.getPublicIp, ctx.beanMapper(item))).toSeq
 }
 
+/** crawler for AutoScalingGroups
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
 class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   private[this] val logger = LoggerFactory.getLogger(getClass)
   val request = new DescribeAutoScalingGroupsRequest
@@ -126,6 +142,14 @@ class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) 
   }
 }
 
+/** crawler for Images
+  *
+  * if tags are used with on the aws images objects, set edda.crawler.NAME.abortWithoutTags=true
+  * so that the crawler can detect when AWS sends a degraded result without tag information.
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
 class AwsImageCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeImagesRequest
   override def doCrawl() = {
@@ -142,6 +166,11 @@ class AwsImageCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cra
   }
 }
 
+/** crawler for LoadBalancers
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
 class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeLoadBalancersRequest
   override def doCrawl() = ctx.awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions.asScala.map(
@@ -152,19 +181,56 @@ case class AwsInstanceHealthCrawlerState(elbRecords: Seq[Record] = Seq[Record]()
 
 object AwsInstanceHealthCrawler extends StateMachine.LocalState[AwsInstanceHealthCrawlerState]
 
+/** crawler for LoadBalancer Instances
+  *
+  * this is a secondary crawler that takes the results from the AwsLoadBalancerCrawler
+  * and then crawles the instance states for each ELB.
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  * @param crawler the LoadBalancer crawler
+  */
 class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
   import AwsInstanceHealthCrawler._
   override def crawl() {} // we don't crawl, just get updates from crawler when it crawls
   override def doCrawl() = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceHealthCrawler")
+
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  private[this] val threadPool = Executors.newFixedThreadPool(10)
+
   def doCrawl(elbRecords: Seq[Record]): Seq[Record] = {
-    val tasks = elbRecords.map(elb => future {
-      val instances = ctx.awsClient.elb.describeInstanceHealth(new DescribeInstanceHealthRequest(elb.id)).getInstanceStates
-      elb.copy(data = Map("name" -> elb.id, "instances" -> instances.asScala.map(ctx.beanMapper(_))))
-    })
-    awaitAll(300000L, tasks: _*) match {
-      case Nil => Seq()
-      case x: Seq[Option[Record]] => x.collect { case Some(d) => d }
-    }
+        var futures: Seq[java.util.concurrent.Future[Record]] = elbRecords.map(
+            elb => {
+                threadPool.submit(
+                    new Callable[Record] {
+                        def call() = {
+                            val instances = ctx.awsClient.elb.describeInstanceHealth(new DescribeInstanceHealthRequest(elb.id)).getInstanceStates
+                            elb.copy(data = Map("name" -> elb.id, "instances" -> instances.asScala.map(ctx.beanMapper(_))))
+                        }
+                    }
+                )
+            }
+        )
+        var failed: Boolean = false
+        val records = futures.map(
+            f => {
+                try Some(f.get)
+                catch {
+                    case e: Exception => {
+                        failed = true
+                        logger.error(this + "exception from describeInstanceHealth",e);
+                        None
+                    }
+                }
+            }
+        ).collect { 
+            case Some(rec) => rec
+        }
+
+        if( failed ) {
+            throw new java.lang.RuntimeException("failed to crawl instance health")
+        }
+        records
   }
 
   protected override def initState = addInitialState(super.initState, newLocalState(AwsInstanceHealthCrawlerState()))
@@ -186,6 +252,7 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
 
   override protected def transitions = localTransitions orElse super.transitions
 }
+
 
 class AwsLaunchConfigurationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeLaunchConfigurationsRequest
@@ -322,22 +389,49 @@ class AwsBucketCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
 
 class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new ListQueuesRequest
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  private[this] val threadPool = Executors.newFixedThreadPool(10)
+
     override def doCrawl() = {
         val queues = ctx.awsClient.sqs.listQueues(request).getQueueUrls.asScala
-        val tasks = queues.map(queueUrl => future {
-            val name = queueUrl.split('/').last
-            val attrRequest = new GetQueueAttributesRequest().withQueueUrl(queueUrl).withAttributeNames("All")
-            val attrs = Map[String,String]() ++ ctx.awsClient.sqs.getQueueAttributes(attrRequest).getAttributes.asScala
-            val ctime = attrs.get("CreatedTimestamp") match {
-                case Some(time) => new DateTime(time.toInt * 1000)
-                case None => DateTime.now
+        var futures: Seq[java.util.concurrent.Future[Record]] = queues.map(
+            queueUrl => {
+                threadPool.submit(
+                    new Callable[Record] {
+                        def call() = {
+                            val name = queueUrl.split('/').last
+                            val attrRequest = new GetQueueAttributesRequest().withQueueUrl(queueUrl).withAttributeNames("All")
+                            val attrs = Map[String,String]() ++ ctx.awsClient.sqs.getQueueAttributes(attrRequest).getAttributes.asScala
+                            val ctime = attrs.get("CreatedTimestamp") match {
+                                case Some(time) => new DateTime(time.toInt * 1000)
+                                case None => DateTime.now
+                            }
+                            
+                            Record(name, ctime, Map("name" -> name, "url" -> queueUrl, "attributes" -> ( attrs)))
+                        }
+                    }
+                )
             }
-
-            Record(name, ctime, Map("name" -> name, "url" -> queueUrl, "attributes" -> ( attrs)))
-        })
-        awaitAll(300000L, tasks: _*) match {
-            case Nil => Seq()
-            case x: Seq[Option[Record]] => x.collect { case Some(d) => d }
+        )
+        var failed: Boolean = false
+        val records = futures.map(
+            f => {
+                try Some(f.get)
+                catch {
+                    case e: Exception => {
+                        failed = true
+                        logger.error(this + "exception from SQS getQueueAttributes",e);
+                        None
+                    }
+                }
+            }
+        ).collect { 
+            case Some(rec) => rec
         }
+
+        if( failed ) {
+            throw new java.lang.RuntimeException("failed to crawl views.simpleQueues")
+        }
+        records
     }
 }
