@@ -223,7 +223,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     MonitorConfig.builder("lastCrawl").build(),
     new Callable[java.lang.Long] {
       def call() = {
-        DateTime.now.getMillis - lastCrawl.getMillis
+        if( elector.isLeader ) {
+            DateTime.now.getMillis - lastCrawl.getMillis
+        } else 0
       }
     })
 
