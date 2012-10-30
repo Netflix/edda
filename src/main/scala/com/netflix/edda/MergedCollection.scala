@@ -32,21 +32,21 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
       case _ => Some(Executors.newFixedThreadPool(collections.size * 10))
   }
     
-  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], state: StateMachine.State): Seq[Record] = {
+  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
     // if they have specified a subset of keys, then we need to make
     // sure stime is in there so we can sort
     val requiredKeys = if (keys.isEmpty) keys else (keys + "stime")
 
     if( threadPool == None ) {
         // only one collection so don't bother with futures
-        collections.head.query(queryMap, limit, live, requiredKeys)
+        collections.head.query(queryMap, limit, live, requiredKeys, replicaOk)
     } else {
         var futures: Seq[java.util.concurrent.Future[Seq[Record]]] = collections.map(
             coll => {
                 threadPool.get.submit(
                     new Callable[Seq[Record]] {
                         def call() = {
-                            coll.query(queryMap, limit, live, requiredKeys)
+                            coll.query(queryMap, limit, live, requiredKeys, replicaOk)
                         }
                     }
                 )

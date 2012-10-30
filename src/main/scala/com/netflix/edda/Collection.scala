@@ -17,6 +17,8 @@ package com.netflix.edda
 
 import scala.actors.Actor
 import scala.actors.TIMEOUT
+import scala.actors.scheduler.ForkJoinScheduler
+import scala.util.Random
 
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.Callable
@@ -61,7 +63,16 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   def dataStore: Option[DataStore]
   def elector: Elector
 
-  override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set()): Seq[Record] = {
+  lazy val fjScheduler = new ForkJoinScheduler(
+      Utils.getProperty(ctx.config, "edda.collection", "scheduler.coreSize", name, "5").toInt,
+      Utils.getProperty(ctx.config, "edda.collection", "scheduler.maxSize", name, "50").toInt,
+      true,
+      true
+  )
+  
+  override def scheduler = fjScheduler
+
+  override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): Seq[Record] = {
     if (enabled) super.query(queryMap, limit, live, keys) else Seq.empty
   }
 
@@ -72,11 +83,11 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     if (enabled) super.delObserver(actor)
   }
 
-  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], state: StateMachine.State): Seq[Record] = {
+  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
     // generate function
     if (live) {
       if (dataStore.isDefined) {
-        return dataStore.get.query(queryMap, limit, keys)
+        return dataStore.get.query(queryMap, limit, keys, replicaOk)
       } else {
         logger.warn("DataStore is not available, applying query to cached records")
       }
@@ -88,9 +99,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
   }
 
-  protected def load(): Seq[Record] = {
+  protected def load(replicaOk: Boolean): Seq[Record] = {
     if (dataStore.isDefined) {
-      dataStore.get.load()
+      dataStore.get.load(replicaOk)
     } else {
       logger.warn("DataStore is not available for load()")
       Seq()
@@ -147,10 +158,21 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = removedMap.values.toSeq)
   }
 
-  protected override def initState = addInitialState(super.initState, newLocalState(CollectionState(records = load())))
+  protected override def initState = addInitialState(super.initState, newLocalState(CollectionState(records = load(replicaOk=false))))
 
   protected override def init() {
     Monitors.registerObject("edda.collection." + name, this)
+
+    if( Utils.getProperty(ctx.config, "edda.collection", "jitter.enabled", name, "true").toBoolean ) {
+      val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
+      // adding in random jitter on start so we dont crush the datastore immediately if multiple
+      // systems are coming up at the same time
+      val rand = new Random
+      val jitter = (2 * cacheRefresh * rand.nextDouble).toLong
+      logger.info(this + " start delayed by " + jitter + "ms")
+      Thread.sleep(jitter)
+    }
+
     if (dataStore.isDefined) {
       dataStore.get.init()
     }
@@ -229,11 +251,12 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       }
     })
 
-  private def doLoad(): Seq[Record] = {
+  private def doLoad(replicaOk: Boolean): Seq[Record] = {
     val stopwatch = loadTimer.start()
     val records = try {
+      // TODO mtime should come from the last time the collection was crawled, not 'now'
       val now = DateTime.now
-      load().map(_.copy(mtime=now))
+      load(replicaOk).map(_.copy(mtime=now))
     } catch {
       case e: Exception => {
         loadErrorCounter.increment()
@@ -254,7 +277,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       // before we take over as "Leader" and start writing to the DataStore
       val replyTo = sender
       NamedActor(this + " SyncLoad processor") {
-        val records = doLoad()
+        val records = doLoad(replicaOk=false)
         this ! Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
         replyTo ! OK(this)
       }
@@ -262,7 +285,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
     case (Load(from), state) => {
       NamedActor(this + " Load processor") {
-        val records = doLoad()
+        val records = doLoad(replicaOk=true)
         this ! Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
       }
       state
@@ -346,6 +369,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     logger.info("Stoping " + this)
     Option(elector).foreach(_.stop())
     Option(crawler).foreach(_.stop())
+    fjScheduler.shutdown()
     super.stop()
   }
 }

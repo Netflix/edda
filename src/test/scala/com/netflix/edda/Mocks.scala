@@ -23,11 +23,11 @@ class TestDataStore extends DataStore {
     def init() {
     }
     
-    def query(queryMap: Map[String, Any], limit: Int, keys: Set[String]): Seq[Record] = {
+    def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
         records
     }
 
-    def load(): Seq[Record] = {
+    def load(replicaOk: Boolean): Seq[Record] = {
         records
     }
 

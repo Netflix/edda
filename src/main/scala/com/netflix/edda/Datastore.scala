@@ -17,7 +17,7 @@ package com.netflix.edda
 
 trait DataStore {
   def init()
-  def query(queryMap: Map[String, Any], limit: Int, keys: Set[String]): Seq[Record]
-  def load(): Seq[Record]
+  def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record]
+  def load(replicaOk: Boolean): Seq[Record]
   def update(d: Collection.Delta)
 }

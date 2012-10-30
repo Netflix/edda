@@ -20,7 +20,7 @@ import scala.actors.Actor
 import com.netflix.servo.monitor.Monitors
 
 object Queryable extends StateMachine.LocalState[CollectionState] {
-  private case class Query(from: Actor, query: Map[String, Any], limit: Int, live: Boolean, keys: Set[String]) extends StateMachine.Message
+  private case class Query(from: Actor, query: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean) extends StateMachine.Message
   private case class QueryResult(from: Actor, records: Seq[Record]) extends StateMachine.Message {
     override def toString = "QueryResult(records=" + records.size + ")"
   }
@@ -33,10 +33,10 @@ abstract class Queryable extends Observable {
   private[this] val queryCounter = Monitors.newCounter("query.count")
   private[this] val queryErrorCounter = Monitors.newCounter("query.errors")
 
-  def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set()): Seq[Record] = {
+  def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): Seq[Record] = {
     val self = this
     val stopwatch = queryTimer.start()
-    self !? (60000, Query(self, queryMap, limit, live, keys)) match {
+    self !? (60000, Query(self, queryMap, limit, live, keys, replicaOk)) match {
       case Some(QueryResult(`self`, results)) => {
           stopwatch.stop()
           queryCounter.increment()
@@ -50,16 +50,16 @@ abstract class Queryable extends Observable {
     }
   }
 
-  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], state: StateMachine.State): Seq[Record]
+  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record]
 
   protected def firstOf(limit: Int, records: Seq[Record]): Seq[Record] = {
     if (limit > 0) records.take(limit) else records
   }
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
-    case (Query(from, queryMap, limit, live, keys), state) => {
+    case (Query(from, queryMap, limit, live, keys, replicaOk), state) => {
       val replyTo = sender
       Utils.NamedActor(this + " Query processor") {
-          replyTo ! QueryResult(this, doQuery(queryMap, limit, live, keys, state))
+          replyTo ! QueryResult(this, doQuery(queryMap, limit, live, keys, replicaOk, state))
       }
       state
     }

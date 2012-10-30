@@ -54,11 +54,11 @@ trait GroupCollection extends Collection {
 
   implicit def recordOrdering: Ordering[Record] = Ordering.fromLessThan(_.stime isBefore _.stime)
 
-  override def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], state: StateMachine.State): Seq[Record] = {
+  override def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
     // if they have specified a subset of keys, then we need to make
     // sure "id" is in there so we can group
     val requiredKeys = if (keys.isEmpty) keys else (keys + "id")
-    val records = super.doQuery(queryMap, limit, live, requiredKeys, state)
+    val records = super.doQuery(queryMap, limit, live, requiredKeys, replicaOk, state)
     if (keys.isEmpty || mergeKeys.find(pair => keys.contains(pair._1)) != None) {
       records.groupBy(_.id).values.toSeq.sortBy(_.head).map(mergeRecords(_))
     } else if (keys.contains("end")) {

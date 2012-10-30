@@ -315,7 +315,7 @@ class CollectionResource {
     } else makeQuery(details)
     logger.info(coll + " query: " + Utils.toJson(query))
     val keys: Set[String] = if (details.expand) details.fields else Set("id")
-    unique(coll.query(query, details.limit, details.timeTravelling, keys), details)
+    unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk=true), details)
   }
 
   @GET

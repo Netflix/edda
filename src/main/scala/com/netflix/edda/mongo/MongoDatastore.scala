@@ -30,6 +30,7 @@ import com.mongodb.DBObject
 import com.mongodb.BasicDBList
 import com.mongodb.Mongo
 import com.mongodb.ServerAddress
+import com.mongodb.Bytes
 
 import org.joda.time.DateTime
 import java.util.Date
@@ -143,27 +144,35 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
-  override def query(queryMap: Map[String, Any], limit: Int, keys: Set[String]): Seq[Record] = {
+  override def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     logger.info(this + " query: " + queryMap)
     val mongoKeys = if (keys.isEmpty) null else mapToMongo(keys.map(_ -> 1).toMap)
-    val cursor = mongo.find(mapToMongo(queryMap), mongoKeys).sort(stimeIdSort);
+    val cursor = {
+        val cur = mongo.find(mapToMongo(queryMap), mongoKeys)
+        if( replicaOk ) cur.addOption(Bytes.QUERYOPTION_SLAVEOK)
+        cur.sort(stimeIdSort)
+    }
     try {
       cursor.asScala.toStream.map(mongoToRecord(_))
     } finally {
-      cursor.close();
+      cursor.close()
     }
   }
 
-  override def load(): Seq[Record] = {
+  override def load(replicaOk: Boolean): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
-    val cursor = mongo.find(nullLtimeQuery).sort(stimeIdSort);
+    val cursor = {
+        val cur = mongo.find(nullLtimeQuery)
+        if( replicaOk ) cur.addOption(Bytes.QUERYOPTION_SLAVEOK)
+        cur.sort(stimeIdSort)
+    }
     try {
       val x = cursor.asScala.map(mongoToRecord(_)).toSeq
       logger.info(this + " Loaded " + x.size + " records")
       x
     } finally {
-      cursor.close();
+      cursor.close()
     }
   }
 
