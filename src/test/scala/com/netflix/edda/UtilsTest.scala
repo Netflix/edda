@@ -82,12 +82,13 @@ class UtilsTest extends FunSuite {
   test("diffRecords") {
     val r1 = Record("id", 1).copy(stime = new DateTime(0, UTC))
     val r2 = Record("id", 2).copy(stime = new DateTime(1, UTC))
-    var expected = """--- collection/path/id;_pp;_at=0
+    var expected = 
+"""--- collection/path/id;_pp;_at=0
 +++ collection/path/id;_pp;_at=1
 @@ -1,1 +1,1 @@
 -1
 +2
-                   """
+"""
     expect(expected) {
       Utils.diffRecords(Seq(r2, r1), None, "collection/path")
     }
@@ -96,7 +97,8 @@ class UtilsTest extends FunSuite {
     val r4 = Record("id", List("this", "is", "a", "great", "test")).copy(stime = new DateTime(1, UTC))
     val r5 = Record("id", List("this", "is", "an", "even", "better", "test")).copy(stime = new DateTime(2, UTC))
 
-    expected = """--- collection/path/id;_pp;_at=1
+    expected =
+"""--- collection/path/id;_pp;_at=1
 +++ collection/path/id;_pp;_at=2
 @@ -1,7 +1,8 @@
  [
@@ -119,12 +121,13 @@ class UtilsTest extends FunSuite {
 +  "great",
    "test"
  ]
-               """
+"""
     expect(expected) {
       Utils.diffRecords(Seq(r5, r4, r3), None, "collection/path")
     }
 
-    expected = """--- collection/path/id;_pp;_at=1
+    expected =
+"""--- collection/path/id;_pp;_at=1
 +++ collection/path/id;_pp;_at=2
 @@ -4,2 +4,3 @@
 -  "a",
@@ -136,7 +139,7 @@ class UtilsTest extends FunSuite {
 +++ collection/path/id;_pp;_at=1
 @@ -5,0 +5,1 @@
 +  "great",
-               """
+"""
     expect(expected) {
       Utils.diffRecords(Seq(r5, r4, r3), Some(0), "collection/path")
     }
