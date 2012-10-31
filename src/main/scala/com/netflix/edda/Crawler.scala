@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package com.netflix.edda
+
 import scala.actors.Actor
 
 import org.joda.time.DateTime
@@ -27,6 +28,7 @@ import org.slf4j.LoggerFactory
 case class CrawlerState(records: Seq[Record] = Seq[Record](), crawlTime: Option[DateTime] = None)
 
 object Crawler extends StateMachine.LocalState[CrawlerState] {
+
   // Message sent to Observers
   case class CrawlResult(from: Actor, newRecords: Seq[Record]) extends StateMachine.Message {
     override def toString = "CrawlResult(newRecords=" + newRecords.size + ")"
@@ -34,11 +36,14 @@ object Crawler extends StateMachine.LocalState[CrawlerState] {
 
   // internal messages
   private case class Crawl(from: Actor) extends StateMachine.Message
+
 }
 
 abstract class Crawler(ctx: ConfigContext) extends Observable {
+
   import Crawler._
   import Utils._
+
   private[this] val logger = LoggerFactory.getLogger(getClass)
   lazy val enabled = Utils.getProperty(ctx.config, "edda.crawler", "enabled", name, "true").toBoolean
 
@@ -49,6 +54,7 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
   override def addObserver(actor: Actor) {
     if (enabled) super.addObserver(actor)
   }
+
   override def delObserver(actor: Actor) {
     if (enabled) super.delObserver(actor)
   }

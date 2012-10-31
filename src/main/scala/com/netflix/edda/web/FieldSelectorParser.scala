@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,8 +21,10 @@ import org.slf4j.LoggerFactory
 // https://developer.linkedin.com/documents/field-selectors
 
 object FieldSelectorExpr {
+
   case class Result(objectMatches: Boolean, newValue: Option[Any])
-  val NoMatch = Result(objectMatches=false, None)
+
+  val NoMatch = Result(objectMatches = false, None)
   val logger = LoggerFactory.getLogger(getClass)
 }
 
@@ -39,7 +41,7 @@ sealed trait FieldSelectorExpr {
 
   def _select(value: Any): Result = value match {
     case Nil => {
-        Result(true, Some(value))
+      Result(true, Some(value))
     }
     case values: Seq[_] => {
       val results = values.map(checkValue).filter(r => {
@@ -54,7 +56,7 @@ sealed trait FieldSelectorExpr {
 }
 
 case object MatchAnyExpr extends FieldSelectorExpr {
-  def checkValue(value: Any): Result = Result(objectMatches=true, Some(value))
+  def checkValue(value: Any): Result = Result(objectMatches = true, Some(value))
 }
 
 case class FixedExpr(matches: Boolean) extends FieldSelectorExpr {
@@ -63,7 +65,7 @@ case class FixedExpr(matches: Boolean) extends FieldSelectorExpr {
 
 case class FlattenExpr(expr: FieldSelectorExpr) extends FieldSelectorExpr {
   def checkValue(value: Any): Result = {
-    Result(objectMatches=true, Some(flattenValue(None, value)))
+    Result(objectMatches = true, Some(flattenValue(None, value)))
   }
 
   def flattenValue(prefix: Option[String], value: Any): Any = value match {
@@ -117,8 +119,11 @@ case class NotEqualExpr(desiredValue: Any) extends FieldSelectorExpr {
 }
 
 case class RegexExpr(regex: String, invert: Boolean) extends FieldSelectorExpr {
+
   import java.util.regex.Pattern
+
   private val pattern = Pattern.compile(regex)
+
   def checkValue(value: Any): Result = {
     val matches = pattern.matcher(value.toString).find
     Result(matches ^ invert, Some(value))
@@ -138,7 +143,7 @@ class FieldSelectorParser extends RegexParsers {
 
   def keySelectExpr = ":(" ~> repsep(subExpr, ",") <~ ")" ^^ (values => {
     KeySelectExpr(Map.empty ++ values.map(t => {
-      t._1 -> t._2.getOrElse(FixedExpr(matches=true))
+      t._1 -> t._2.getOrElse(FixedExpr(matches = true))
     }))
   })
 
@@ -146,18 +151,18 @@ class FieldSelectorParser extends RegexParsers {
 
   def subExpr = id ~ (
     equalExpr |
-    notEqualExpr |
-    regexExpr |
-    invRegexExpr |
-    expression).?
+      notEqualExpr |
+      regexExpr |
+      invRegexExpr |
+      expression).?
 
   def equalExpr = "=" ~> literalExpr ^^ (value => EqualExpr(value))
 
   def notEqualExpr = "!=" ~> literalExpr ^^ (value => NotEqualExpr(value))
 
-  def regexExpr = "~" ~> regexLiteral ^^ (value => RegexExpr(value, invert=false))
+  def regexExpr = "~" ~> regexLiteral ^^ (value => RegexExpr(value, invert = false))
 
-  def invRegexExpr = "!~" ~> regexLiteral ^^ (value => RegexExpr(value, invert=true))
+  def invRegexExpr = "!~" ~> regexLiteral ^^ (value => RegexExpr(value, invert = true))
 
   def id = regex("[a-zA-Z0-9_\\.\\-]*".r)
 
@@ -174,9 +179,13 @@ class FieldSelectorParser extends RegexParsers {
   })
 
   def nullLiteral = "null" ^^ (value => null)
+
   def trueLiteral = "true" ^^ (value => true)
+
   def falseLiteral = "false" ^^ (value => false)
+
   def integerLiteral = regex("-?[0-9]+".r) ^^ (value => value.toInt)
+
   def floatLiteral = regex(floatRegex) ^^ (value => value.toDouble)
 
   val floatRegex = "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?".r

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,28 +25,38 @@ import com.netflix.servo.monitor.BasicGauge
 
 object StateMachine {
   type State = Map[String, Any]
+
   trait Message {
     def from: Actor
   }
+
   case class Stop(from: Actor) extends Message {}
 
   trait ErrorMessage extends Message {}
+
   case class InvalidMessageError(from: Actor, reason: String, message: Any) extends ErrorMessage
+
   case class UnknownMessageError(from: Actor, reason: String, message: Any) extends ErrorMessage
 
   class LocalState[T] {
     def localStateKey = this.getClass.getName
+
     def newLocalState(init: T) = (localStateKey -> init)
+
     def setLocalState(state: StateMachine.State, localState: T) = state + (localStateKey -> localState)
+
     def localState(state: StateMachine.State): T = state.get(localStateKey) match {
       case Some(localState) => localState.asInstanceOf[T]
       case other => throw new java.lang.RuntimeException(localStateKey + " state missing from current state")
     }
   }
+
 }
 
 class StateMachine extends Actor {
+
   import StateMachine._
+
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
   protected def init() {}
@@ -66,10 +76,10 @@ class StateMachine extends Actor {
   }
 
   protected def transitions: PartialFunction[(Message, State), State] = {
-      case (UnknownMessageError(from,reason,message),state) => 
-          throw new java.lang.RuntimeException(reason)
-      case (InvalidMessageError(from,reason,message),state) => 
-          throw new java.lang.RuntimeException(reason)
+    case (UnknownMessageError(from, reason, message), state) =>
+      throw new java.lang.RuntimeException(reason)
+    case (InvalidMessageError(from, reason, message), state) =>
+      throw new java.lang.RuntimeException(reason)
   }
 
   private[this] val self = this

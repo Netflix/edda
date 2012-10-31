@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,6 @@
 package com.netflix.edda
 
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
 import java.util.concurrent.Callable
 
 // import scala.actors.Futures.{ future, awaitAll }
@@ -28,48 +27,48 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = collections.size match {
-      case 1 => None
-      case _ => Some(Executors.newFixedThreadPool(collections.size * 10))
+    case 1 => None
+    case _ => Some(Executors.newFixedThreadPool(collections.size * 10))
   }
-    
+
   protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
     // if they have specified a subset of keys, then we need to make
     // sure stime is in there so we can sort
     val requiredKeys = if (keys.isEmpty) keys else (keys + "stime")
 
-    if( threadPool == None ) {
-        // only one collection so don't bother with futures
-        collections.head.query(queryMap, limit, live, requiredKeys, replicaOk)
+    if (threadPool == None) {
+      // only one collection so don't bother with futures
+      collections.head.query(queryMap, limit, live, requiredKeys, replicaOk)
     } else {
-        var futures: Seq[java.util.concurrent.Future[Seq[Record]]] = collections.map(
-            coll => {
-                threadPool.get.submit(
-                    new Callable[Seq[Record]] {
-                        def call() = {
-                            coll.query(queryMap, limit, live, requiredKeys, replicaOk)
-                        }
-                    }
-                )
+      var futures: Seq[java.util.concurrent.Future[Seq[Record]]] = collections.map(
+        coll => {
+          threadPool.get.submit(
+            new Callable[Seq[Record]] {
+              def call() = {
+                coll.query(queryMap, limit, live, requiredKeys, replicaOk)
+              }
             }
-        )
-        var failed: Boolean = false
-        val records = futures.map(
-            f => {
-                try f.get 
-                catch {
-                    case e: Exception => {
-                        failed = true
-                        logger.error(this + "exception querying",e);
-                        Seq()
-                    }
-                }
-            }
-        ).flatten
-        
-        if( failed ) {
-            throw new java.lang.RuntimeException("query failed")
+          )
         }
-        records.sortWith((a, b) => a.stime.isAfter(b.stime))
+      )
+      var failed: Boolean = false
+      val records = futures.map(
+        f => {
+          try f.get
+          catch {
+            case e: Exception => {
+              failed = true
+              logger.error(this + "exception querying", e);
+              Seq()
+            }
+          }
+        }
+      ).flatten
+
+      if (failed) {
+        throw new java.lang.RuntimeException("query failed")
+      }
+      records.sortWith((a, b) => a.stime.isAfter(b.stime))
     }
   }
 

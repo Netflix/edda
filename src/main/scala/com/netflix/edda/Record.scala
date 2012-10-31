@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -43,32 +43,32 @@ object Record {
   }
 
   def apply(
-    id: String,
-    ctime: DateTime,
-    stime: DateTime,
-    ltime: DateTime,
-    mtime: DateTime,
-    data: Any,
-    tags: Map[String, Any]) = new Record(id, ctime, stime, ltime, mtime, data, tags)
+             id: String,
+             ctime: DateTime,
+             stime: DateTime,
+             ltime: DateTime,
+             mtime: DateTime,
+             data: Any,
+             tags: Map[String, Any]) = new Record(id, ctime, stime, ltime, mtime, data, tags)
 }
 
 class Record(
-  val id: String,
-  val ctime: DateTime,
-  val stime: DateTime,
-  val ltime: DateTime,
-  val mtime: DateTime,
-  val data: Any,
-  val tags: Map[String, Any]) {
+              val id: String,
+              val ctime: DateTime,
+              val stime: DateTime,
+              val ltime: DateTime,
+              val mtime: DateTime,
+              val data: Any,
+              val tags: Map[String, Any]) {
 
   def copy(
-    id: String = id,
-    ctime: DateTime = ctime,
-    stime: DateTime = stime,
-    ltime: DateTime = ltime,
-    mtime: DateTime = mtime,
-    data: Any = data,
-    tags: Map[String, Any] = tags) = new Record(id, ctime, stime, ltime, mtime, data, tags)
+            id: String = id,
+            ctime: DateTime = ctime,
+            stime: DateTime = stime,
+            ltime: DateTime = ltime,
+            mtime: DateTime = mtime,
+            data: Any = data,
+            tags: Map[String, Any] = tags) = new Record(id, ctime, stime, ltime, mtime, data, tags)
 
   def toMap = {
     Map(

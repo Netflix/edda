@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,60 +20,60 @@ import org.joda.time.DateTime
 import org.scalatest.FunSuite
 
 class RecordTest extends FunSuite {
-    test("Apply") {
-        
-        val date = new DateTime(1)
-        val ctime = date
-        val stime = date
-        val ltime = null
-        val mtime = date
-        val data = 1
-        val tags = Map[String,Any]()
-        
-        val expected = new Record("id",ctime,stime,ltime,mtime,data,tags)
-        val expectedJson = expected.toString
+  test("Apply") {
 
-        expect(expectedJson) {
-            Record("id", 1).copy(ctime=date,stime=date,mtime=date).toString
-        }
+    val date = new DateTime(1)
+    val ctime = date
+    val stime = date
+    val ltime = null
+    val mtime = date
+    val data = 1
+    val tags = Map[String, Any]()
 
-        expect(true) {
-            expected.sameData(Record("id", 1).copy(ctime=date,stime=date,mtime=date))
-        }
-        
-        expect(expectedJson) {
-            Record("id", date, 1).copy(stime=date,mtime=date).toString
-        }
+    val expected = new Record("id", ctime, stime, ltime, mtime, data, tags)
+    val expectedJson = expected.toString
 
-        expect(true) {
-            expected.sameData(Record("id", date, 1).copy(stime=date,mtime=date))
-        }
-
-        expect(expectedJson) {
-            Record("id",date,date,null,date,1,Map()).toString
-        }
-
-        expect(true) {
-            expected.sameData(Record("id",date,date,null,date,1,Map()))
-        }
+    expect(expectedJson) {
+      Record("id", 1).copy(ctime = date, stime = date, mtime = date).toString
     }
 
-    test("toMap") {
-        val date = new DateTime(1)
-        val rec = Record("id",date,date,null,date,1,Map())
-        val map = Map("id" -> "id", "ctime" -> date, "stime" -> date, "ltime" -> null, "mtime" -> date, "data" -> 1, "tags" -> Map())
-        expect(map) {
-            rec.toMap
-        }
+    expect(true) {
+      expected.sameData(Record("id", 1).copy(ctime = date, stime = date, mtime = date))
     }
 
-    test("dataString") {
-        expect("1") {
-            Record("id",1).dataString
-        }
-        
-        expect("""{"foo":"bar"}""") {
-            Record("id",Map("foo" -> "bar")).dataString
-        }
+    expect(expectedJson) {
+      Record("id", date, 1).copy(stime = date, mtime = date).toString
     }
+
+    expect(true) {
+      expected.sameData(Record("id", date, 1).copy(stime = date, mtime = date))
+    }
+
+    expect(expectedJson) {
+      Record("id", date, date, null, date, 1, Map()).toString
+    }
+
+    expect(true) {
+      expected.sameData(Record("id", date, date, null, date, 1, Map()))
+    }
+  }
+
+  test("toMap") {
+    val date = new DateTime(1)
+    val rec = Record("id", date, date, null, date, 1, Map())
+    val map = Map("id" -> "id", "ctime" -> date, "stime" -> date, "ltime" -> null, "mtime" -> date, "data" -> 1, "tags" -> Map())
+    expect(map) {
+      rec.toMap
+    }
+  }
+
+  test("dataString") {
+    expect("1") {
+      Record("id", 1).dataString
+    }
+
+    expect( """{"foo":"bar"}""") {
+      Record("id", Map("foo" -> "bar")).dataString
+    }
+  }
 }

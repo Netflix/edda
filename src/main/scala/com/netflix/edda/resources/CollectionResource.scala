@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,11 +15,11 @@
  */
 package com.netflix.edda.resources
 
-import collection.mutable.{ Set => MSet }
+import collection.mutable.{Set => MSet}
 
 import javax.servlet.http.HttpServletRequest
-import javax.ws.rs.{ GET, Path }
-import javax.ws.rs.core.{ Response, Context, MediaType }
+import javax.ws.rs.{GET, Path}
+import javax.ws.rs.core.{Response, Context, MediaType}
 import java.io.ByteArrayOutputStream
 
 import com.netflix.edda.web.FieldSelectorParser
@@ -191,14 +191,14 @@ class CollectionResource {
     var timeTravelling = all || metaArgs.contains("_at") || metaArgs.contains("_since") || live
 
     val fields: Set[String] = extractFields(expr) match {
-      case Some(set) => if( meta ) set else set.map("data." + _)
+      case Some(set) => if (meta) set else set.map("data." + _)
       case None => Set.empty
     }
-     
+
     def extractFields(expr: FieldSelectorExpr): Option[Set[String]] = {
       expr match {
         case e: KeySelectExpr => {
-          val results: Set[String] = e.keys.map( pair => pair._1 -> extractFields(pair._2) ).flatMap(
+          val results: Set[String] = e.keys.map(pair => pair._1 -> extractFields(pair._2)).flatMap(
             pair => pair match {
               case (prefix: String, Some(set)) => set.map(v => prefix + "." + v)
               case (prefix: String, None) => Set(prefix)
@@ -315,7 +315,7 @@ class CollectionResource {
     } else makeQuery(details)
     logger.info(coll + " query: " + Utils.toJson(query))
     val keys: Set[String] = if (details.expand) details.fields else Set("id")
-    unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk=true), details)
+    unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
   }
 
   @GET

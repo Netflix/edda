@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,8 +23,6 @@ import com.netflix.edda.Utils
 
 // http://www.mongodb.org/display/DOCS/Java+Tutorial
 
-import com.mongodb.DBCollection
-import com.mongodb.DBCursor
 import com.mongodb.BasicDBObject
 import com.mongodb.DBObject
 import com.mongodb.BasicDBList
@@ -36,7 +34,7 @@ import org.joda.time.DateTime
 import java.util.Date
 import java.util.Properties
 
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 
 object MongoDatastore {
 
@@ -50,7 +48,10 @@ object MongoDatastore {
           Option(o.get("id")).getOrElse(o.get("_id")).asInstanceOf[String],
           new DateTime(o.get("ctime").asInstanceOf[Date]),
           new DateTime(Option(o.get("stime")).getOrElse(o.get("ctime")).asInstanceOf[Date]),
-          Option(o.get("ltime")) match { case Some(date: Date) => new DateTime(date); case None => null },
+          Option(o.get("ltime")) match {
+            case Some(date: Date) => new DateTime(date);
+            case None => null
+          },
           new DateTime(o.get("mtime").asInstanceOf[Date]),
           mongoToScala(o.get("data")),
           mongoToScala(o.get("tags")).asInstanceOf[Map[String, Any]])
@@ -138,6 +139,7 @@ object MongoDatastore {
 }
 
 class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
+
   import MongoDatastore._
 
   val mongo = mongoCollection(name, ctx)
@@ -149,9 +151,9 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     logger.info(this + " query: " + queryMap)
     val mongoKeys = if (keys.isEmpty) null else mapToMongo(keys.map(_ -> 1).toMap)
     val cursor = {
-        val cur = mongo.find(mapToMongo(queryMap), mongoKeys)
-        if( replicaOk ) cur.addOption(Bytes.QUERYOPTION_SLAVEOK)
-        cur.sort(stimeIdSort)
+      val cur = mongo.find(mapToMongo(queryMap), mongoKeys)
+      if (replicaOk) cur.addOption(Bytes.QUERYOPTION_SLAVEOK)
+      cur.sort(stimeIdSort)
     }
     try {
       cursor.asScala.toStream.map(mongoToRecord(_))
@@ -163,9 +165,9 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
   override def load(replicaOk: Boolean): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     val cursor = {
-        val cur = mongo.find(nullLtimeQuery)
-        if( replicaOk ) cur.addOption(Bytes.QUERYOPTION_SLAVEOK)
-        cur.sort(stimeIdSort)
+      val cur = mongo.find(nullLtimeQuery)
+      if (replicaOk) cur.addOption(Bytes.QUERYOPTION_SLAVEOK)
+      cur.sort(stimeIdSort)
     }
     try {
       val x = cursor.asScala.map(mongoToRecord(_)).toSeq
@@ -207,7 +209,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
         recordToMongo(record), // update
         false, // returnNew
         true // upsert
-        )
+      )
     } catch {
       case e => {
         logger.error("failed to upsert record: " + record)

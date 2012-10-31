@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -92,9 +92,9 @@ class BasicBeanMapper(val ctx: ConfigContext) extends BeanMapper {
           val value = mkValue(entry.getValue)
           entry.getKey -> keyMappers(obj, entry.getKey, value)
         }).collect({
-          case (name: String, Some(value)) =>
-            argPattern.replaceAllIn(name, "_") -> value
-        }).toMap
+        case (name: String, Some(value)) =>
+          argPattern.replaceAllIn(name, "_") -> value
+      }).toMap
     }
   }
 

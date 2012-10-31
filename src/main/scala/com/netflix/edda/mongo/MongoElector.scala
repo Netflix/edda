@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,7 +18,7 @@ package com.netflix.edda.mongo
 import com.netflix.edda.Elector
 import com.netflix.edda.ConfigContext
 
-import org.slf4j.{ Logger, LoggerFactory }
+import org.slf4j.LoggerFactory
 
 import org.joda.time.DateTime
 
@@ -46,13 +46,13 @@ class MongoElector(ctx: ConfigContext) extends Elector(ctx) {
 
   override
   def isLeader: Boolean = {
-      val data = mongo.findOne("leader")
-      if (data != null) {
-          val rec = MongoDatastore.mongoToRecord(data)
-          if( rec.data.asInstanceOf[Map[String,Any]]("instance").asInstanceOf[String] == instance ) {
-              true
-          } else false
+    val data = mongo.findOne("leader")
+    if (data != null) {
+      val rec = MongoDatastore.mongoToRecord(data)
+      if (rec.data.asInstanceOf[Map[String, Any]]("instance").asInstanceOf[String] == instance) {
+        true
       } else false
+    } else false
   }
 
   protected override def runElection(): Boolean = {
@@ -88,7 +88,7 @@ class MongoElector(ctx: ConfigContext) extends Elector(ctx) {
             "data.instance" -> instance)), // query
           null, // sort
           MongoDatastore.mapToMongo(Map("$set" -> Map("mtime" -> now))) // update
-          )
+        )
         // maybe we were too slow and someone took leader from us
         isLeader = if (result == null) false else true
       } else {
@@ -96,12 +96,12 @@ class MongoElector(ctx: ConfigContext) extends Elector(ctx) {
         if (mtime.isBefore(timeout)) {
           // assumer leader is dead, so try to become leader
           val result = mongo.findAndModify(
-            MongoDatastore.mapToMongo(Map( // query
+            MongoDatastore.mapToMongo(Map(// query
               "_id" -> "leader",
               "data.instance" -> leader,
               "mtime" -> mtime)),
             null, // sort
-            MongoDatastore.recordToMongo( // update
+            MongoDatastore.recordToMongo(// update
               r.copy(
                 mtime = now,
                 stime = now,

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -86,14 +86,14 @@ trait GroupCollection extends Collection {
             rec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[List[Map[String, Any]]].map(
               inst => inst ++ Map("end" -> rec.ltime))
           }).flatten.filterNot(
-            inst => {
-              val id = inst(groupKey).asInstanceOf[String]
-              val skip = seen.contains(id)
-              if (!skip) {
-                seen = seen + id
-              }
-              skip
-            })
+          inst => {
+            val id = inst(groupKey).asInstanceOf[String]
+            val skip = seen.contains(id)
+            if (!skip) {
+              seen = seen + id
+            }
+            skip
+          })
       }).toMap
 
     val rec = records.head
@@ -118,8 +118,8 @@ trait GroupCollection extends Collection {
 
     val usedSlots: Set[Int] = group.map(
       item => item(groupKey).asInstanceOf[String]).collect({
-        case id: String if slotMap.contains(id) => slotMap(id)
-      }).toSet
+      case id: String if slotMap.contains(id) => slotMap(id)
+    }).toSet
 
     var unusedSlots = Range(0, group.size).collect {
       case slot if !usedSlots.contains(slot) => slot
@@ -142,20 +142,20 @@ trait GroupCollection extends Collection {
 
   override protected
   def newStateTimeForChange(newRec: Record, oldRec: Record): Boolean = {
-      val changes = mergeKeys.filterNot(
-          pair => {
-              val groupName = pair._1
-              val groupKey = pair._2
-              
-              // if we have new instances then we increment stime, otherwise just update to new document
-              val newSet = newRec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[List[Map[String, Any]]].map(
-                  item => item(groupKey).asInstanceOf[String]).toSet
-              
-              val oldSet = oldRec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[List[Map[String, Any]]].map(
-                  item => item(groupKey).asInstanceOf[String]).toSet
-              newSet == oldSet
-          }
-      )
-      !changes.isEmpty
+    val changes = mergeKeys.filterNot(
+      pair => {
+        val groupName = pair._1
+        val groupKey = pair._2
+
+        // if we have new instances then we increment stime, otherwise just update to new document
+        val newSet = newRec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[List[Map[String, Any]]].map(
+          item => item(groupKey).asInstanceOf[String]).toSet
+
+        val oldSet = oldRec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[List[Map[String, Any]]].map(
+          item => item(groupKey).asInstanceOf[String]).toSet
+        newSet == oldSet
+      }
+    )
+    !changes.isEmpty
   }
 }

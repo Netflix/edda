@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,20 +21,24 @@ import scala.actors.TIMEOUT
 case class ElectorState(isLeader: Boolean = false)
 
 object Elector extends StateMachine.LocalState[ElectorState] {
+
   // Message sent to observers
   case class ElectionResult(from: Actor, result: Boolean) extends StateMachine.Message
 
   // internal messages
   private case class RunElection(from: Actor) extends StateMachine.Message
+
   private case class IsLeader(from: Actor) extends StateMachine.Message
+
 }
 
 abstract class Elector(ctx: ConfigContext) extends Observable {
+
   import Elector._
 
   def isLeader: Boolean = {
     val self = this
-    this !? (10000, IsLeader(this)) match {
+    this !?(10000, IsLeader(this)) match {
       case Some(ElectionResult(`self`, result)) => result
       case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to determine leadership: " + message)
       case None => throw new java.lang.RuntimeException("TIMEOUT: isLeader response within 10s")
