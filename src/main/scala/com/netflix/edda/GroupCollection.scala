@@ -53,15 +53,17 @@ trait GroupCollection extends Collection {
   }
 
   implicit def recordOrdering: Ordering[Record] = Ordering.fromLessThan(_.stime isBefore _.stime)
+  implicit def timeOrdering: Ordering[DateTime] = Ordering.fromLessThan(_ isAfter _)
 
   override def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
     // if they have specified a subset of keys, then we need to make
     // sure "id" is in there so we can group
     val requiredKeys = if (keys.isEmpty) keys else (keys + "id")
     val records = super.doQuery(queryMap, limit, live, requiredKeys, replicaOk, state)
-    if (keys.isEmpty || mergeKeys.find(pair => keys.contains(pair._1)) != None) {
-      records.groupBy(_.id).values.toSeq.sortBy(_.head).map(mergeRecords(_))
-    } else if (keys.contains("end")) {
+
+    if (keys.isEmpty || mergeKeys.find(pair => keys.contains("data." + pair._1)) != None) {
+      records.groupBy(_.id).values.toSeq.sortBy(_.head).map((recs: Seq[Record]) => mergeRecords(recs.sortBy(_.stime)))
+    } else if (keys.contains("data.end")) {
       records.map(rec => {
         val data = rec.data.asInstanceOf[Map[String, Any]] + ("end" -> rec.ltime)
         rec.copy(data = data)
@@ -72,10 +74,6 @@ trait GroupCollection extends Collection {
   def mergeKeys: Map[String, String]
 
   def mergeRecords(records: Seq[Record]): Record = {
-    if (records.size == 1) {
-      return records.head
-    }
-
     val merge = mergeKeys.map(
       pair => {
         val groupName = pair._1
@@ -86,13 +84,13 @@ trait GroupCollection extends Collection {
             rec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[List[Map[String, Any]]].map(
               inst => inst ++ Map("end" -> rec.ltime))
           }).flatten.filterNot(
-          inst => {
-            val id = inst(groupKey).asInstanceOf[String]
-            val skip = seen.contains(id)
-            if (!skip) {
-              seen = seen + id
-            }
-            skip
+            inst => {
+                val id = inst(groupKey).asInstanceOf[String]
+                val skip = seen.contains(id)
+                if (!skip) {
+                    seen = seen + id
+                }
+                skip
           })
       }).toMap
 
