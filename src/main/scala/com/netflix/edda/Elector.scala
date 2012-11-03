@@ -18,6 +18,8 @@ package com.netflix.edda
 import scala.actors.Actor
 import scala.actors.TIMEOUT
 
+import org.slf4j.LoggerFactory
+
 /** state for Elector StateMachine
   *
   * @param isLeader boolean flag to indicate if we are leader
@@ -26,6 +28,8 @@ case class ElectorState(isLeader: Boolean = false)
 
 /** companion object for [[com.netflix.edda.Elector]]. */
 object Elector extends StateMachine.LocalState[ElectorState] {
+
+  val logger = LoggerFactory.getLogger(getClass)
 
   /** Message sent to observers after an Election */
   case class ElectionResult(from: Actor, result: Boolean) extends StateMachine.Message
