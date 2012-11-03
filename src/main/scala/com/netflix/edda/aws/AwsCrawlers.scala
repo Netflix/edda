@@ -192,7 +192,7 @@ object AwsInstanceHealthCrawler extends StateMachine.LocalState[AwsInstanceHealt
 /** crawler for LoadBalancer Instances
   *
   * this is a secondary crawler that takes the results from the AwsLoadBalancerCrawler
-  * and then crawles the instance states for each ELB.
+  * and then crawls the instance states for each ELB.
   *
   * @param name name of collection we are crawling for
   * @param ctx context to provide beanMapper and configuration
@@ -210,6 +210,11 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(10)
 
+  /** for each elb call describeInstanceHealth and map that to a new document
+    *
+    * @param elbRecords the records to crawl
+    * @return the record set for the instanceHealth
+    */
   def doCrawl(elbRecords: Seq[Record]): Seq[Record] = {
     var futures: Seq[java.util.concurrent.Future[Record]] = elbRecords.map(
       elb => {
@@ -266,6 +271,11 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
 }
 
 
+/** crawler for LaunchConfigurations
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
 class AwsLaunchConfigurationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeLaunchConfigurationsRequest
   request.setMaxRecords(50)
@@ -283,6 +293,11 @@ class AwsLaunchConfigurationCrawler(val name: String, val ctx: AwsCrawler.Contex
   }
 }
 
+/** crawler for Reservations (ie group of instances, not pre-paid reserved instances)
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
 class AwsReservationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeInstancesRequest
 
@@ -304,6 +319,15 @@ case class AwsInstanceCrawlerState(reservationRecords: Seq[Record] = Seq[Record]
 
 object AwsInstanceCrawler extends StateMachine.LocalState[AwsInstanceCrawlerState]
 
+/** crawler for Instances
+  *
+  * this is a secondary crawler that takes the results from the AwsReservationCrawler
+  * and then pulls out each instance in the reservations to track them seperately
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  * @param crawler the AwsReservation crawler
+  */
 class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
 
   import AwsInstanceCrawler._
@@ -346,6 +370,11 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
   override protected def transitions = localTransitions orElse super.transitions
 }
 
+/** crawler for Security Group
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
 class AwsSecurityGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeSecurityGroupsRequest
 
@@ -363,6 +392,11 @@ class AwsSecurityGroupCrawler(val name: String, val ctx: AwsCrawler.Context) ext
   }
 }
 
+/** crawler for Snapshots
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
 class AwsSnapshotCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeSnapshotsRequest
 
@@ -380,6 +414,11 @@ class AwsSnapshotCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
   }
 }
 
+/** crawler for all Tags
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
 class AwsTagCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeTagsRequest
 
@@ -387,6 +426,11 @@ class AwsTagCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawl
     item => Record(item.getKey + "|" + item.getResourceType + "|" + item.getResourceId, ctx.beanMapper(item))).toSeq
 }
 
+/** crawler for Volumes
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
 class AwsVolumeCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new DescribeVolumesRequest
 
@@ -404,6 +448,11 @@ class AwsVolumeCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
   }
 }
 
+/** crawler for S3 Buckets
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
 class AwsBucketCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new ListBucketsRequest
 
@@ -411,6 +460,14 @@ class AwsBucketCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
     item => Record(item.getName, new DateTime(item.getCreationDate), ctx.beanMapper(item))).toSeq
 }
 
+/** crawler for SQS Queues
+  *
+  * This crawler is similar to the InstanceHealth crawler in that it has to first
+  * get a list of SQS Queues then for each queue fan-out and query each queue.
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
 class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
   val request = new ListQueuesRequest
   private[this] val logger = LoggerFactory.getLogger(getClass)

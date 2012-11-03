@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory
 
 import org.joda.time.DateTime
 
+/** resource class to query collections registered with the CollectionManager */
 @Path("/v2")
 class CollectionResource {
 
@@ -47,6 +48,7 @@ class CollectionResource {
 
   private val collectionPathRx = """^([^:;]+?)(?:/?)((?:;[^/;:]*(?:=[^/;:]+)?)*)(:.*)?""".r
 
+  /** generate json error response */
   private def fail(message: String, status: Response.Status): Response = {
     val output = new ByteArrayOutputStream()
     val gen = factory.createJsonGenerator(output, UTF8)
@@ -70,12 +72,14 @@ class CollectionResource {
     !in
   }
 
+  /** make record set unique based on record.id unless _all matrix argument used */
   private def unique(recs: Seq[Record], details: ReqDetails): Seq[Record] = {
     if (details.metaArgs.contains("_all")) return recs
     val seen: MSet[String] = MSet()
     recs.filter(r => unseen(r.id, seen))
   }
 
+  /** translate matrix arguments into a query that can be passed to Collection.query */
   private def makeQuery(details: ReqDetails): Map[String, Any] = {
     var query: Map[String, Any] = Map()
 
@@ -129,6 +133,7 @@ class CollectionResource {
     query
   }
 
+  /** companion object to handle matrix arguments */
   object ReqDetails {
     def apply(req: HttpServletRequest, id: String, matrixStr: String, exprStr: String): ReqDetails = {
       val args: Map[String, String] = matrixStr match {
@@ -150,6 +155,7 @@ class CollectionResource {
     }
   }
 
+  /** container for query and connection metadata */
   case class ReqDetails(req: HttpServletRequest, id: String, metaArgs: Map[String, String], matrixArgs: Map[String, String], expr: FieldSelectorExpr) {
     lazy val baos = {
       val v = new ByteArrayOutputStream()
@@ -169,18 +175,32 @@ class CollectionResource {
 
     val path = req.getRequestURI.drop(req.getServletPath.length)
 
+    /** only show documens valid at specific time */
     var at = timeArg(metaArgs.get("_at"))
+    /** only show documents that were "alive" since a specific time */
     var since = timeArg(metaArgs.get("_since"))
+    /** only show documents that were "alive" before a specific time */
     var until = timeArg(metaArgs.get("_until"))
+    /** show the id,stime,ltime,mtime,ctime as well as the data, Note: changes the document root */
     val meta = boolArg(metaArgs.get("_meta"))
+    /** dont just return the first record for a given id, return all revisions that match the query criteria */
     val all = boolArg(metaArgs.get("_all")) || (id != null && (metaArgs.contains("_since") || metaArgs.contains("_until")))
+    /** print the unified diff of the objects fetched to show the changes over time */
     val diff: Option[String] = metaArgs.get("_diff")
+    /** pretty-print the document. Dates are transformed to be readable and white-space is added */
     val pp = diff != None || boolArg(metaArgs.get("_pp"))
+    /** use the datastore, not the in-memory cache */
     val live = boolArg(metaArgs.get("_live"))
+    /** when used with _since or _until it will only show the records that were updated during that time,
+      * instead of any document that was valid during that time. */
     val updated = boolArg(metaArgs.get("_updated"))
+    /** used for json callback */
     val cb = if (metaArgs.contains("_callback")) metaArgs("_callback") else null
+    /** are we trying to fetch a single record? */
     val single = id != null && !id.contains(',') && !all
+    /** limit the number of records returned */
     val limit = if (single) 1 else intArg(metaArgs.get("_limit"))
+    /** when fechting an index get (just resource ids) expand the names into the full resource */
     val expand = id != null || meta || all || boolArg(metaArgs.get("_expand"))
 
     // if user requested pretty-print then reformat
@@ -188,13 +208,18 @@ class CollectionResource {
     // use the pass-through formatter
     val formatter = if (pp) Utils.dateFormatter(_) else (x: Any) => x
 
+    /** flag used to know if we are going to go to the DataStore (we only store "live" instances
+      * in memory, so when time travelling we will likely need expired resources from the DataStore
+      */
     var timeTravelling = all || metaArgs.contains("_at") || metaArgs.contains("_since") || live
 
+    /** Set of field names (object keys) extraced from the FieldSelector expression */
     val fields: Set[String] = extractFields(expr) match {
       case Some(set) => if (meta) set else set.map("data." + _)
       case None => Set.empty
     }
 
+    /** map field selector expression to a set of the key names used */
     def extractFields(expr: FieldSelectorExpr): Option[Set[String]] = {
       expr match {
         case e: KeySelectExpr => {
@@ -211,6 +236,7 @@ class CollectionResource {
       }
     }
 
+    /** generate the http response with proper headers */
     def response(): Response = {
       val builder = Response.status(Response.Status.OK)
 
@@ -252,6 +278,9 @@ class CollectionResource {
     }
   }
 
+  /** if _meta was used we need to print the whole document, otherwise
+    * just print the document 'data' element
+    */
   def writeMaybeMeta(r: Record, details: ReqDetails) {
     val data =
       if (details.meta)
@@ -262,6 +291,9 @@ class CollectionResource {
     Utils.writeJson(details.gen, data, details.formatter)
   }
 
+  /** dispatch routine to handle collections.  If custome responses are require this class can be subclassed
+    * and this method overloaded
+    */
   def dispatch(collName: String, details: ReqDetails): Response = {
     collName match {
       case c if CollectionManager.names().contains(c) => handleBasicCollection(collName, details)
@@ -269,8 +301,12 @@ class CollectionResource {
     }
   }
 
+  /** get query response an setup formatting for output */
   def handleBasicCollection(collName: String, details: ReqDetails): Response = {
     val recs = selectRecords(collName, details)
+    // if only single item requested either print it out, or see if it exists and is
+    // expired in which case send GONE, otherwise send NOT_FOUND
+    // if not single just open json array for output
     if (details.single) {
       if (recs.isEmpty) {
         if (!details.timeTravelling) {
@@ -282,6 +318,8 @@ class CollectionResource {
         return fail("record \"" + details.id + "\" not found in collection " + collName, Response.Status.NOT_FOUND)
       }
     } else if (details.diff == None && !details.single) details.gen.writeStartArray()
+
+    // handle diffing records if _diff is used or expand records if _expand is specified
     if (details.diff != None && details.id != null) {
       if (recs.size == 1) {
         return fail("_diff requires at least 2 documents, only 1 found", Response.Status.BAD_REQUEST)
@@ -305,6 +343,7 @@ class CollectionResource {
     details.response()
   }
 
+  /** apply query to appropriate collection.  */
   def selectRecords(collName: String, details: ReqDetails): Seq[Record] = {
     val coll = CollectionManager.get(collName).get
     val query = if (details.id != null) {
@@ -318,9 +357,11 @@ class CollectionResource {
     unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
   }
 
+  /** handle HTTP request.  Map uri path to collection name, matrix arguments and field selectors */
   @GET
   @Path("{paths: .+}")
   def getCollection(@Context req: HttpServletRequest): Response = {
+    // +4 for length("/v2/")
     val path = req.getRequestURI.drop(req.getContextPath.length + req.getServletPath.length + 4)
     path match {
       case collectionPathRx(collPath, matrixStr, exprStr) => {

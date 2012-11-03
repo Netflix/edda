@@ -21,6 +21,10 @@ import java.util.Properties
 
 import org.slf4j.LoggerFactory
 
+/** Simple collection context that loads /edda.properties to use
+  * as the configuration.  It also uses the BasicRecordMatcher as
+  * the recordMatcher
+  */
 object BasicContext extends Collection.Context {
   private[this] val logger = LoggerFactory.getLogger(getClass)
   val propFile = System.getProperty("edda.properties", "/edda.properties")

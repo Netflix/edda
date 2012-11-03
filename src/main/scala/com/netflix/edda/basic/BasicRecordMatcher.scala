@@ -20,12 +20,29 @@ import com.netflix.edda.RecordMatcher
 import java.util.Date
 import org.joda.time.DateTime
 
+/** This class allows advanced query options against in-memory records. */
+
 class BasicRecordMatcher extends RecordMatcher {
+  /** apply query rules against in-memory records
+    *
+    * The query format is a Map, where the keys follow the MongoDB syntax:
+    * http://www.mongodb.org/display/DOCS/Advanced+Queries
+    *
+    * @param queryMap key/values for the matching requirements
+    * @param record the record match against
+    * @return true if the record matches
+    */
   def doesMatch(queryMap: Map[String, Any], record: Map[String, Any]): Boolean = {
     // find the first rule where rule does not match record
     !queryMap.exists(!matchRule(_, record))
   }
 
+  /** Match a specific rule from the queryMap
+   *
+   * @param rule a key/value pair specifying the matching rule
+   * @param record the record to match against
+   * @return true if the record matches the rule
+   */
   protected def matchRule(rule: Any, record: Map[String, Any]): Boolean = {
     rule match {
       case map: Map[_, _] => !map.exists(!matchRule(_, record))
@@ -42,10 +59,8 @@ class BasicRecordMatcher extends RecordMatcher {
     }
   }
 
-  trait Doubleable {
-    def toDouble: Double
-  }
-
+  /** basic comparator that attempts to do "the right thing" when passed
+    * various simple data types.  There is probably a better way to do it.*/
   protected def cmpPartialMatcher: PartialFunction[(Any, Any), Int] = {
     case (null, null) => 0
     case (found, null) => -1
@@ -163,6 +178,7 @@ class BasicRecordMatcher extends RecordMatcher {
     (found: Any, expected: Any) =>
       (expected.toString.r findFirstIn found.toString) != None
 
+  /** dispatch the match operator to the correct matching routine. */
   protected def matchOp(key: String, value: Any, op: String, record: Map[String, Any]): Boolean = {
     // $eq $ne $gt $lt $gte $lte $exists $in $nin $regex
     val opMatcher: (Any, Any) => Boolean = op match {
@@ -182,6 +198,17 @@ class BasicRecordMatcher extends RecordMatcher {
     runMatcher(key, value, opMatcher, record)
   }
 
+  /** match the query key to the query value give a matcher routine.  Object
+    * heirarchy is indicated via a "." seperator, so "foo.bar" as key woudl indicate
+    * there is a "foo" object with a "bar" sub object.  If "foo" is an array
+    * we will look for a "bar" in any of the sub objects.
+    *
+    * @param key they location/name of the data in the record
+    * @param value the expected value to be matched against
+    * @param opMatcher the matching routine
+    * @param record the record to be matched
+    * @return true is returned if the data is located and matched
+    */
   protected def runMatcher(key: String, value: Any, opMatcher: (Any, Any) => Boolean, record: Map[String, Any]): Boolean = {
     def _findObj(parts: Array[String], value: Any, data: Map[String, Any]): Boolean = {
       val dataHead = data.get(parts.head) match {
@@ -210,4 +237,3 @@ class BasicRecordMatcher extends RecordMatcher {
     _findObj(key.split('.'), value, record)
   }
 }
-

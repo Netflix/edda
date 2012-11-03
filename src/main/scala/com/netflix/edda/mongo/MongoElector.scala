@@ -24,6 +24,10 @@ import org.joda.time.DateTime
 
 import com.mongodb.DBCollection
 
+/** [[com.netflix.edda.Elector]] subclass that uses MongoDB's atomic write operations
+  * to organize leadership
+  * @param ctx configuration context for mongo connection settings
+  */
 class MongoElector(ctx: ConfigContext) extends Elector(ctx) {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
@@ -33,17 +37,18 @@ class MongoElector(ctx: ConfigContext) extends Elector(ctx) {
   val mongo: DBCollection = try {
     MongoDatastore.mongoCollection(name, ctx)
   } catch {
-    case e => {
+    case e: Exception => {
       logger.error("exception", e)
       null
     }
   }
   val leaderTimeout = ctx.config.getProperty("edda.elector.mongo.leaderTimeout", "5000").toInt
 
-  override def init() = {
-    super.init
+  override def init() {
+    super.init()
   }
 
+  /** select the leader record from MongoDB to determine if we are the leader */
   override
   def isLeader: Boolean = {
     val data = mongo.findOne("leader")
@@ -55,6 +60,16 @@ class MongoElector(ctx: ConfigContext) extends Elector(ctx) {
     } else false
   }
 
+  /** attempt to become the leader.  If no leader is present it attempts
+    * to insert itself as leader (if insert error happens, then someone else became
+    * leader before us).  If we are leader then update leader record mtime so that
+    * secondary severs see that we are still alive and don't assume leadership.  If
+    * we are not leader, double-check the mtime of the record, if it is older than
+    * the leaderTimeout value then attempt to update leader record as self.  The records
+    * for mtime and new-leader are atomic conditional updates so if some other servers
+    * updates mongo first we will "lose" will not be the leader.
+    * @return
+    */
   protected override def runElection(): Boolean = {
     val now = DateTime.now
     var leader = instance
@@ -77,9 +92,9 @@ class MongoElector(ctx: ConfigContext) extends Elector(ctx) {
       // if we got an error then uniqueness failed (someone else beat us to it)
       isLeader = if (wr.getError == null) true else false
     } else {
-      val r = MongoDatastore.mongoToRecord(rec);
-      leader = r.data.asInstanceOf[Map[String, Any]]("instance").asInstanceOf[String];
-      val mtime = r.mtime;
+      val r = MongoDatastore.mongoToRecord(rec)
+      leader = r.data.asInstanceOf[Map[String, Any]]("instance").asInstanceOf[String]
+      val mtime = r.mtime
       if (leader == instance) {
         // update mtime
         val result = mongo.findAndModify(
@@ -121,7 +136,7 @@ class MongoElector(ctx: ConfigContext) extends Elector(ctx) {
       }
     }
 
-    logger.info("Leader [" + instance + "]: " + isLeader + " [" + leader + "]");
+    logger.info("Leader [" + instance + "]: " + isLeader + " [" + leader + "]")
     isLeader
   }
 

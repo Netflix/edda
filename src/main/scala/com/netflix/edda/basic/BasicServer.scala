@@ -28,6 +28,11 @@ import javax.servlet.http.HttpServlet
 
 import org.slf4j.LoggerFactory
 
+/** simple servlet that specifies the datastores being used and creates
+  * accessors to initialize the AWS client credentials and start the collections.
+  * It is recommended to create a separate Servlet if behavior changes are required
+  * for special collections or datastores
+  */
 class BasicServer extends HttpServlet {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 

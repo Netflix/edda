@@ -15,6 +15,7 @@
  */
 package com.netflix.edda
 
+/** trait to allow for mapping beans to scala objects */
 trait BeanMapper {
   def apply(obj: Any): Any
 

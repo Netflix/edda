@@ -21,12 +21,21 @@ import scala.actors.TIMEOUT
 import org.joda.time.DateTime
 import org.slf4j.Logger
 
+/** trait to add grouping behavior to a collection.  /group apis are special in that
+  * they don't track detailed history for the resources.  Only when group membership
+  * changes do we create a new document revision.
+  */
 trait GroupCollection extends Collection {
 
   def logger: Logger
 
-  // we only need to refresh cache if we are not leader.  When we are leader
-  // then we will get events from the crawler
+  /** group collections do not have a dedicated crawler that we need crawl.  We will get
+    * Crawl events as a secondary result of other Collections/Crawlers running.  For example
+    * we have group.autoScalingGroups collection which modified results from the aws.autoScalingGroups
+    * Crawler.  If aws.autoScalingGroups crawler is not run or not enabled, then the group collection will be stale.
+    *
+    * If we are not the leader then we need to refresh our cache, otherwise we wait.
+    */
   override protected def refresher() {
     if (Option(crawler) == None || Option(elector) == None) return
     val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
@@ -49,12 +58,20 @@ trait GroupCollection extends Collection {
           }
         }
       }
-    }
+    }.addExceptionHandler({
+      case e: Exception => logger.error(this + " failed to refresh")
+    })
+
   }
 
   implicit def recordOrdering: Ordering[Record] = Ordering.fromLessThan(_.stime isBefore _.stime)
   implicit def timeOrdering: Ordering[DateTime] = Ordering.fromLessThan(_ isAfter _)
 
+  /** special query where we merge multiple query results for the same record ids into one record.  For
+    * autoScalingGroups there will be "instances", if there are many revisions to these instances we want
+    * to return a single document for all the revisions with the lastest revision of every instance in the queryied
+    * timeframe.  See [[com.netflix.edda.Queryable.query()]]
+    */
   override def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
     // if they have specified a subset of keys, then we need to make
     // sure "id" is in there so we can group
@@ -71,8 +88,12 @@ trait GroupCollection extends Collection {
     } else records
   }
 
+  /** abstract interface to specify which resource keys we need to merge together.  For autoScalingGroups
+    * this would be Map("instances" -> "instanceId")
+    */
   def mergeKeys: Map[String, String]
 
+  /** TODO */
   def mergeRecords(records: Seq[Record]): Record = {
     val merge = mergeKeys.map(
       pair => {

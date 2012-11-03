@@ -17,6 +17,7 @@ package com.netflix.edda
 
 import java.util.Properties
 
+/** simple trait to indicate we need configuration */
 trait ConfigContext {
   def config: Properties
 }

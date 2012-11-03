@@ -36,11 +36,13 @@ import java.util.Properties
 
 import org.slf4j.LoggerFactory
 
+/** helper object to store common Mongo related routines */
 object MongoDatastore {
 
   val nullLtimeQuery = mapToMongo(Map("ltime" -> null))
   val stimeIdSort = mapToMongo(Map("stime" -> -1, "id" -> 1))
 
+  /** converts a mongo DBObject to a Record */
   def mongoToRecord(obj: DBObject): Record = {
     obj match {
       case o: BasicDBObject =>
@@ -59,6 +61,7 @@ object MongoDatastore {
     }
   }
 
+  /** converts a mongo object to a corresponding Scala basic object */
   def mongoToScala(obj: Any): Any = {
     import collection.JavaConverters._
     obj match {
@@ -75,6 +78,7 @@ object MongoDatastore {
     }
   }
 
+  /** converts a Record to a Mongo DBObject */
   def recordToMongo(rec: Record, id: Option[String] = None): DBObject = {
     val obj = mapToMongo(rec.toMap)
     if (id.isDefined) {
@@ -85,12 +89,14 @@ object MongoDatastore {
     obj
   }
 
+  /** converts a basic scala Map to a Mongo DBObject */
   def mapToMongo(map: Map[String, Any]): DBObject = {
     val obj = new BasicDBObject
     map.foreach(pair => obj.put(pair._1, scalaToMongo(pair._2)))
     obj
   }
 
+  /** converts a Scala basic type to a corresponding Mongo data type */
   def scalaToMongo(obj: Any): AnyRef = {
     obj match {
       case o: Map[_, _] => mapToMongo(o.asInstanceOf[Map[String, Any]])
@@ -106,10 +112,12 @@ object MongoDatastore {
     }
   }
 
+  /** helper to fetch properties for mongo related settings */
   def mongoProperty(props: Properties, propName: String, dsName: String, dflt: String): String = {
     Utils.getProperty(props, "edda", "mongo." + propName, "datastore." + dsName, dflt)
   }
 
+  /** from the collection name string return a Mongo DB Connection */
   def mongoConnection(name: String, ctx: ConfigContext) = {
     import collection.JavaConverters._
     val servers = mongoProperty(ctx.config, "address", name, "").split(',').map(
@@ -124,6 +132,8 @@ object MongoDatastore {
     new Mongo(servers.asJava)
   }
 
+  /** from the collection name string return a Mongo Collection (creates the collection
+    * if it does not exist) */
   def mongoCollection(name: String, ctx: ConfigContext) = {
     val conn = mongoConnection(name, ctx)
     val db = conn.getDB(mongoProperty(ctx.config, "database", name, "edda"))
@@ -138,6 +148,11 @@ object MongoDatastore {
 
 }
 
+/** [[com.netflix.edda.DataStore]] subclass that allows MongoDB to be used
+ *
+ * @param ctx configuration context to setup how we connect to Mongo
+ * @param name the name of the collection the datastore is for
+ */
 class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
 
   import MongoDatastore._
@@ -146,6 +161,14 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
+  /** query routine to fetch records from mongoDB.
+    *
+    * @param queryMap
+    * @param limit restrict returned record count, 0 == unlimited
+    * @param keys  unless empty Set return only requested keys
+    * @param replicaOk reading from a replica in a replSet is OK this is set to true
+    * @return the records that match the query
+    */
   override def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     logger.info(this + " query: " + queryMap)
@@ -162,6 +185,11 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     }
   }
 
+  /** load records from the collection MongoDB table
+    *
+    * @param replicaOk reading from a replica in a replSet is OK if this is set to true
+    * @return the active records (ltime == null) from the collection
+    */
   override def load(replicaOk: Boolean): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     val cursor = {
@@ -178,11 +206,13 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     }
   }
 
+  /** update records, delete removed records, insert added records */
   override def update(d: Collection.Delta) {
     d.changed.foreach(
       pair => {
-        // logger.info("UPDATE\nOld: " + pair.oldRecord + "\nNew: " + pair.newRecord)
-        // only update oldRecord if the stime is changed
+        // only update oldRecord if the stime is changed, this allows
+        // for inplace updates when we dont want to create new document
+        // revision, but still want the record updated
         if (pair.oldRecord.stime != pair.newRecord.stime) {
           upsert(pair.oldRecord)
         }
@@ -193,6 +223,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     d.removed.foreach(upsert(_))
   }
 
+  /** ensures Indes for "stime", "ltime", and "id" */
   def init() = {
     mongo.ensureIndex(mapToMongo(Map("stime" -> -1)))
     mongo.ensureIndex(mapToMongo(Map("ltime" -> 1)))

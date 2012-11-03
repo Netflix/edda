@@ -30,32 +30,54 @@ import com.netflix.servo.monitor.MonitorConfig
 import com.netflix.servo.monitor.BasicGauge
 import java.lang
 
+/** local state class for Collection
+  *
+  * @param records the current active records for the collection
+  * @param crawled the results from the Crawler
+  */
 case class CollectionState(records: Seq[Record] = Seq[Record](), crawled: Seq[Record] = Seq[Record]())
 
+/** companion object for Collection*/
 object Collection extends StateMachine.LocalState[CollectionState] {
 
+  /** Collections need a recordMatcher as well as the ConfigContext to handle querying the inMemory record set. */
   trait Context extends ConfigContext {
     def recordMatcher: RecordMatcher
   }
 
+  /** class to represent a record that has changed, used for the DataStore to update records */
   case class RecordUpdate(oldRecord: Record, newRecord: Record)
 
+  /** class to represent a complete delta between old record set and new record set (new from Crawler)
+    *
+    * @param records the current set of active records
+    * @param changed the list of RecordUpdate for records that have changed
+    * @param added   the list of new records (new records that Crawler found)
+    * @param removed the list of records that are not longer active (were not returned from Crawler)
+    */
   case class Delta(records: Seq[Record], changed: Seq[RecordUpdate], added: Seq[Record], removed: Seq[Record]) {
     override def toString = "Delta(records=" + records.size + ", changed=" + changed.size + ", added=" + added.size + ", removed=" + removed.size + ")"
   }
 
-  // message sent to observers
+  /** Message sent to observers after a collection has been updated */
   case class DeltaResult(from: Actor, delta: Delta) extends StateMachine.Message
 
-  // internal messages
+  /** Message to Load the record set from the DataStore */
   case class Load(from: Actor) extends StateMachine.Message
 
+  /** Messsage to *Synchronously* Load the record set from the DataStore */
   case class SyncLoad(from: Actor) extends StateMachine.Message
 
+  /** Response from the SyncLoad request */
   case class OK(from: Actor) extends StateMachine.Message
 
 }
 
+/** general Collection logic.  It is abstract to specify the collection name,
+  * responsible Crawler, and optional DataStore and the Elector to determine leadership.
+  *
+  * @param ctx context to get config, recordMatcher
+  */
 abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   import Collection._
@@ -64,35 +86,55 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   val logger = LoggerFactory.getLogger(getClass)
   lazy val enabled = Utils.getProperty(ctx.config, "edda.collection", "enabled", name, "true").toBoolean
 
+  /** name of the collection, typically the name of the corresponding crawler also.  Something like
+    * test.us-east-1.aws.autoScalingGroups
+    */
   def name: String
 
+  /** the Crawler that will we will observe for Crawled records.  The Crawler will send us
+    * records and we will compare them with our in-memory records to determine changes.
+    */
   def crawler: Crawler
 
+  /** the optional abstracted DataStore.  MongoDB is currently the only available DataStore
+    * but more could be added.  It is optional so you can run without a datastore, although many
+    * features will be limited (only current state is available, so no history queries possible)
+    */
   def dataStore: Option[DataStore]
 
+  /** The elector to determine leadership. This is typically a singleton so all Collections share
+    * the same Election results, but it could be customized if we need to have multiple leaders handling
+    * different Collections.
+    */
   def elector: Elector
 
+  /** use separate ForkJoin scheduler for the Collection actors so one Collection doesn't end
+    * up starving the global actor pool.
+    */
   lazy val fjScheduler = new ForkJoinScheduler(
     Utils.getProperty(ctx.config, "edda.collection", "scheduler.coreSize", name, "5").toInt,
     Utils.getProperty(ctx.config, "edda.collection", "scheduler.maxSize", name, "50").toInt,
     true,
     true
   )
-
   override def scheduler = fjScheduler
 
+  /** see [[com.netflix.edda.Queryable.query()]].  Overridden to return Nil when Collection is not enabled */
   override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): Seq[Record] = {
     if (enabled) super.query(queryMap, limit, live, keys) else Seq.empty
   }
 
+  /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Collection is not enabled */
   override def addObserver(actor: Actor) {
     if (enabled) super.addObserver(actor)
   }
 
+  /** see [[com.netflix.edda.Observable.delObserver()]].  Overridden to be a NoOp when Collection is not enabled */
   override def delObserver(actor: Actor) {
     if (enabled) super.delObserver(actor)
   }
 
+  /** query datastore or in memory collection. */
   protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
     // generate function
     if (live) {
@@ -109,6 +151,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
   }
 
+  /** load collection from Datastore (if available) */
   protected def load(replicaOk: Boolean): Seq[Record] = {
     if (dataStore.isDefined) {
       dataStore.get.load(replicaOk)
@@ -126,9 +169,18 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
   }
 
-
+  /** customize how a record change is handled.  If it returns true
+    * a new document revision is created in the dataStore, if it is false
+    * the original document is updated (new document revision not created)
+    */
   protected def newStateTimeForChange(newRec: Record, oldRec: Record) = true
 
+  /** calculate the difference between the records from a Crawl result and the records
+    * currently in memory.
+    *
+    * @param newRecords records from the Crawler
+    * @param oldRecords records from previous Delta result
+    */
   protected def delta(newRecords: Seq[Record], oldRecords: Seq[Record]): Delta = {
     val oldMap = oldRecords.map(rec => rec.id -> rec).toMap
     val newMap = newRecords.map(rec => rec.id -> rec).toMap
@@ -168,8 +220,12 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = removedMap.values.toSeq)
   }
 
+  /** setup CollectionState, initialize the records to be loaded from the DataStore before the Actor starts accepting message */
   protected override def initState = addInitialState(super.initState, newLocalState(CollectionState(records = load(replicaOk = false))))
 
+  /** initialize servo metrics for Collection.  Delay start based on random jitter to prevent DataStore from being
+    * overloaded by all Collection loading all at once.
+    */
   protected override def init() {
     Monitors.registerObject("edda.collection." + name, this)
 
@@ -195,11 +251,16 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     refresher()
   }
 
+  /** helper routine to calculate timeLeft before a Crawl request shoudl be made */
   def timeLeft(lastRun: DateTime, millis: Long): Long = {
     val timeLeft = millis - (DateTime.now.getMillis - lastRun.getMillis)
     if (timeLeft < 0) 0 else timeLeft
   }
 
+  /** responsible for asking the Crawler to crawl if we are the leader, or if we are not the leader
+    * responsible for reloading the in-memory cache.  Also responsible for receiving election
+    * results to take over leaderhip when necessary.
+    */
   protected def refresher() {
     if (Option(crawler) == None || Option(elector) == None) return
     val refresh = Utils.getProperty(ctx.config, "edda.collection", "refresh", name, "60000").toLong
@@ -213,35 +274,34 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       var lastRun = DateTime.now
       Actor.loop {
         val timeout = if (amLeader) refresh else cacheRefresh
-        try {
-          Actor.reactWithin(timeLeft(lastRun, timeout)) {
-            case TIMEOUT => {
-              if (amLeader) crawler.crawl() else this ! Load(this)
+        Actor.reactWithin(timeLeft(lastRun, timeout)) {
+          case TIMEOUT => {
+            if (amLeader) crawler.crawl() else this ! Load(this)
+            lastRun = DateTime.now
+          }
+          case Elector.ElectionResult(from, result) => {
+            // if we just became leader, then start a crawl
+            if (!amLeader && result) {
+              this !?(300000, SyncLoad(this)) match {
+                case Some(OK(frm)) => Unit
+                case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data in 5m as we became leader")
+              }
+              crawler.crawl()
               lastRun = DateTime.now
             }
-            case Elector.ElectionResult(from, result) => {
-              // if we just became leader, then start a crawl
-              if (!amLeader && result) {
-                this !?(300000, SyncLoad(this)) match {
-                  case Some(OK(frm)) => Unit
-                  case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data as we became leader in 5m")
-                }
-                crawler.crawl()
-                lastRun = DateTime.now
-              }
-              amLeader = result
-            }
-            case message => {
-              logger.error("Invalid message " + message + " from sender " + sender)
-            }
+            amLeader = result
           }
-        } catch {
-          case e: Exception => logger.error(this + " failed to refresh", e)
+          case message => {
+            logger.error("Invalid message " + message + " from sender " + sender)
+          }
         }
       }
-    }
+    }.addExceptionHandler({
+      case e: Exception => logger.error(this + " failed to refresh")
+    })
   }
 
+  // basic servo metrics
   private[this] val loadTimer = Monitors.newTimer("load")
   private[this] val loadCounter = Monitors.newCounter("load.count")
   private[this] val loadErrorCounter = Monitors.newCounter("load.errors")
@@ -261,6 +321,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       }
     })
 
+  // eliminate used-only-once warnings from IntelliJ
+  if(false) crawlGauge
+
+  /** load records from DataStore and update monitoring metrics */
   private def doLoad(replicaOk: Boolean): Seq[Record] = {
     val stopwatch = loadTimer.start()
     val records = try {
@@ -281,6 +345,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     records
   }
 
+  /** handle Collection Messages */
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (SyncLoad(from), state) => {
       // SyncLoad allows us to make sure we have a current cache in memory of "live" records
@@ -363,6 +428,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   override def toString = "[Collection " + name + "]"
 
+  /** if collection is enabled start elector, start crawler first */
   override def start(): Actor = {
     if (enabled) {
       logger.info("Starting " + this)
@@ -375,6 +441,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
   }
 
+  /** stop elector, crawler and shutdown ForkJoin special scheduler */
   override def stop() {
     logger.info("Stoping " + this)
     Option(elector).foreach(_.stop())
@@ -384,7 +451,13 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   }
 }
 
-// for having many accounts with same root name but for various accounts
+/** for setting the name on Collections when we are tracking many accounts with same root name.  Used with MergedCollection
+  * so we could have test.us-east-1.aws.autoScalingGroups and test.us-west-1.aws.autoScalingGroups independent collections
+  * but then have a MergedCollection called "aws.autoScalingGroups" that will dispatch queries to both collections.
+  * @param rootName base name of Collection (ie aws.autoScalingGroups)
+  * @param accountName name of account (ie test.us-east-1)
+  * @param ctx the collection context for config and recordMatcher
+  */
 abstract class RootCollection(val rootName: String, accountName: String, ctx: Collection.Context) extends Collection(ctx) {
   val name = accountName match {
     case "" => rootName

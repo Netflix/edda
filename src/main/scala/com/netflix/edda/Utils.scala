@@ -41,6 +41,13 @@ object Utils {
       body
     }
 
+    var handlers: PartialFunction[Exception,Unit] = Map()
+    def addExceptionHandler(pf: PartialFunction[Exception,Unit]) {
+        handlers = pf orElse handlers 
+    }
+
+    override def exceptionHandler = handlers
+
     start()
   }
 

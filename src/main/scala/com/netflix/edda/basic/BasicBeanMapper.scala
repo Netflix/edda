@@ -26,6 +26,10 @@ import org.slf4j.LoggerFactory
 
 import org.apache.commons.beanutils.BeanMap
 
+/** Class to convert a Java Bean to a primitive Scala object (Map, Seq, etc)
+ *
+ * @param ctx
+ */
 class BasicBeanMapper(val ctx: ConfigContext) extends BeanMapper {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
@@ -58,6 +62,7 @@ class BasicBeanMapper(val ctx: ConfigContext) extends BeanMapper {
       }).toMap[Any, Any] + ("class" -> m.getClass.getName)
   }
 
+  /** Create Any value into a Option of corresponding Scala value */
   def mkValue(value: Any): Option[Any] = value match {
     case v: Boolean => Some(v)
     case v: Byte => Some(v)
@@ -102,6 +107,8 @@ class BasicBeanMapper(val ctx: ConfigContext) extends BeanMapper {
     case (obj, key, value) => value
   }
 
+  /** Creates scala Map from Java Bean, adding "class" map attribute to what class the Bean
+    * was originally */
   def fromBean(obj: AnyRef): AnyRef = {
     if (obj.getClass.isEnum) {
       Map(
@@ -112,10 +119,37 @@ class BasicBeanMapper(val ctx: ConfigContext) extends BeanMapper {
     }
   }
 
+  /** to specialize a Bean transformation you can create a custom Object Mapper
+    *
+    * {{{
+    * val ignoreObjMapper: PartialFunction[AnyRef,AnyRef] = {
+    *    case obj if obj.getClass.getName == "com.netflix.useless.details" => null
+    * }
+    * beanMapper.addObjMapper(ignoreObjMapper)
+    * }}}
+    *
+    * @param pf partial function which takes an object and returns an object
+    */
   def addObjMapper(pf: PartialFunction[AnyRef, AnyRef]) {
     objMappers = pf orElse objMappers
   }
 
+
+  /** to specialize a Bean transformation you can create a custom Object Mapper which
+    * translates specific attributes to whatever is needed
+    *
+    * A common case might be to ignore timestamp attributes from a bean
+    *
+    * {{{
+    * val timestampKeyMapper: PartialFunction[(AnyRef,String,Option[Any]),Option[Any]] = {
+    *    case (obj, "ModifiedTime", value) => Some(0)
+    *}
+    * beanMapper.addKeyMapper(timestampKeyMapper)
+    * }}}
+    *
+    * @param pf partial function which takes a tuble of (Object, String (attribute name), Current Attribute value) and returns
+    *           an optional value (or None if you want the attribute deleted)
+    */
   def addKeyMapper(pf: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]]) {
     keyMappers = pf orElse keyMappers
   }

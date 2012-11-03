@@ -17,23 +17,34 @@ package com.netflix.edda
 
 import scala.actors.Actor
 
+/** local state for StateMachine */
 case class ObservableState(observers: List[Actor] = List[Actor]())
 
+/** companion for [[com.netflix.edda.Observable]], contains messages for StateMachine */
 object Observable extends StateMachine.LocalState[ObservableState] {
 
-  // internal messages
-  private case class Observe(from: Actor, actor: Actor) extends StateMachine.Message
+  /** Message to add observer to local state */
+  case class Observe(from: Actor, actor: Actor) extends StateMachine.Message
 
-  private case class Ignore(from: Actor, actor: Actor) extends StateMachine.Message
+  /** Message to remove observer from local state */
+  case class Ignore(from: Actor, actor: Actor) extends StateMachine.Message
 
-  private case class OK(from: Actor) extends StateMachine.Message
+  /** Response to use for sync calls to add/remove observers */
+  case class OK(from: Actor) extends StateMachine.Message
 
 }
 
+/** register or un-register observers with various StateMachine objects.  This is needed if
+  * one StateMachine needs to receive events (state changes) from another StateMachine.  For
+  * example a Collection is registered as an observer of a Crawler so
+  * that the Collection gets updates when the Crawler state changes (so that the Collection
+  * can persist the changes to the DataStore).
+  */
 abstract class Observable extends StateMachine {
 
   import Observable._
 
+  //* notify the given actor when the state changes */
   def addObserver(actor: Actor) {
     this !?(60000, Observe(this, actor)) match {
       case Some(OK(from)) =>
@@ -42,6 +53,7 @@ abstract class Observable extends StateMachine {
     }
   }
 
+  //* stop notifying the give actor when the state changes */
   def delObserver(actor: Actor) {
     this !?(60000, Ignore(this, actor)) match {
       case Some(OK(from)) =>
@@ -52,6 +64,7 @@ abstract class Observable extends StateMachine {
 
   protected override def initState = addInitialState(super.initState, newLocalState(ObservableState()))
 
+  /** setup trasitions to handle Oberserve and Ignore messages */
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Observe(from, caller), state) => {
       sender ! OK(this)

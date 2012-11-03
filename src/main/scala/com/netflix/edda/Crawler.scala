@@ -17,28 +17,37 @@ package com.netflix.edda
 
 import scala.actors.Actor
 
-import org.joda.time.DateTime
-
 import java.util.concurrent.TimeUnit
 
 import com.netflix.servo.monitor.Monitors
 
 import org.slf4j.LoggerFactory
 
-case class CrawlerState(records: Seq[Record] = Seq[Record](), crawlTime: Option[DateTime] = None)
+/** local state for Crawlers
+  *
+  * @param records the records that were crawled
+  */
+case class CrawlerState(records: Seq[Record] = Seq[Record]())
 
+/** companion object for [[com.netflix.edda.Crawler]].  */
 object Crawler extends StateMachine.LocalState[CrawlerState] {
 
-  // Message sent to Observers
+  /** Message sent to Observers */
   case class CrawlResult(from: Actor, newRecords: Seq[Record]) extends StateMachine.Message {
     override def toString = "CrawlResult(newRecords=" + newRecords.size + ")"
   }
 
-  // internal messages
-  private case class Crawl(from: Actor) extends StateMachine.Message
+  /** Message to start a crawl action */
+  case class Crawl(from: Actor) extends StateMachine.Message
 
 }
 
+/** Crawler to crawl something and generate Records based on what was crawled.
+  * Those records are then passed to a Collection (typically) by sending the
+  * crawl results to all observers.
+ *
+ * @param ctx configuration context
+ */
 abstract class Crawler(ctx: ConfigContext) extends Observable {
 
   import Crawler._
@@ -47,32 +56,41 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
   private[this] val logger = LoggerFactory.getLogger(getClass)
   lazy val enabled = Utils.getProperty(ctx.config, "edda.crawler", "enabled", name, "true").toBoolean
 
+  /** start a crawl if the crawler is enabled */
   def crawl() {
     if (enabled) this ! Crawl(this)
   }
 
+  /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Crawler is not enabled */
   override def addObserver(actor: Actor) {
     if (enabled) super.addObserver(actor)
   }
 
+  /** see [[com.netflix.edda.Observable.delObserver()]].  Overridden to be a NoOp when Crawler is not enabled */
   override def delObserver(actor: Actor) {
     if (enabled) super.delObserver(actor)
   }
 
+  /** name of the Crawler, typically matches the name of the Collection that the Crawler works with */
   def name: String
 
+  // basic servo metrics
   private[this] val crawlTimer = Monitors.newTimer("crawl")
   private[this] val crawlCounter = Monitors.newCounter("crawl.count")
   private[this] val errorCounter = Monitors.newCounter("crawl.errors")
 
+  /** abstract routine for subclasses to implement the actual crawl logic */
   protected def doCrawl(): Seq[Record]
 
+  /** initilize the initial Crawler state */
   protected override def initState = addInitialState(super.initState, newLocalState(CrawlerState()))
 
+  /** init just registers metrics for Servo */
   protected override def init() {
     Monitors.registerObject("edda.crawler." + name, this)
   }
 
+  /** handle Crawl Messages to the StateMachine */
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Crawl(from), state) => {
       // this is blocking so we don't crawl in parallel
