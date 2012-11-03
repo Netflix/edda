@@ -93,7 +93,12 @@ trait GroupCollection extends Collection {
     */
   def mergeKeys: Map[String, String]
 
-  /** TODO */
+  /** merge keys of multiple records into one record.  For autoScalingGroups we merge
+    * all the instances for multiple records into one big instances Map and we make then
+    * instances unique based on the mergeKey (instanceId).  We only show the most recent
+    * resource revision (only latest revision of an instance from multiple autoScalingGroup
+    * records).
+    */
   def mergeRecords(records: Seq[Record]): Record = {
     val merge = mergeKeys.map(
       pair => {
@@ -120,6 +125,12 @@ trait GroupCollection extends Collection {
     rec.copy(data = data)
   }
 
+  /** for each mergeKey, go through the oldRecords to determine pre-existing slot assignments
+    * and return a map so the slot assignments can be reused
+    *
+    * @param oldRecords records that will have original slot ids so we can preserve slot assignments
+    *                   over multiple crawls
+    */
   def groupSlots(oldRecords: Seq[Record]): Map[String, Map[String, Int]] = {
     mergeKeys.map(
       pair => {
@@ -133,6 +144,15 @@ trait GroupCollection extends Collection {
       }).toMap
   }
 
+  /** assign a numeric slot number for all items that we merge. If there is already a slot
+    * number, then reuse it.  If there is no slot then use first unassigned number (starting
+    * at 0)
+    *
+    * @param group group of resources to assign slots to (list of instances)
+    * @param groupKey primary key for the group of resources (instanceId)
+    * @param slotMap map of resources still active with current slot assignments
+    * @return list of resources modified to have a "slot" key
+    */
   def assignSlots(group: Seq[Map[String, Any]], groupKey: String, slotMap: Map[String, Int]): Seq[Map[String, Any]] = {
 
     val usedSlots: Set[Int] = group.map(
@@ -159,6 +179,12 @@ trait GroupCollection extends Collection {
       }).sortWith((a, b) => a("slot").asInstanceOf[Int] < b("slot").asInstanceOf[Int])
   }
 
+  /** only create new document revision if the membership of the groups have changed.
+    * If an instance is added or removed from an autoScalingGroup then we return true
+    * to create a new document revision, otherwise we return false so that
+    * the previous document will get overwritten.  If an instance change state from Pending to Running
+    * then the document will just get updated and no new revision will get created.
+    */
   override protected
   def newStateTimeForChange(newRec: Record, oldRec: Record): Boolean = {
     val changes = mergeKeys.filterNot(

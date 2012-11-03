@@ -22,6 +22,12 @@ import java.util.concurrent.Callable
 
 import org.slf4j.LoggerFactory
 
+/** a pseudo collection made up of other related collections.  This allows multiple collections
+  * of the same type (but crawled for different accounts) to appear as one unified
+  * collection
+  * @param name the root name of the collection (usually name from RootCollection base class)
+  * @param collections list of common collections that should appear unified
+  */
 class MergedCollection(val name: String, val collections: Seq[Collection]) extends Queryable {
   override def toString = "[MergedCollection " + name + "]"
 
@@ -31,6 +37,10 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
     case _ => Some(Executors.newFixedThreadPool(collections.size * 10))
   }
 
+  /** using a dedicated thread pool simultaneously dispatch the query to all the collections that are
+    * are being merged, then merge the results (sorted by record stime) and return the results
+    * see [[com.netflix.edda.Queryable.query()]]
+    */
   protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
     // if they have specified a subset of keys, then we need to make
     // sure stime is in there so we can sort
@@ -72,12 +82,14 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
     }
   }
 
+  /** start the actors for all the merged collections then start this actor */
   override def start() = {
     logger.info("Starting " + this)
     collections.foreach(_.start())
     super.start()
   }
 
+  /** stop the actors for all the merged collections then stop this actor */
   override def stop() {
     logger.info("Stoping " + this)
     collections.foreach(_.stop())

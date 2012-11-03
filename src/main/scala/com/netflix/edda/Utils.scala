@@ -30,11 +30,17 @@ import org.codehaus.jackson.util.DefaultPrettyPrinter
 import org.codehaus.jackson.map.MappingJsonFactory
 import org.codehaus.jackson.JsonNode
 
+/** singleton object for various helper functions */
 object Utils {
   private lazy val factory = new MappingJsonFactory
   private lazy val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
 
-  case class NamedActor[T](name: String)(body: => T) extends DaemonActor {
+  /** class used to assist logging and allow for abstracted exception handling
+    * for simple actors
+    * @param name name of actor that is seen when logging
+    * @param body closure run as the actors "act" routine
+    */
+  case class NamedActor(name: String)(body: => Unit) extends DaemonActor {
     override def toString = name
 
     override def act() {
@@ -42,18 +48,43 @@ object Utils {
     }
 
     var handlers: PartialFunction[Exception,Unit] = Map()
+
+    /** add a partial function to allow for specific exception
+      * handling when needed
+      * @param pf PartialFunction to handle exception types
+      */
     def addExceptionHandler(pf: PartialFunction[Exception,Unit]) {
         handlers = pf orElse handlers 
     }
 
+    /** setup exceptionHandler to use the custom handlers modified
+      * with addExceptionHandler
+      */
     override def exceptionHandler = handlers
 
     start()
   }
 
-  // allow for hierarchical properties
-  // so if we have prefix = "p", propName = "n", nameContext  = "a.b.c" then
-  // it will look for p.a.b.c.n, then p.a.b.n, then p.a.n, then p.n else return default
+  /** allow for hierarchical properties
+    * {{{
+    * if we have prefix = "edda.collection",
+    *            propName = "enabled",
+    *            nameContext  = "test.us-east-1.aws.addresses"
+    * then it will look for (in this order):
+    *     edda.collection.test.us-east-1.aws.addresses.enabled
+    *     edda.collection.test.us-east-1.aws.enabled
+    *     edda.collection.test.us-east-1.enabled
+    *     edda.collection.test.enabled
+    *     edda.collection.enabled
+    * else return default
+    * }}}
+    * @param props group of available properties
+    * @param prefix root prefix, generally "edda.something"
+    * @param propName property name (ie "enabled")
+    * @param nameContext set property names to search though
+    * @param default the default value to return if no matching properties are found
+    * @return the best matching property value
+    */
   def getProperty(props: Properties, prefix: String, propName: String, nameContext: String, default: String): String = {
     val parts = nameContext.split('.')
     Range(1, parts.size + 1).reverse.map(
@@ -66,6 +97,12 @@ object Utils {
     }
   }
 
+  /** convert list of Any to list of AnyRef.  This is useful for slf4j printf style formatting:
+    * {{{
+    * logger.info("stuff {} {} {} {}", toObjects(1, 1.2, true, "string"))
+    * }}}
+    * @param args list of items to massage into list of AnyRef
+    */
   def toObjects(args: Any*): Array[AnyRef] = {
     args.map(arg => arg match {
       case null => null
@@ -82,6 +119,7 @@ object Utils {
     }).toArray[AnyRef]
   }
 
+  /** convert an object to a json string, using the pretty printer formatter */
   def toPrettyJson(obj: Any): String = {
     val baos = new ByteArrayOutputStream()
     val gen = factory.createJsonGenerator(baos, UTF8)
@@ -93,6 +131,7 @@ object Utils {
     baos.toString
   }
 
+  /** convert an object to a json string */
   def toJson(obj: Any): String = {
     val baos = new ByteArrayOutputStream()
     val gen = factory.createJsonGenerator(baos, UTF8)
@@ -101,6 +140,13 @@ object Utils {
     baos.toString
   }
 
+  /** given an JsonGenerator, write object to generator.  Apply
+    * formatter to possible translate data (ie convert millisecond
+    * timetamps to humanreadable time strings)
+    * @param gen JsonGenerator to write to
+    * @param obj object to convert to json
+    * @param fmt abitrary object translator
+    */
   def writeJson(gen: JsonGenerator, obj: Any, fmt: (Any) => Any = (x: Any) => x) {
     fmt(obj) match {
       case v: Boolean => gen.writeBoolean(v)
@@ -134,6 +180,7 @@ object Utils {
     }
   }
 
+  /** convert a JsonNode to a scala value */
   def fromJson(node: JsonNode): Any = {
     import scala.collection.JavaConverters._
     node match {
@@ -155,6 +202,7 @@ object Utils {
     }
   }
 
+  /** default date formatter used for json pretty-printing objects with dates in them */
   def dateFormatter(arg: Any): Any = {
     arg match {
       case v: Date => dateFormat.format(v)
@@ -163,7 +211,13 @@ object Utils {
     }
   }
 
-  // most recent records first
+  /** diff multiple records, return unifed diff output
+    *
+    * @param recs records to diff, pre-sorted, oldest first
+    * @param context how much diff context to return, default is entire document
+    * @param prefix uri prefix using when writing new/old document names for diff output
+    * @return string of unified diff output
+    */
   def diffRecords(recs: Seq[Record], context: Option[Int] = None, prefix: String = ""): String = {
     import difflib.DiffUtils
     import difflib.Patch

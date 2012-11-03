@@ -15,7 +15,9 @@
  */
 package com.netflix.edda
 
+/** simple interface to allow complex queries against in-memory record sets.
+  * See [[com.netflix.edda.basic.BasicRecordMatcher]]
+  */
 trait RecordMatcher {
   def doesMatch(queryMap: Map[String, Any], record: Map[String, Any]): Boolean
 }
-

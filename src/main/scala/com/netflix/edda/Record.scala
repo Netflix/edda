@@ -17,7 +17,9 @@ package com.netflix.edda
 
 import org.joda.time.DateTime
 
+/** companion Record object to allow easier Record construction */
 object Record {
+  /** create record with new id and data */
   def apply(id: String, data: Any): Record = {
     val now = DateTime.now
     new Record(
@@ -30,6 +32,7 @@ object Record {
       tags = Map())
   }
 
+  /** create record with new id, create-time and data */
   def apply(id: String, ctime: DateTime, data: Any): Record = {
     val now = DateTime.now
     new Record(
@@ -42,6 +45,7 @@ object Record {
       tags = Map())
   }
 
+  /** allows Record to be constructed like a case class */
   def apply(
              id: String,
              ctime: DateTime,
@@ -52,6 +56,16 @@ object Record {
              tags: Map[String, Any]) = new Record(id, ctime, stime, ltime, mtime, data, tags)
 }
 
+/** simple record object that can be treated like a case class.
+  *
+  * @param id name of the resource, unique identifier
+  * @param ctime original time the record was created
+  * @param stime last state change time
+  * @param ltime last seen time (time when record expired)
+  * @param mtime last modified time for the record
+  * @param data the record data, what is returned by default for the REST interface
+  * @param tags arbitrary tags can be applied to the record for internal use
+  */
 class Record(
               val id: String,
               val ctime: DateTime,
@@ -61,6 +75,7 @@ class Record(
               val data: Any,
               val tags: Map[String, Any]) {
 
+  /** copy to behave similar to case class */
   def copy(
             id: String = id,
             ctime: DateTime = ctime,
@@ -70,6 +85,7 @@ class Record(
             data: Any = data,
             tags: Map[String, Any] = tags) = new Record(id, ctime, stime, ltime, mtime, data, tags)
 
+  /** flatten object into basic scala map */
   def toMap = {
     Map(
       "id" -> id,
@@ -81,13 +97,16 @@ class Record(
       "tags" -> tags)
   }
 
+  /** json serialized string used to compare if 2 records with same id are in-fact identical */
   lazy val dataString = Utils.toJson(this.data)
 
+  /** compare this record to another and return true if the data is identical */
   def sameData(that: Record): Boolean = {
     if (that == null) return false
     this.data == that.data || this.dataString == that.dataString
   }
 
+  /** make logging easier, serialize the Record to json */
   override lazy val toString = Utils.toJson(this.toMap)
 }
 
