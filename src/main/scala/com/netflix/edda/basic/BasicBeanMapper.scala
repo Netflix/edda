@@ -28,7 +28,7 @@ import org.apache.commons.beanutils.BeanMap
 
 /** Class to convert a Java Bean to a primitive Scala object (Map, Seq, etc)
  *
- * @param ctx
+ * @param ctx configuration context
  */
 class BasicBeanMapper(val ctx: ConfigContext) extends BeanMapper {
   private[this] val logger = LoggerFactory.getLogger(getClass)

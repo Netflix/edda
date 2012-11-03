@@ -51,7 +51,7 @@ object MongoDatastore {
           new DateTime(o.get("ctime").asInstanceOf[Date]),
           new DateTime(Option(o.get("stime")).getOrElse(o.get("ctime")).asInstanceOf[Date]),
           Option(o.get("ltime")) match {
-            case Some(date: Date) => new DateTime(date);
+            case Some(date: Date) => new DateTime(date)
             case None => null
           },
           new DateTime(o.get("mtime").asInstanceOf[Date]),
@@ -163,7 +163,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
 
   /** query routine to fetch records from mongoDB.
     *
-    * @param queryMap
+    * @param queryMap query criteria
     * @param limit restrict returned record count, 0 == unlimited
     * @param keys  unless empty Set return only requested keys
     * @param replicaOk reading from a replica in a replSet is OK this is set to true
@@ -224,7 +224,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
   }
 
   /** ensures Indes for "stime", "ltime", and "id" */
-  def init() = {
+  def init() {
     mongo.ensureIndex(mapToMongo(Map("stime" -> -1)))
     mongo.ensureIndex(mapToMongo(Map("ltime" -> 1)))
     mongo.ensureIndex(mapToMongo(Map("id" -> 1)))
@@ -242,12 +242,12 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
         true // upsert
       )
     } catch {
-      case e => {
+      case e: Exception => {
         logger.error("failed to upsert record: " + record)
         throw e
       }
     }
   }
 
-  override def toString = "[MongoDatastore " + name + "]";
+  override def toString = "[MongoDatastore " + name + "]"
 }

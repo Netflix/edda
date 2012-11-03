@@ -216,7 +216,7 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
     * @return the record set for the instanceHealth
     */
   def doCrawl(elbRecords: Seq[Record]): Seq[Record] = {
-    var futures: Seq[java.util.concurrent.Future[Record]] = elbRecords.map(
+    val futures: Seq[java.util.concurrent.Future[Record]] = elbRecords.map(
       elb => {
         threadPool.submit(
           new Callable[Record] {
@@ -235,7 +235,7 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
         catch {
           case e: Exception => {
             failed = true
-            logger.error(this + "exception from describeInstanceHealth", e);
+            logger.error(this + "exception from describeInstanceHealth", e)
             None
           }
         }
@@ -475,7 +475,7 @@ class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) exten
 
   override def doCrawl() = {
     val queues = ctx.awsClient.sqs.listQueues(request).getQueueUrls.asScala
-    var futures: Seq[java.util.concurrent.Future[Record]] = queues.map(
+    val futures: Seq[java.util.concurrent.Future[Record]] = queues.map(
       queueUrl => {
         threadPool.submit(
           new Callable[Record] {
@@ -499,7 +499,7 @@ class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) exten
         try Some(f.get)
         catch {
           case e: Exception => {
-            logger.error(this + "exception from SQS getQueueAttributes", e);
+            logger.error(this + "exception from SQS getQueueAttributes", e)
             None
           }
         }

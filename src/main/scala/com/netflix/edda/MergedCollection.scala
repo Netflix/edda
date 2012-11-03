@@ -50,7 +50,7 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
       // only one collection so don't bother with futures
       collections.head.query(queryMap, limit, live, requiredKeys, replicaOk)
     } else {
-      var futures: Seq[java.util.concurrent.Future[Seq[Record]]] = collections.map(
+      val futures: Seq[java.util.concurrent.Future[Seq[Record]]] = collections.map(
         coll => {
           threadPool.get.submit(
             new Callable[Seq[Record]] {
@@ -68,7 +68,7 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
           catch {
             case e: Exception => {
               failed = true
-              logger.error(this + "exception querying", e);
+              logger.error(this + "exception querying", e)
               Seq()
             }
           }

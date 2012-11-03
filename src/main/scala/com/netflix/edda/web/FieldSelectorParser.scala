@@ -41,13 +41,13 @@ sealed trait FieldSelectorExpr {
 
   def _select(value: Any): Result = value match {
     case Nil => {
-      Result(true, Some(value))
+      Result(objectMatches = true, Some(value))
     }
     case values: Seq[_] => {
       val results = values.map(checkValue).filter(r => {
         r.objectMatches && r.newValue.isDefined
       })
-      Result(true, Some(results.map(_.newValue.get)))
+      Result(objectMatches = true, Some(results.map(_.newValue.get)))
     }
     case v => checkValue(v)
   }
