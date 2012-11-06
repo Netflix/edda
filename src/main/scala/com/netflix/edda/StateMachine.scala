@@ -174,4 +174,22 @@ class StateMachine extends Actor {
       }
     }
   }
+
+  var handlers: PartialFunction[Exception,Unit] = {
+    case e: Exception => logger.error(this + " caught exception", e)
+  }
+    
+  /** add a partial function to allow for specific exception
+    * handling when needed
+    * @param pf PartialFunction to handle exception types
+    */
+  def addExceptionHandler(pf: PartialFunction[Exception,Unit]) {
+    handlers = pf orElse handlers 
+  }
+
+  /** setup exceptionHandler to use the custom handlers modified
+    * with addExceptionHandler
+    */
+  override def exceptionHandler = handlers
+
 }
