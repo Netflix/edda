@@ -324,12 +324,16 @@ class CollectionResource {
       if (recs.size == 1) {
         return fail("_diff requires at least 2 documents, only 1 found", Response.Status.BAD_REQUEST)
       }
+
+      val prefix = details.req.getContextPath + details.req.getServletPath + "/v2/";
+        
       val diff = Utils.diffRecords(
         recs,
         details.diff.collect({
           case x: String => x.toInt
         }),
-        details.req.getServletPath + collName)
+        prefix + collName.replace('.','/')
+      )
       val bytes = diff.getBytes
       details.baos.write(bytes, 0, bytes.size)
 
