@@ -176,7 +176,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     val cursor = {
       val cur = mongo.find(mapToMongo(queryMap), mongoKeys)
       if (replicaOk) cur.addOption(Bytes.QUERYOPTION_SLAVEOK)
-      cur.sort(stimeIdSort)
+      if( limit > 0 ) cur.sort(stimeIdSort).limit(limit) else cur.sort(stimeIdSort)
     }
     try {
       cursor.asScala.toStream.map(mongoToRecord(_))
