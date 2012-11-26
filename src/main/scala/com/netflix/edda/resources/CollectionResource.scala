@@ -215,7 +215,7 @@ class CollectionResource {
 
     /** Set of field names (object keys) extraced from the FieldSelector expression */
     val fields: Set[String] = extractFields(expr) match {
-      case Some(set) => if (meta) set else set.map("data." + _)
+      case Some(set) => Set("id", "stime") ++ (if (meta) set else set.map("data." + _))
       case None => Set.empty
     }
 
