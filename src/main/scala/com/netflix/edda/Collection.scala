@@ -154,7 +154,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   /** load collection from Datastore (if available) */
   protected def load(replicaOk: Boolean): Seq[Record] = {
     if (dataStore.isDefined) {
-      dataStore.get.load(replicaOk)
+      val now = DateTime.now
+      val records = dataStore.get.load(replicaOk)
+      lastLoad = now
+      records
     } else {
       logger.warn("DataStore is not available for load()")
       Seq()
@@ -321,7 +324,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       }
     })
 
-  private[this] var lastLoad = new DateTime(0)
+  private[this] var lastLoad: DateTime = null
 
   // eliminate used-only-once warnings from IntelliJ
   if(false) crawlGauge
@@ -367,7 +370,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
               // TODO mtime should come from the last time the collection was crawled, not 'now'
               val now = DateTime.now
               val recs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad)), limit = 0, live = true, keys=Set(), replicaOk = true, state).map(_.copy(mtime=now))
-              lastLoad = DateTime.now
+              lastLoad = now
               
               if( recs.size == 0 ) {
                   localState(state).records
