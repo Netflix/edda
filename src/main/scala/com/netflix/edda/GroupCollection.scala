@@ -107,7 +107,7 @@ trait GroupCollection extends Collection {
         var seen: Set[String] = Set()
         groupName -> records.map(
           rec => {
-            rec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[List[Map[String, Any]]].map(
+            rec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[Seq[Map[String, Any]]].map(
               inst => inst ++ Map("end" -> rec.ltime))
           }).flatten.filterNot(
             inst => {
@@ -138,7 +138,7 @@ trait GroupCollection extends Collection {
         val groupKey = pair._2
 
         groupName -> oldRecords.flatMap(rec => {
-          rec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[List[Map[String, Any]]].map(
+          rec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[Seq[Map[String, Any]]].map(
             item => item(groupKey).asInstanceOf[String] -> item("slot").asInstanceOf[Int])
         }).toMap
       }).toMap
@@ -193,10 +193,10 @@ trait GroupCollection extends Collection {
         val groupKey = pair._2
 
         // if we have new instances then we increment stime, otherwise just update to new document
-        val newSet = newRec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[List[Map[String, Any]]].map(
+        val newSet = newRec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[Seq[Map[String, Any]]].map(
           item => item(groupKey).asInstanceOf[String]).toSet
 
-        val oldSet = oldRec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[List[Map[String, Any]]].map(
+        val oldSet = oldRec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[Seq[Map[String, Any]]].map(
           item => item(groupKey).asInstanceOf[String]).toSet
         newSet == oldSet
       }
