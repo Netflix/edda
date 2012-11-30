@@ -195,13 +195,14 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     // sometimes there are duplicates in oldRecords (upon first-load when we load all records
     // with null ltime) when we have a rogue writer (sometimes there are gaps between leadership
     // changes). 
-    val oldSeen = scala.collection.mutable.Set[String]()
+    val oldSeen = scala.collection.mutable.Map[String,Record]()
     val oldMap = oldRecords.filter(r => {
       val in = oldSeen.contains(r.id)
       if( in ) {
-          remove +:= r
+          val lastSeen = oldSeen(r.id).mtime
+          remove +:= r.copy(mtime=lastSeen,ltime=lastSeen)
       } else {
-          oldSeen += r.id
+          oldSeen += (r.id -> r)
       }
       !in
     }).map(rec => rec.id -> rec).toMap
