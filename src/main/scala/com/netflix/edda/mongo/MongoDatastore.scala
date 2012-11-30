@@ -208,19 +208,21 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
 
   /** update records, delete removed records, insert added records */
   override def update(d: Collection.Delta) {
-    d.changed.foreach(
+    val records = d.removed ++ d.added ++ d.changed.flatMap(
       pair => {
         // only update oldRecord if the stime is changed, this allows
         // for inplace updates when we dont want to create new document
         // revision, but still want the record updated
         if (pair.oldRecord.stime != pair.newRecord.stime) {
-          upsert(pair.oldRecord)
+            Seq(pair.oldRecord, pair.newRecord)
         }
-        upsert(pair.newRecord)
+        else {
+            Seq(pair.newRecord)
+        }
       })
-
-    d.added.foreach(upsert(_))
-    d.removed.foreach(upsert(_))
+    
+    // need to insert in order (oldest mtime first)
+    records.sortWith((a, b) => a.mtime.isBefore(b.mtime)).foreach(upsert(_))
   }
 
   /** ensures Indes for "stime", "mtime", "ltime", and "id" */

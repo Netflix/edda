@@ -156,7 +156,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     if (dataStore.isDefined) {
       val now = DateTime.now
       val records = dataStore.get.load(replicaOk)
-      lastLoad = now
+      lastLoad = records match {
+          case Nil => now
+          case _: Seq[_] => records.maxBy( _.mtime.getMillis ).mtime
+      }
       records
     } else {
       logger.warn("DataStore is not available for load()")
@@ -185,13 +188,30 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     * @param oldRecords records from previous Delta result
     */
   protected def delta(newRecords: Seq[Record], oldRecords: Seq[Record]): Delta = {
-    val oldMap = oldRecords.map(rec => rec.id -> rec).toMap
+    // remove needs to be a list to allow for duplicate records (multiple record revisions
+    // on the same id)
+    var remove = Seq[Record]()
+
+    // sometimes there are duplicates in oldRecords (upon first-load when we load all records
+    // with null ltime) when we have a rogue writer (sometimes there are gaps between leadership
+    // changes). 
+    val oldSeen = scala.collection.mutable.Set[String]()
+    val oldMap = oldRecords.filter(r => {
+      val in = oldSeen.contains(r.id)
+      if( in ) {
+          remove +:= r
+      } else {
+          oldSeen += r.id
+      }
+      !in
+    }).map(rec => rec.id -> rec).toMap
     val newMap = newRecords.map(rec => rec.id -> rec).toMap
 
     val now = DateTime.now
 
-    val removedMap = oldMap.filterNot(pair => newMap.contains(pair._1)).map(
-      pair => pair._1 -> pair._2.copy(mtime = now, ltime = now))
+    remove ++ oldMap.filterNot(pair => newMap.contains(pair._1)).map(
+      pair => pair._2.copy(mtime = now, ltime = now))
+
     val addedMap = newMap.filterNot(pair => oldMap.contains(pair._1))
 
     val changes = newMap.filter(pair => {
@@ -219,8 +239,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       case rec: Record => rec
     }
 
-    logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + removedMap.size)
-    Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = removedMap.values.toSeq)
+    logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + remove.size)
+    Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = remove)
   }
 
   /** setup CollectionState, initialize the records to be loaded from the DataStore before the Actor starts accepting message */
@@ -369,12 +389,12 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           val records = try {
               // TODO mtime should come from the last time the collection was crawled, not 'now'
               val now = DateTime.now
-              val recs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad.minusSeconds(15))), limit = 0, live = true, keys=Set(), replicaOk = true, state).map(_.copy(mtime=now))
-              lastLoad = now
-              
+              val recs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad)), limit = 0, live = true, keys=Set(), replicaOk = true, state).map(_.copy(mtime=now))
               if( recs.size == 0 ) {
+                  lastLoad = now
                   localState(state).records
               } else {
+                  lastLoad = recs.maxBy( _.mtime.getMillis ).mtime
                   val seen = scala.collection.mutable.Set[String]()
                   val uniqRecs = recs.filter(r => {
                       val in = seen.contains(r.id)
