@@ -210,7 +210,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
     val now = DateTime.now
 
-    remove ++ oldMap.filterNot(pair => newMap.contains(pair._1)).map(
+    remove ++= oldMap.filterNot(pair => newMap.contains(pair._1)).map(
       pair => pair._2.copy(mtime = now, ltime = now))
 
     val addedMap = newMap.filterNot(pair => oldMap.contains(pair._1))
