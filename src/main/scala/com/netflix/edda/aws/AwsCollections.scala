@@ -110,6 +110,7 @@ object AwsCollectionBuilder {
       new AwsVolumeCollection(dsFactory, accountName, elector, ctx),
       new AwsBucketCollection(dsFactory, accountName, elector, ctx),
       new AwsSimpleQueueCollection(dsFactory, accountName, elector, ctx),
+      new AwsReservedInstanceCollection(dsFactory, accountName, elector, ctx),
       new GroupAutoScalingGroups(asg, inst, dsFactory, elector, ctx))
   }
 }
@@ -454,6 +455,27 @@ class AwsSimpleQueueCollection(
   }
 }
 
+/** collection for AWS Reserved Instances (pre-paid instances)
+  *
+  * root collection name: aws.reservedInstances
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsReservedInstanceCrawler]]
+  *
+  * @param dsFactory function that creates new DataStore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for configuration and AWS clients objects
+  */
+class AwsReservedInstanceCollection(
+                                 dsFactory: String => Option[DataStore],
+                                 val accountName: String,
+                                 val elector: Elector,
+                                 override val ctx: AwsCollection.Context) extends RootCollection("aws.reservedInstances", accountName, ctx) {
+  val dataStore: Option[DataStore] = dsFactory(name)
+  val crawler = new AwsReservedInstanceCrawler(name, ctx)
+}
+
+
 /** collection for abstracted groupings of instances in AutoScalingGroups
   *
   * root collection name: group.autoScalingGroups
@@ -466,7 +488,6 @@ class AwsSimpleQueueCollection(
   * @param elector Elector to determine leadership
   * @param ctx context for configuration and AWS clients objects
   */
-
 class GroupAutoScalingGroups(
                               val asgCollection: AwsAutoScalingGroupCollection,
                               val instanceCollection: AwsInstanceCollection,
