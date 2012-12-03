@@ -29,6 +29,7 @@ import org.joda.time.DateTime
 import com.amazonaws.services.ec2.model.DescribeAddressesRequest
 import com.amazonaws.services.ec2.model.DescribeImagesRequest
 import com.amazonaws.services.ec2.model.DescribeInstancesRequest
+import com.amazonaws.services.ec2.model.DescribeReservedInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest
 import com.amazonaws.services.ec2.model.DescribeSnapshotsRequest
 import com.amazonaws.services.ec2.model.DescribeTagsRequest
@@ -510,4 +511,16 @@ class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) exten
 
     records
   }
+}
+
+/** crawler for ReservedInstance (ie pre-paid instances)
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
+class AwsReservedInstanceCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+  val request = new DescribeReservedInstancesRequest
+
+  override def doCrawl() = ctx.awsClient.ec2.describeReservedInstances(request).getReservedInstances.asScala.map(
+    item => Record(item.getReservedInstancesId, new DateTime(item.getStart), ctx.beanMapper(item))).toSeq
 }
