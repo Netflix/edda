@@ -321,8 +321,6 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       }
     })
 
-  private[this] var lastLoad = new DateTime(0)
-
   // eliminate used-only-once warnings from IntelliJ
   if(false) crawlGauge
 
@@ -362,43 +360,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
     case (Load(from), state) => {
       NamedActor(this + " Load processor") {
-          val stopwatch = loadTimer.start()
-          val records = try {
-              // TODO mtime should come from the last time the collection was crawled, not 'now'
-              val now = DateTime.now
-              val recs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad)), limit = 0, live = true, keys=Set(), replicaOk = true, state).map(_.copy(mtime=now))
-              lastLoad = DateTime.now
-              
-              if( recs.size == 0 ) {
-                  localState(state).records
-              } else {
-                  val seen = scala.collection.mutable.Set[String]()
-                  val uniqRecs = recs.filter(r => {
-                      val in = seen.contains(r.id)
-                      if( !in ) seen += r.id
-                      !in
-                  })
-                  
-                  val addRecs = uniqRecs.filter( rec => rec.ltime == null )
-                  val delRecs = uniqRecs.filter( rec => rec.ltime != null )
-                  
-                  val oldMap = localState(state).records.map(rec => rec.id -> rec).toMap
-                  val addMap = addRecs.map( rec => rec.id -> rec).toMap
-                  ((oldMap ++ addMap) -- delRecs.map(_.id)).values.toSeq.sortWith((a, b) => a.stime.isAfter(b.stime))
-              }
-          } catch {
-              case e: Exception => {
-                  loadErrorCounter.increment()
-                  throw e
-              }
-          } finally {
-                  stopwatch.stop()
-          }
-          loadCounter.increment()
-          logger.info("{} Loaded {} records in {} sec", toObjects(
-              this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
-
-          this ! Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
+        val records = doLoad(replicaOk = true)
+        this ! Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
       }
       state
     }
