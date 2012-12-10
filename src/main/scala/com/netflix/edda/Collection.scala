@@ -187,7 +187,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     * @param newRecords records from the Crawler
     * @param oldRecords records from previous Delta result
     */
-  protected def delta(newRecords: Seq[Record], oldRecords: Seq[Record]): Delta = {
+  protected def delta(newRecordsIn: Seq[Record], oldRecords: Seq[Record]): Delta = {
+    val now = DateTime.now
+    val newRecords = newRecordsIn.map( rec => rec.copy(mtime = now) )
+
     // remove needs to be a list to allow for duplicate records (multiple record revisions
     // on the same id)
     var remove = Seq[Record]()
@@ -207,8 +210,6 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       !in
     }).map(rec => rec.id -> rec).toMap
     val newMap = newRecords.map(rec => rec.id -> rec).toMap
-
-    val now = DateTime.now
 
     remove ++= oldMap.filterNot(pair => newMap.contains(pair._1)).map(
       pair => pair._2.copy(mtime = now, ltime = now))
@@ -232,8 +233,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     // need to reset stime, ctime, tags for crawled records to match what we have in memory
     val fixedRecords = newRecords.collect {
       case rec: Record if changes.contains(rec.id) => {
-        val newRec = changes(rec.id).newRecord
-        oldMap(rec.id).copy(data = rec.data, mtime = newRec.mtime, stime = newRec.stime)
+        oldMap(rec.id).copy(data = rec.data, mtime = rec.mtime, stime = rec.stime)
       }
       case rec: Record if oldMap.contains(rec.id) =>
         oldMap(rec.id).copy(data = rec.data, mtime = rec.mtime)

@@ -221,8 +221,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
         }
       })
     
-    // need to insert in order (oldest mtime first)
-    records.sortWith((a, b) => a.mtime.isBefore(b.mtime)).foreach(upsert(_))
+    records.foreach(upsert(_))
   }
 
   /** ensures Indes for "stime", "mtime", "ltime", and "id" */
