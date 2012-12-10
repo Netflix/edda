@@ -46,7 +46,8 @@ class CollectionResource {
 
   private val factory = new MappingJsonFactory
 
-  private val collectionPathRx = """^([^:;]+?)(?:/?)((?:;[^/;:]*(?:=[^/;:]+)?)*)(:.*)?""".r
+  private val collectionPathRx = """^([^:;]+?)(?:/?)((?:;[^/;]*(?:=[^/;]+)?)*)""".r
+  private val fieldSelectorsRx = """(.*?)(:\(.*\))?$""".r
 
   /** generate json error response */
   private def fail(message: String, status: Response.Status): Response = {
@@ -366,9 +367,10 @@ class CollectionResource {
   @Path("{paths: .+}")
   def getCollection(@Context req: HttpServletRequest): Response = {
     // +4 for length("/v2/")
-    val path = req.getRequestURI.drop(req.getContextPath.length + req.getServletPath.length + 4)
+    val realPath = req.getRequestURI.drop(req.getContextPath.length + req.getServletPath.length + 4)
+    val fieldSelectorsRx(path,exprStr) = realPath
     path match {
-      case collectionPathRx(collPath, matrixStr, exprStr) => {
+      case collectionPathRx(collPath, matrixStr) => {
         val name = collPath.replace('/', '.')
         val (collName, id) =
           if (CollectionManager.names().contains(name)) {
