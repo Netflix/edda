@@ -392,7 +392,6 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
               val now = DateTime.now
               val recs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad)), limit = 0, live = true, keys=Set(), replicaOk = true, state).map(_.copy(mtime=now))
               if( recs.size == 0 ) {
-                  lastLoad = now
                   localState(state).records
               } else {
                   lastLoad = recs.maxBy( _.mtime.getMillis ).mtime
