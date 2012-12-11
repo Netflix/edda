@@ -23,8 +23,12 @@ class TestDataStore extends DataStore {
   def init() {
   }
 
+  private def firstOf(limit: Int, records: Seq[Record]): Seq[Record] = {
+    if (limit > 0) records.take(limit) else records
+  }
+
   def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
-    records
+      firstOf(limit, records.filter(record => BasicContext.recordMatcher.doesMatch(queryMap, record.toMap)))
   }
 
   def load(replicaOk: Boolean): Seq[Record] = {
