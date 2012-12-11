@@ -78,7 +78,7 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
       if (failed) {
         throw new java.lang.RuntimeException("query failed")
       }
-      records.sortWith((a, b) => a.stime.isAfter(b.stime))
+      firstOf(limit, records.sortWith((a, b) => a.stime.isAfter(b.stime)))
     }
   }
 
