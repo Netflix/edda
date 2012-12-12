@@ -391,39 +391,24 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           val records = try {
               // TODO mtime should come from the last time the collection was crawled, not 'now'
               val now = DateTime.now
-              // get records that are still alive and have changed recently
-              val changedRecs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad), "ltime" -> null), limit = 0, live = true, keys = Set(), replicaOk = true, state).map(_.copy(mtime=now))
-              logger.info("changedRecs: " + changedRecs)
-              // get set of all active records (just get the ids)
-              val aliveSet = doQuery(Map("ltime" -> null), limit = 0, live = true, keys = Set("id"), replicaOk = true, state).map(_.id).toSet
-              logger.info("aliveSet: " + aliveSet)
-              // set of all records we know about from previous run
-              val currentSet = localState(state).records.map(_.id).toSet
-              logger.info("currentSet: " + currentSet)
-
-              // find differences (in current record set but not alive), these are records
-              // that need to be deleted from our cache
-              val delRecs = currentSet &~ aliveSet
-              logger.info("delRecs: " + delRecs)
-
-              if( changedRecs.size == 0 && delRecs.size == 0 ) {
-                  // no changes and nothing to purge from cache, so just
-                  // return what we already know about.
+              val recs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad)), limit = 0, live = true, keys=Set(), replicaOk = true, state).map(_.copy(mtime=now))
+              if( recs.size == 0 ) {
                   localState(state).records
               } else {
-                  // mark the latest mtime for what we just read
-                  lastLoad = changedRecs.maxBy( _.mtime.getMillis ).mtime
-
-                  // make uniq in case there are multiple revisions since the last time we read
+                  lastLoad = recs.maxBy( _.mtime.getMillis ).mtime
                   val seen = scala.collection.mutable.Set[String]()
-                  val uniqChangedRecs = changedRecs.filter(r => {
+                  val uniqRecs = recs.filter(r => {
                       val in = seen.contains(r.id)
                       if( !in ) seen += r.id
                       !in
-                  }).map(rec => rec.id -> rec).toMap
+                  })
+                  
+                  val addRecs = uniqRecs.filter( rec => rec.ltime == null )
+                  val delRecs = uniqRecs.filter( rec => rec.ltime != null )
                   
                   val oldMap = localState(state).records.map(rec => rec.id -> rec).toMap
-                  ((oldMap ++ uniqChangedRecs) -- delRecs).values.toSeq.sortWith((a, b) => a.stime.isAfter(b.stime))
+                  val addMap = addRecs.map( rec => rec.id -> rec).toMap
+                  ((oldMap ++ addMap) -- delRecs.map(_.id)).values.toSeq.sortWith((a, b) => a.stime.isAfter(b.stime))
               }
           } catch {
               case e: Exception => {
