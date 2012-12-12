@@ -441,7 +441,7 @@ class AwsSimpleQueueCollection(
   val crawler = new AwsSimpleQueueCrawler(name, ctx)
 
   /** this is overriden from [[com.netflix.edda.aws.Collection]] because there are several
-    * keys like ApproximateNumberOfMessages that are changing constatnly.  We want to record
+    * keys like ApproximateNumberOfMessages that are changing constantly.  We want to record
     * those changes, but not create new document revisions if the only changes are Approx* values
     */
   override protected
