@@ -285,11 +285,13 @@ class CollectionResource {
   def writeMaybeMeta(r: Record, details: ReqDetails) {
     val data =
       if (details.meta)
-        details.expr.select(r.toMap).getOrElse(Map())
+        details.expr.select(r.toMap)
       else
-        details.expr.select(r.data).getOrElse(Map())
+        details.expr.select(r.data)
 
-    Utils.writeJson(details.gen, data, details.formatter)
+    if( data.isDefined ) {
+        Utils.writeJson(details.gen, data.get, details.formatter)
+    }
   }
 
   /** dispatch routine to handle collections.  If custome responses are require this class can be subclassed
