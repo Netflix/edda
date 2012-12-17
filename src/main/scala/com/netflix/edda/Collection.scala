@@ -63,7 +63,7 @@ object Collection extends StateMachine.LocalState[CollectionState] {
   case class DeltaResult(from: Actor, delta: Delta) extends StateMachine.Message
 
   /** Message to Load the record set from the DataStore */
-  case class Load(from: Actor) extends StateMachine.Message
+  case class Load(from: Actor, full: Boolean = false) extends StateMachine.Message
 
   /** Messsage to *Synchronously* Load the record set from the DataStore */
   case class SyncLoad(from: Actor) extends StateMachine.Message
@@ -160,6 +160,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           case Nil => now
           case _: Seq[_] => records.maxBy( _.mtime.getMillis ).mtime
       }
+      lastFullLoad = now
       records
     } else {
       logger.warn("DataStore is not available for load()")
@@ -290,6 +291,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     if (Option(crawler) == None || Option(elector) == None) return
     val refresh = Utils.getProperty(ctx.config, "edda.collection", "refresh", name, "60000").toLong
     val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
+    val cacheFullRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.full.refresh", name, "1800000").toLong
     NamedActor(this + " refresher") {
       elector.addObserver(Actor.self)
       var amLeader = elector.isLeader
@@ -301,7 +303,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         val timeout = if (amLeader) refresh else cacheRefresh
         Actor.reactWithin(timeLeft(lastRun, timeout)) {
           case TIMEOUT => {
-            if (amLeader) crawler.crawl() else this ! Load(this)
+            val full = if( timeLeft(lastFullLoad, cacheFullRefresh) > 0 ) false else true
+            if (amLeader) crawler.crawl() else this ! Load(this, full)
             lastRun = DateTime.now
           }
           case Elector.ElectionResult(from, result) => {
@@ -346,6 +349,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       }
     })
 
+  private[this] var lastFullLoad: DateTime = null
   private[this] var lastLoad: DateTime = null
 
   // eliminate used-only-once warnings from IntelliJ
@@ -385,30 +389,36 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       }
       state
     }
-    case (Load(from), state) => {
+    case (Load(from, full), state) => {
       NamedActor(this + " Load processor") {
           val stopwatch = loadTimer.start()
           val records = try {
-              // TODO mtime should come from the last time the collection was crawled, not 'now'
-              val now = DateTime.now
-              val recs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad)), limit = 0, live = true, keys=Set(), replicaOk = true, state).map(_.copy(mtime=now))
-              if( recs.size == 0 ) {
-                  localState(state).records
-              } else {
-                  lastLoad = recs.maxBy( _.mtime.getMillis ).mtime
-                  val seen = scala.collection.mutable.Set[String]()
-                  val uniqRecs = recs.filter(r => {
-                      val in = seen.contains(r.id)
-                      if( !in ) seen += r.id
-                      !in
-                  })
-                  
-                  val addRecs = uniqRecs.filter( rec => rec.ltime == null )
-                  val delRecs = uniqRecs.filter( rec => rec.ltime != null )
-                  
-                  val oldMap = localState(state).records.map(rec => rec.id -> rec).toMap
-                  val addMap = addRecs.map( rec => rec.id -> rec).toMap
-                  ((oldMap ++ addMap) -- delRecs.map(_.id)).values.toSeq.sortWith((a, b) => a.stime.isAfter(b.stime))
+              if( full ) {
+                  logger.info(this + " doing full reload of collection");
+                  doLoad(replicaOk = true)
+              }
+              else {
+                  // TODO mtime should come from the last time the collection was crawled, not 'now'
+                  val now = DateTime.now
+                  val recs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad)), limit = 0, live = true, keys=Set(), replicaOk = true, state).map(_.copy(mtime=now))
+                  if( recs.size == 0 ) {
+                      localState(state).records
+                  } else {
+                      lastLoad = recs.maxBy( _.mtime.getMillis ).mtime
+                      val seen = scala.collection.mutable.Set[String]()
+                      val uniqRecs = recs.filter(r => {
+                          val in = seen.contains(r.id)
+                          if( !in ) seen += r.id
+                          !in
+                      })
+                      
+                      val addRecs = uniqRecs.filter( rec => rec.ltime == null )
+                      val delRecs = uniqRecs.filter( rec => rec.ltime != null )
+                      
+                      val oldMap = localState(state).records.map(rec => rec.id -> rec).toMap
+                      val addMap = addRecs.map( rec => rec.id -> rec).toMap
+                      ((oldMap ++ addMap) -- delRecs.map(_.id)).values.toSeq.sortWith((a, b) => a.stime.isAfter(b.stime))
+                  }
               }
           } catch {
               case e: Exception => {
