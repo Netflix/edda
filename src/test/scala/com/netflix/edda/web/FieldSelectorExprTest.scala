@@ -149,5 +149,19 @@ class FieldSelectorExprTest extends FunSuite {
     expect(Some(42)) {
       RegexExpr("[0-9]+", invert = false).select(42)
     }
+
+    val expr1 = KeySelectExpr(Map(
+      "a" -> RegexExpr("^[24]+$", invert = false)
+    ))
+    expect(Some(Map("a" -> 42))) {
+      expr1.select(Map("a" -> 42, "b" -> 0))
+    }
+
+    val expr2 = KeySelectExpr(Map(
+      "a" -> RegexExpr("^[abc]+$", invert = false)
+    ))
+    expect(None) {
+      expr2.select(Map("a" -> 42, "b" -> 0))
+    }
   }
 }

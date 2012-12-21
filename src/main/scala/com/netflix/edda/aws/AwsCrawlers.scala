@@ -42,6 +42,7 @@ import com.amazonaws.services.sqs.model.GetQueueAttributesRequest
 
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
 import com.amazonaws.services.autoscaling.model.DescribeLaunchConfigurationsRequest
+import com.amazonaws.services.autoscaling.model.DescribePoliciesRequest
 
 import com.amazonaws.services.elasticloadbalancing.model.DescribeLoadBalancersRequest
 import com.amazonaws.services.elasticloadbalancing.model.DescribeInstanceHealthRequest
@@ -146,6 +147,31 @@ class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) 
         "If you expect at least one tag then set: edda.crawler." + name + ".abortWithoutTags=true")
     }
     list
+  }
+}
+
+/** crawler for ASG Policies
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
+class AwsScalingPolicyCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val request = new DescribePoliciesRequest
+  request.setMaxRecords(50)
+
+  override def doCrawl() = {
+    val it = new AwsIterator() {
+      def next() = {
+        val response = ctx.awsClient.asg.describePolicies(request.withNextToken(this.nextToken.get))
+        this.nextToken = Option(response.getNextToken)
+        response.getScalingPolicies.asScala.map(
+          item => {
+            Record(item.getPolicyName, ctx.beanMapper(item))
+          }).toList
+      }
+    }
+    it.toList.flatten
   }
 }
 

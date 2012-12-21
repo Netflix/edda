@@ -91,7 +91,7 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
         }
       }
     }.addExceptionHandler({
-      case e: Exception => logger.error(this + " failed to refresh")
+      case e: Exception => logger.error(this + " failed to refresh", e)
     })
   }
 

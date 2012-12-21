@@ -63,7 +63,7 @@ object Collection extends StateMachine.LocalState[CollectionState] {
   case class DeltaResult(from: Actor, delta: Delta) extends StateMachine.Message
 
   /** Message to Load the record set from the DataStore */
-  case class Load(from: Actor) extends StateMachine.Message
+  case class Load(from: Actor, full: Boolean = false) extends StateMachine.Message
 
   /** Messsage to *Synchronously* Load the record set from the DataStore */
   case class SyncLoad(from: Actor) extends StateMachine.Message
@@ -154,7 +154,14 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   /** load collection from Datastore (if available) */
   protected def load(replicaOk: Boolean): Seq[Record] = {
     if (dataStore.isDefined) {
-      dataStore.get.load(replicaOk)
+      val now = DateTime.now
+      val records = dataStore.get.load(replicaOk)
+      lastLoad = records match {
+          case Nil => now
+          case _: Seq[_] => records.maxBy( _.mtime.getMillis ).mtime
+      }
+      lastFullLoad = now
+      records
     } else {
       logger.warn("DataStore is not available for load()")
       Seq()
@@ -181,14 +188,33 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     * @param newRecords records from the Crawler
     * @param oldRecords records from previous Delta result
     */
-  protected def delta(newRecords: Seq[Record], oldRecords: Seq[Record]): Delta = {
-    val oldMap = oldRecords.map(rec => rec.id -> rec).toMap
+  protected def delta(newRecordsIn: Seq[Record], oldRecords: Seq[Record]): Delta = {
+    val now = DateTime.now
+    val newRecords = newRecordsIn.map( rec => rec.copy(mtime = now) )
+
+    // remove needs to be a list to allow for duplicate records (multiple record revisions
+    // on the same id)
+    var remove = Seq[Record]()
+
+    // sometimes there are duplicates in oldRecords (upon first-load when we load all records
+    // with null ltime) when we have a rogue writer (sometimes there are gaps between leadership
+    // changes). 
+    val oldSeen = scala.collection.mutable.Map[String,Record]()
+    val oldMap = oldRecords.filter(r => {
+      val in = oldSeen.contains(r.id)
+      if( in ) {
+          val lastSeen = oldSeen(r.id).mtime
+          remove +:= r.copy(mtime=lastSeen,ltime=lastSeen)
+      } else {
+          oldSeen += (r.id -> r)
+      }
+      !in
+    }).map(rec => rec.id -> rec).toMap
     val newMap = newRecords.map(rec => rec.id -> rec).toMap
 
-    val now = DateTime.now
+    remove ++= oldMap.filterNot(pair => newMap.contains(pair._1)).map(
+      pair => pair._2.copy(mtime = now, ltime = now))
 
-    val removedMap = oldMap.filterNot(pair => newMap.contains(pair._1)).map(
-      pair => pair._1 -> pair._2.copy(mtime = now, ltime = now))
     val addedMap = newMap.filterNot(pair => oldMap.contains(pair._1))
 
     val changes = newMap.filter(pair => {
@@ -216,8 +242,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       case rec: Record => rec
     }
 
-    logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + removedMap.size)
-    Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = removedMap.values.toSeq)
+    logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + remove.size)
+    Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = remove)
   }
 
   /** setup CollectionState, initialize the records to be loaded from the DataStore before the Actor starts accepting message */
@@ -265,6 +291,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     if (Option(crawler) == None || Option(elector) == None) return
     val refresh = Utils.getProperty(ctx.config, "edda.collection", "refresh", name, "60000").toLong
     val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
+    val cacheFullRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.full.refresh", name, "1800000").toLong
     NamedActor(this + " refresher") {
       elector.addObserver(Actor.self)
       var amLeader = elector.isLeader
@@ -276,7 +303,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         val timeout = if (amLeader) refresh else cacheRefresh
         Actor.reactWithin(timeLeft(lastRun, timeout)) {
           case TIMEOUT => {
-            if (amLeader) crawler.crawl() else this ! Load(this)
+            val full = if( timeLeft(lastFullLoad, cacheFullRefresh) > 0 ) false else true
+            if (amLeader) crawler.crawl() else this ! Load(this, full)
             lastRun = DateTime.now
           }
           case Elector.ElectionResult(from, result) => {
@@ -297,7 +325,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         }
       }
     }.addExceptionHandler({
-      case e: Exception => logger.error(this + " failed to refresh")
+      case e: Exception => logger.error(this + " failed to refresh", e)
     })
   }
 
@@ -320,6 +348,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         } else 0
       }
     })
+
+  private[this] var lastFullLoad: DateTime = null
+  private[this] var lastLoad: DateTime = null
 
   // eliminate used-only-once warnings from IntelliJ
   if(false) crawlGauge
@@ -358,10 +389,50 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       }
       state
     }
-    case (Load(from), state) => {
+    case (Load(from, full), state) => {
       NamedActor(this + " Load processor") {
-        val records = doLoad(replicaOk = true)
-        this ! Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
+          val stopwatch = loadTimer.start()
+          val records = try {
+              if( full ) {
+                  logger.info(this + " doing full reload of collection");
+                  doLoad(replicaOk = true)
+              }
+              else {
+                  // TODO mtime should come from the last time the collection was crawled, not 'now'
+                  val now = DateTime.now
+                  val recs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad)), limit = 0, live = true, keys=Set(), replicaOk = true, state).map(_.copy(mtime=now))
+                  if( recs.size == 0 ) {
+                      localState(state).records
+                  } else {
+                      lastLoad = recs.maxBy( _.mtime.getMillis ).mtime
+                      val seen = scala.collection.mutable.Set[String]()
+                      val uniqRecs = recs.filter(r => {
+                          val in = seen.contains(r.id)
+                          if( !in ) seen += r.id
+                          !in
+                      })
+                      
+                      val addRecs = uniqRecs.filter( rec => rec.ltime == null )
+                      val delRecs = uniqRecs.filter( rec => rec.ltime != null )
+                      
+                      val oldMap = localState(state).records.map(rec => rec.id -> rec).toMap
+                      val addMap = addRecs.map( rec => rec.id -> rec).toMap
+                      ((oldMap ++ addMap) -- delRecs.map(_.id)).values.toSeq.sortWith((a, b) => a.stime.isAfter(b.stime))
+                  }
+              }
+          } catch {
+              case e: Exception => {
+                  loadErrorCounter.increment()
+                  throw e
+              }
+          } finally {
+                  stopwatch.stop()
+          }
+          loadCounter.increment()
+          logger.info("{} Loaded {} records in {} sec", toObjects(
+              this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
+
+          this ! Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
       }
       state
     }
