@@ -59,7 +59,7 @@ trait GroupCollection extends Collection {
         }
       }
     }.addExceptionHandler({
-      case e: Exception => logger.error(this + " failed to refresh")
+      case e: Exception => logger.error(this + " failed to refresh", e)
     })
 
   }

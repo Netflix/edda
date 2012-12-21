@@ -325,7 +325,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         }
       }
     }.addExceptionHandler({
-      case e: Exception => logger.error(this + " failed to refresh")
+      case e: Exception => logger.error(this + " failed to refresh", e)
     })
   }
 
