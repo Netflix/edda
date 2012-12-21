@@ -224,9 +224,10 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     records.foreach(upsert(_))
   }
 
-  /** ensures Indes for "stime", "ltime", and "id" */
+  /** ensures Indes for "stime", "mtime", "ltime", and "id" */
   def init() {
     mongo.ensureIndex(mapToMongo(Map("stime" -> -1)))
+    mongo.ensureIndex(mapToMongo(Map("mtime" -> -1)))
     mongo.ensureIndex(mapToMongo(Map("ltime" -> 1)))
     mongo.ensureIndex(mapToMongo(Map("id" -> 1)))
   }

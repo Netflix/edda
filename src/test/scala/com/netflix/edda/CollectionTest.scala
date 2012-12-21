@@ -21,6 +21,8 @@ import com.netflix.edda.basic.BasicContext
 
 import org.scalatest.FunSuite
 
+import org.joda.time.DateTime
+
 class CollectionTest extends FunSuite {
   val logger = LoggerFactory.getLogger(getClass)
   test("load") {
@@ -98,16 +100,20 @@ class CollectionTest extends FunSuite {
     }
 
     // now drop leader role and wait for dataStore results to reload
+    // but first set the ltime on the "a" record so it will be
+    // removed from the record set upon reload
     coll.elector.leader = false
-    coll.dataStore.get.records = dataStoreResults
+    val newA = coll.dataStore.get.records.head.copy(ltime=DateTime.now())
+    coll.dataStore.get.records = newA +: coll.dataStore.get.records.tail
     Thread.sleep(1000)
 
     expect(3) {
       coll.query().size
     }
 
+    // verify that "a" was removed after ltime was set 
+    expect(0) {
+      coll.query(Map("id" -> "a")).size
+    }    
   }
-
-  // test("query") {
-  // }
 }
