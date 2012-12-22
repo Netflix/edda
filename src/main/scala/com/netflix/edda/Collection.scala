@@ -349,8 +349,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       }
     })
 
-  private[this] var lastFullLoad: DateTime = null
-  private[this] var lastLoad: DateTime = null
+  private[this] var lastFullLoad: DateTime = new DateTime(0)
+  private[this] var lastLoad: DateTime = new DateTime(0)
 
   // eliminate used-only-once warnings from IntelliJ
   if(false) crawlGauge
