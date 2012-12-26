@@ -99,6 +99,7 @@ object AwsCollectionBuilder {
       new AwsAddressCollection(dsFactory, accountName, elector, ctx),
       asg,
       new AwsScalingPolicyCollection(dsFactory, accountName, elector, ctx),
+      new AwsAlarmCollection(dsFactory, accountName, elector, ctx),
       new AwsImageCollection(dsFactory, accountName, elector, ctx),
       elb,
       new AwsInstanceHealthCollection(elb.crawler, dsFactory, accountName, elector, ctx),
@@ -218,6 +219,26 @@ class AwsScalingPolicyCollection(
                                      override val ctx: AwsCollection.Context) extends RootCollection("aws.scalingPolicies", accountName, ctx) {
   val dataStore: Option[DataStore] = dsFactory(name)
   val crawler = new AwsScalingPolicyCrawler(name, ctx)
+}
+
+/** collection for AWS ASG Alarms
+  *
+  * root collection name: aws.alarms
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsAlarmCrawler]]
+  *
+  * @param dsFactory function that creates new DataStore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for configuration and AWS clients objects
+  */
+class AwsAlarmCollection(
+                                     dsFactory: String => Option[DataStore],
+                                     val accountName: String,
+                                     val elector: Elector,
+                                     override val ctx: AwsCollection.Context) extends RootCollection("aws.alarms", accountName, ctx) {
+  val dataStore: Option[DataStore] = dsFactory(name)
+  val crawler = new AwsAlarmCrawler(name, ctx)
 }
 
 /** collection for AWS Images

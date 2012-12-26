@@ -24,6 +24,7 @@ import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.sqs.AmazonSQSClient
+import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
 
 /** provides access to AWS service client objects
   *
@@ -83,6 +84,13 @@ class AwsClient(val credentials: AWSCredentials, val region: String) {
   def sqs = {
     val client = new AmazonSQSClient(credentials)
     client.setEndpoint("sqs." + region + ".amazonaws.com")
+    client
+  }
+
+  /** get [[com.amazonaws.services.sqs.AmazonCloudWatchClient]] object */
+  def cw = {
+    val client = new AmazonCloudWatchClient(credentials)
+    client.setEndpoint("monitoring." + region + ".amazonaws.com")
     client
   }
 }

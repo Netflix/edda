@@ -40,6 +40,8 @@ import com.amazonaws.services.s3.model.ListBucketsRequest
 import com.amazonaws.services.sqs.model.ListQueuesRequest
 import com.amazonaws.services.sqs.model.GetQueueAttributesRequest
 
+import com.amazonaws.services.cloudwatch.model.DescribeAlarmsRequest
+
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
 import com.amazonaws.services.autoscaling.model.DescribeLaunchConfigurationsRequest
 import com.amazonaws.services.autoscaling.model.DescribePoliciesRequest
@@ -168,6 +170,31 @@ class AwsScalingPolicyCrawler(val name: String, val ctx: AwsCrawler.Context) ext
         response.getScalingPolicies.asScala.map(
           item => {
             Record(item.getPolicyName, ctx.beanMapper(item))
+          }).toList
+      }
+    }
+    it.toList.flatten
+  }
+}
+
+/** crawler for CLoudWatch Alarms
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
+class AwsAlarmCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val request = new DescribeAlarmsRequest
+  request.setMaxRecords(100)
+
+  override def doCrawl() = {
+    val it = new AwsIterator() {
+      def next() = {
+        val response = ctx.awsClient.cw.describeAlarms(request.withNextToken(this.nextToken.get))
+        this.nextToken = Option(response.getNextToken)
+        response.getMetricAlarms.asScala.map(
+          item => {
+            Record(item.getAlarmName, ctx.beanMapper(item))
           }).toList
       }
     }
