@@ -180,6 +180,11 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     }
     try {
       cursor.asScala.toStream.map(mongoToRecord(_))
+    } catch {
+       case e: Exception => {
+            logger.error("query failed: " + queryMap + " limit: " + limit + " keys: " + keys + " replicaOk: " + replicaOk, e)
+            throw e
+        }
     } finally {
       cursor.close()
     }
