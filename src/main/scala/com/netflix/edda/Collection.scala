@@ -121,7 +121,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   /** see [[com.netflix.edda.Queryable.query()]].  Overridden to return Nil when Collection is not enabled */
   override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): Seq[Record] = {
-    if (enabled) super.query(queryMap, limit, live, keys) else Seq.empty
+    if (enabled) super.query(queryMap, limit, live, keys, replicaOk) else Seq.empty
   }
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Collection is not enabled */
