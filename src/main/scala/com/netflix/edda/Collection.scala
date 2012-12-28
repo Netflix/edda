@@ -359,9 +359,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   private def doLoad(replicaOk: Boolean): Seq[Record] = {
     val stopwatch = loadTimer.start()
     val records = try {
-      // TODO mtime should come from the last time the collection was crawled, not 'now'
-      val now = DateTime.now
-      load(replicaOk).map(_.copy(mtime = now))
+      load(replicaOk)
     } catch {
       case e: Exception => {
         loadErrorCounter.increment()
@@ -398,9 +396,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                   doLoad(replicaOk = true)
               }
               else {
-                  // TODO mtime should come from the last time the collection was crawled, not 'now'
-                  val now = DateTime.now
-                  val recs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad)), limit = 0, live = true, keys=Set(), replicaOk = true, state).map(_.copy(mtime=now))
+                  val recs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad)), limit = 0, live = true, keys=Set(), replicaOk = true, state)
                   if( recs.size == 0 ) {
                       localState(state).records
                   } else {

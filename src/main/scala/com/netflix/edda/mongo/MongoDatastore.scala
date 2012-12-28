@@ -226,7 +226,25 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
         }
       })
     
+
     records.foreach(upsert(_))
+
+    // need to update the mtime for all 'alive' records so that clients
+    // can detect when Edda data has gone stale (in case of AWS outage for instance).
+    // first find the most recent mtime from the records.
+    val mtime = d.records.maxBy( _.mtime.getMillis ).mtime
+    try {
+      // now update all records with null ltime to have the latest mtime
+      mongo.updateMulti(
+        mapToMongo(Map("ltime" -> null)), // query
+        mapToMongo(Map("$set" -> Map("mtime" -> mtime))) // update
+      )
+    } catch {
+      case e: Exception => {
+        logger.error(this + "failed to update mtime", e)
+        throw e
+      }
+    }
   }
 
   /** ensures Indes for "stime", "mtime", "ltime", and "id" */
