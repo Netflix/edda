@@ -158,6 +158,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
   import MongoDatastore._
 
   val mongo = mongoCollection(name, ctx)
+  val monitor = mongoCollection(ctx.config.getProperty("edda.mongo.monitor.collectionName", "sys.monitor"), ctx)
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
@@ -172,6 +173,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
   override def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     logger.info(this + " query: " + queryMap)
+    val mtime = collectionModified
     val mongoKeys = if (keys.isEmpty) null else mapToMongo(keys.map(_ -> 1).toMap)
     val cursor = {
       val cur = mongo.find(mapToMongo(queryMap), mongoKeys)
@@ -179,7 +181,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
       if( limit > 0 ) cur.sort(stimeIdSort).limit(limit) else cur.sort(stimeIdSort)
     }
     try {
-      cursor.asScala.toStream.map(mongoToRecord(_))
+      cursor.asScala.toStream.map(mongoToRecord(_)).map(r => if(r.ltime == null ) r.copy(mtime=mtime) else r)
     } catch {
        case e: Exception => {
             logger.error(this + " query failed: " + queryMap + " limit: " + limit + " keys: " + keys + " replicaOk: " + replicaOk, e)
@@ -197,13 +199,14 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     */
   override def load(replicaOk: Boolean): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
+    val mtime = collectionModified
     val cursor = {
       val cur = mongo.find(nullLtimeQuery)
       if (replicaOk) cur.addOption(Bytes.QUERYOPTION_SLAVEOK)
       cur.sort(stimeIdSort)
     }
     try {
-      val x = cursor.asScala.map(mongoToRecord(_)).toSeq
+      val x = cursor.asScala.map(mongoToRecord(_)).toSeq.map(_.copy(mtime=mtime))
       logger.info(this + " Loaded " + x.size + " records")
       x
     } finally {
@@ -228,20 +231,48 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     
 
     records.foreach(upsert(_))
+    markCollectionModified
 
     // need to update the mtime for all 'alive' records so that clients
     // can detect when Edda data has gone stale (in case of AWS outage for instance).
     // first find the most recent mtime from the records.
     val mtime = d.records.maxBy( _.mtime.getMillis ).mtime
-    try {
       // now update all records with null ltime to have the latest mtime
       mongo.updateMulti(
         mapToMongo(Map("ltime" -> null)), // query
         mapToMongo(Map("$set" -> Map("mtime" -> mtime))) // update
       )
+  }
+
+  def collectionModified: DateTime  = {
+      val rec = monitor.findOne(mapToMongo(Map("_id" -> name)));
+      if( rec == null ) DateTime.now() else mongoToRecord(rec).mtime
+  }
+
+  def markCollectionModified = {
+    try {
+      val now = DateTime.now()
+      monitor.findAndModify(
+        mapToMongo(Map("_id" -> name)),
+        null, // fields
+        null, // sort
+        false, // remove
+        mapToMongo( // update
+          Map(
+          "_id" -> name,
+          "id" -> name,
+          "ctime" -> now,
+          "mtime" -> now,
+          "stime" -> now,
+          "ltime" -> null,
+          "data" -> Map("updated" -> now, "id" -> name, "type" -> "collection"))
+        ),
+        false, // returnNew
+        true // upsert
+      )
     } catch {
       case e: Exception => {
-        logger.error(this + "failed to update mtime", e)
+        logger.error(this + "failed to update collection mtime", e)
         throw e
       }
     }
