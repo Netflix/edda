@@ -216,21 +216,28 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
 
   /** update records, delete removed records, insert added records */
   override def update(d: Collection.Delta) {
-    val records = d.removed ++ d.added ++ d.changed.flatMap(
+    val dropHistory = {
+      if (ctx.config.getProperty("edda.datastore.dropHistory", "false") == "true") true else false
+    }
+    val oldRecords = d.removed ++ d.changed.flatMap(
       pair => {
         // only update oldRecord if the stime is changed, this allows
         // for inplace updates when we dont want to create new document
         // revision, but still want the record updated
         if (pair.oldRecord.stime != pair.newRecord.stime) {
-            Seq(pair.oldRecord, pair.newRecord)
+            Seq(pair.oldRecord)
         }
         else {
-            Seq(pair.newRecord)
+            Nil
         }
       })
+    val newRecords = d.added ++ d.changed.flatMap(
+      pair => { Seq(pair.newRecord) }
+      )
     
 
-    records.foreach(upsert(_))
+    oldRecords.foreach(r => { if (dropHistory) remove(r) else upsert(r) })
+    newRecords.foreach(upsert(_))
     markCollectionModified
 
     // need to update the mtime for all 'alive' records so that clients
@@ -304,6 +311,20 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
       }
     }
   }
+
+  protected def remove(record: Record) {
+    try {
+      mongo.remove(
+        mapToMongo(Map("_id" -> (record.id + "|" + record.stime.getMillis))) // query
+      )
+    } catch {
+      case e: Exception => {
+        logger.error("failed to remove record: " + record)
+        throw e
+      }
+    }
+  }
+
 
   override def toString = "[MongoDatastore " + name + "]"
 }
