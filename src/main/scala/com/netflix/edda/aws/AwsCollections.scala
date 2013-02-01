@@ -155,7 +155,8 @@ object AwsCollection {
         "privateIpAddress" -> instanceData.get("privateIpAddress").getOrElse(null),
         "publicDnsName" -> instanceData.get("publicDnsName").getOrElse(null),
         "publicIpAddress" -> instanceData.get("publicIpAddress").getOrElse(null),
-        "start" -> instance.ctime)
+        "start" -> instance.ctime,
+        "vpcId" -> instanceData.get("vpcId").getOrElse(null))
     })
     newInstances
   }
