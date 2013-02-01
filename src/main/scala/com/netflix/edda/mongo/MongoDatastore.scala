@@ -219,25 +219,20 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     val dropHistory = {
       if (ctx.config.getProperty("edda.datastore.dropHistory", "false") == "true") true else false
     }
-    val oldRecords = d.removed ++ d.changed.flatMap(
+    val records = d.removed ++ d.added ++ d.changed.flatMap(
       pair => {
         // only update oldRecord if the stime is changed, this allows
         // for inplace updates when we dont want to create new document
         // revision, but still want the record updated
         if (pair.oldRecord.stime != pair.newRecord.stime) {
-            Seq(pair.oldRecord)
+            Seq(pair.oldRecord, pair.newRecord)
         }
         else {
-            Nil
+            Seq(pair.newRecord)
         }
       })
-    val newRecords = d.added ++ d.changed.flatMap(
-      pair => { Seq(pair.newRecord) }
-      )
     
-
-    oldRecords.foreach(r => { if (dropHistory) remove(r) else upsert(r) })
-    newRecords.foreach(upsert(_))
+    records.foreach( r => if (dropHistory && r.ltime != null) remove(r) else upsert(r) )
     markCollectionModified
 
     // need to update the mtime for all 'alive' records so that clients
