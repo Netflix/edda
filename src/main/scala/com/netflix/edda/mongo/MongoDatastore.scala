@@ -280,6 +280,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
 
   /** ensures Indes for "stime", "mtime", "ltime", and "id" */
   def init() {
+    mongo.ensureIndex(mapToMongo(Map("stime" -> -1, "id" -> 1)))
     mongo.ensureIndex(mapToMongo(Map("stime" -> -1)))
     mongo.ensureIndex(mapToMongo(Map("mtime" -> -1)))
     mongo.ensureIndex(mapToMongo(Map("ltime" -> 1)))
