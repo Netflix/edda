@@ -108,6 +108,11 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     */
   def elector: Elector
 
+
+  /** allow option to skip cache usage and go straigt to datastore
+   */
+  lazy val liveOverride = Utils.getProperty(ctx.config, "edda.collection", "noCache", name, "false").toBoolean
+
   /** use separate ForkJoin scheduler for the Collection actors so one Collection doesn't end
     * up starving the global actor pool.
     */
@@ -121,7 +126,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   /** see [[com.netflix.edda.Queryable.query()]].  Overridden to return Nil when Collection is not enabled */
   override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): Seq[Record] = {
-    if (enabled) super.query(queryMap, limit, live, keys, replicaOk) else Seq.empty
+    if (enabled) super.query(queryMap, limit, live || liveOverride, keys, replicaOk) else Seq.empty
   }
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Collection is not enabled */
@@ -137,7 +142,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   /** query datastore or in memory collection. */
   protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
     // generate function
-    if (live) {
+    if (live || liveOverride) {
       if (dataStore.isDefined) {
         return dataStore.get.query(queryMap, limit, keys, replicaOk)
       } else {
