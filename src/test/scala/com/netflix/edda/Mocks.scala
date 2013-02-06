@@ -16,6 +16,7 @@
 package com.netflix.edda
 
 import com.netflix.edda.basic.BasicContext
+import org.joda.time.DateTime
 
 class TestDataStore extends DataStore {
   var records = Seq[Record]()
@@ -33,6 +34,10 @@ class TestDataStore extends DataStore {
 
   def update(d: Collection.Delta) {
     records = d.records
+  }
+
+  def collectionModified = {
+      DateTime.now
   }
 }
 

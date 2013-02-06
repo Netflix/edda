@@ -15,6 +15,8 @@
  */
 package com.netflix.edda
 
+import org.joda.time.DateTime
+
 /** basic interface for data stores to persist Crawler/Collection state */
 trait DataStore {
   /** setup data store connections */
@@ -33,4 +35,7 @@ trait DataStore {
 
   /** make changes to the data store depending on the Collection delta found after a Crawl result */
   def update(d: Collection.Delta)
+
+  /** when was the last time the collection was updated */
+  def collectionModified: DateTime
 }

@@ -149,11 +149,15 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         logger.warn("DataStore is not available, applying query to cached records")
       }
     }
-    if (queryMap.isEmpty) {
+    val recs = if (queryMap.isEmpty) {
       firstOf(limit, localState(state).records)
     } else {
       firstOf(limit, localState(state).records.filter(record => ctx.recordMatcher.doesMatch(queryMap, record.toMap)))
     }
+    if( dataStore.isDefined ) {
+        val mtime = dataStore.get.collectionModified
+        recs.map(_.copy(mtime=mtime))
+    } else recs
   }
 
   /** load collection from Datastore (if available) */
