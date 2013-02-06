@@ -237,16 +237,6 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     
     records.foreach( r => if (dropHistory && r.ltime != null) remove(r) else upsert(r) )
     markCollectionModified
-
-    // need to update the mtime for all 'alive' records so that clients
-    // can detect when Edda data has gone stale (in case of AWS outage for instance).
-    // first find the most recent mtime from the records.
-    val mtime = d.records.maxBy( _.mtime.getMillis ).mtime
-      // now update all records with null ltime to have the latest mtime
-      mongo.updateMulti(
-        mapToMongo(Map("ltime" -> null)), // query
-        mapToMongo(Map("$set" -> Map("mtime" -> mtime))) // update
-      )
   }
 
   def collectionModified: DateTime  = {
