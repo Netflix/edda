@@ -172,9 +172,9 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     */
   override def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
-    logger.info(this + " query: " + queryMap)
     val mtime = collectionModified
     val mongoKeys = if (keys.isEmpty) null else mapToMongo(keys.map(_ -> 1).toMap)
+    val t0 = System.nanoTime()
     val cursor = {
       val cur = mongo.find(mapToMongo(queryMap), mongoKeys)
       if (replicaOk) cur.addOption(Bytes.QUERYOPTION_SLAVEOK)
@@ -188,6 +188,9 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
             throw e
         }
     } finally {
+      val t1 = System.nanoTime()
+      val lapse = (t1 - t0) / 1000000;
+      logger.info(this + " query: " + queryMap + " lapse: " + lapse + "ms")
       cursor.close()
     }
   }
