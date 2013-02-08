@@ -117,25 +117,44 @@ object MongoDatastore {
     Utils.getProperty(props, "edda", "mongo." + propName, "datastore." + dsName, dflt)
   }
 
+  var primaryMongoConnections: Map[String,Mongo] = Map()
+  var replicaMongoConnections: Map[String,Mongo] = Map()
+
   /** from the collection name string return a Mongo DB Connection */
-  def mongoConnection(name: String, ctx: ConfigContext) = {
+  def mongoConnection(name: String, ctx: ConfigContext, replicaOk: Boolean): Mongo = {
     import collection.JavaConverters._
-    val servers = mongoProperty(ctx.config, "address", name, "").split(',').map(
-      hostport => {
-        val parts = hostport.split(':')
-        if (parts.length > 1) {
-          new ServerAddress(parts(0), parts(1).toInt)
-        } else {
-          new ServerAddress(parts(0))
-        }
-      }).toList
-    new Mongo(servers.asJava)
+    val servers = mongoProperty(ctx.config, "address", name, "");
+    if( replicaOk && replicaMongoConnections.contains(servers) ) 
+        replicaMongoConnections(servers)
+    else if( !replicaOk && primaryMongoConnections.contains(servers) ) 
+        primaryMongoConnections(servers)
+    else {
+        val serverList = util.Random.shuffle(
+            servers.split(',').map(
+                hostport => {
+                    val parts = hostport.split(':')
+                    if (parts.length > 1) {
+                        new ServerAddress(parts(0), parts(1).toInt)
+                    } else {
+                        new ServerAddress(parts(0))
+                    }
+                }).toList
+        )
+        val primary = new Mongo(serverList.asJava)
+        primaryMongoConnections += (servers -> primary)
+
+        val replica = new Mongo(serverList.asJava)
+        replica.slaveOk()
+        replicaMongoConnections += (servers -> replica)
+
+        if(replicaOk) replica else primary
+    }
   }
 
   /** from the collection name string return a Mongo Collection (creates the collection
     * if it does not exist) */
-  def mongoCollection(name: String, ctx: ConfigContext) = {
-    val conn = mongoConnection(name, ctx)
+  def mongoCollection(name: String, ctx: ConfigContext, replicaOk: Boolean = false) = {
+    val conn = mongoConnection(name, ctx, replicaOk)
     val db = conn.getDB(mongoProperty(ctx.config, "database", name, "edda"))
     val user = mongoProperty(ctx.config, "user", name, null)
     if (user != null) {
@@ -157,7 +176,8 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
 
   import MongoDatastore._
 
-  val mongo = mongoCollection(name, ctx)
+  val primary = mongoCollection(name, ctx)
+  val replica = mongoCollection(name, ctx, replicaOk=true)
   val monitor = mongoCollection(ctx.config.getProperty("edda.mongo.monitor.collectionName", "sys.monitor"), ctx)
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
@@ -176,8 +196,8 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     val mongoKeys = if (keys.isEmpty) null else mapToMongo(keys.map(_ -> 1).toMap)
     val t0 = System.nanoTime()
     val cursor = {
+      val mongo = if(replicaOk) replica else primary
       val cur = mongo.find(mapToMongo(queryMap), mongoKeys)
-      if (replicaOk) cur.addOption(Bytes.QUERYOPTION_SLAVEOK)
       if( limit > 0 ) cur.sort(stimeIdSort).limit(limit) else cur.sort(stimeIdSort)
     }
     try {
@@ -204,8 +224,8 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     val mtime = collectionModified
     val cursor = {
+      val mongo = if(replicaOk) replica else primary
       val cur = mongo.find(nullLtimeQuery)
-      if (replicaOk) cur.addOption(Bytes.QUERYOPTION_SLAVEOK)
       cur.sort(stimeIdSort)
     }
     try {
@@ -275,16 +295,16 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
 
   /** ensures Indes for "stime", "mtime", "ltime", and "id" */
   def init() {
-    mongo.ensureIndex(mapToMongo(Map("stime" -> -1, "id" -> 1)))
-    mongo.ensureIndex(mapToMongo(Map("stime" -> -1)))
-    mongo.ensureIndex(mapToMongo(Map("mtime" -> -1)))
-    mongo.ensureIndex(mapToMongo(Map("ltime" -> 1)))
-    mongo.ensureIndex(mapToMongo(Map("id" -> 1)))
+    primary.ensureIndex(mapToMongo(Map("stime" -> -1, "id" -> 1)))
+    primary.ensureIndex(mapToMongo(Map("stime" -> -1)))
+    primary.ensureIndex(mapToMongo(Map("mtime" -> -1)))
+    primary.ensureIndex(mapToMongo(Map("ltime" -> 1)))
+    primary.ensureIndex(mapToMongo(Map("id" -> 1)))
   }
 
   protected def upsert(record: Record) {
     try {
-      mongo.findAndModify(
+      primary.findAndModify(
         mapToMongo(Map("_id" -> (record.id + "|" + record.stime.getMillis))), // query
         null, // fields
         null, // sort
@@ -303,7 +323,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
 
   protected def remove(record: Record) {
     try {
-      mongo.remove(
+      primary.remove(
         mapToMongo(Map("_id" -> (record.id + "|" + record.stime.getMillis))) // query
       )
     } catch {
