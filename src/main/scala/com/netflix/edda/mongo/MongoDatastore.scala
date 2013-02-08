@@ -121,7 +121,7 @@ object MongoDatastore {
   var replicaMongoConnections: Map[String,Mongo] = Map()
 
   /** from the collection name string return a Mongo DB Connection */
-  def mongoConnection(name: String, ctx: ConfigContext, replicaOk: Boolean): Mongo = {
+  def mongoConnection(name: String, ctx: ConfigContext, replicaOk: Boolean = false): Mongo = {
     import collection.JavaConverters._
     val servers = mongoProperty(ctx.config, "address", name, "");
     if( replicaOk && replicaMongoConnections.contains(servers) ) 
