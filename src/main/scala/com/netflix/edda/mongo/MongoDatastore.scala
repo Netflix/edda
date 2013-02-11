@@ -27,6 +27,7 @@ import com.mongodb.BasicDBObject
 import com.mongodb.DBObject
 import com.mongodb.BasicDBList
 import com.mongodb.Mongo
+import com.mongodb.MongoOptions
 import com.mongodb.ServerAddress
 import com.mongodb.Bytes
 
@@ -140,10 +141,18 @@ object MongoDatastore {
                     }
                 }).toList
         )
-        val primary = new Mongo(serverList.asJava)
+
+        val options = new MongoOptions;
+        options.autoConnectRetry = true;
+        options.connectTimeout = 500;
+        options.connectionsPerHost = 40;
+        options.socketKeepAlive = true;
+        options.threadsAllowedToBlockForConnectionMultiplier = 8;
+        
+        val primary = new Mongo(serverList.asJava, options)
         primaryMongoConnections += (servers -> primary)
 
-        val replica = new Mongo(serverList.asJava)
+        val replica = new Mongo(serverList.asJava, options)
         replica.slaveOk()
         replicaMongoConnections += (servers -> replica)
 
