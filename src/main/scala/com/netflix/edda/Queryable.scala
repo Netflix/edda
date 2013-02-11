@@ -43,6 +43,8 @@ abstract class Queryable extends Observable {
   private[this] val queryCounter = Monitors.newCounter("query.count")
   private[this] val queryErrorCounter = Monitors.newCounter("query.errors")
 
+  def queryTimeout = 60000L
+
   /** query a collection for Records.
    *
    * @param queryMap query criteria to select records.  See [[com.netflix.edda.basic.BasicRecordMatcher]]
@@ -55,7 +57,7 @@ abstract class Queryable extends Observable {
   def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): Seq[Record] = {
     val self = this
     val stopwatch = queryTimer.start()
-    self !?(60000, Query(self, queryMap, limit, live, keys, replicaOk)) match {
+    self !?(queryTimeout, Query(self, queryMap, limit, live, keys, replicaOk)) match {
       case Some(QueryResult(`self`, results)) => {
         stopwatch.stop()
         queryCounter.increment()
@@ -64,7 +66,7 @@ abstract class Queryable extends Observable {
       case None => {
         stopwatch.stop()
         queryErrorCounter.increment()
-        throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to fetch query results within 60s for query: " + queryMap + " limit: " + limit + " keys: " + keys)
+        throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to fetch query results within " + queryTimeout + "ms for query: " + queryMap + " limit: " + limit + " keys: " + keys)
       }
     }
   }

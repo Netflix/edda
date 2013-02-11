@@ -142,12 +142,15 @@ object MongoDatastore {
                 }).toList
         )
 
-        val options = new MongoOptions;
-        options.autoConnectRetry = true;
-        options.connectTimeout = 500;
-        options.connectionsPerHost = 40;
-        options.socketKeepAlive = true;
-        options.threadsAllowedToBlockForConnectionMultiplier = 8;
+        val queryTimeout = Utils.getProperty(ctx.config, "edda.collection", "queryTimeout", name, "60000").toInt
+
+        val options = new MongoOptions
+        options.autoConnectRetry = true
+        options.connectTimeout = 500
+        options.connectionsPerHost = 40
+        options.socketKeepAlive = true
+        options.socketTimeout = queryTimeout
+        options.threadsAllowedToBlockForConnectionMultiplier = 8
         
         val primary = new Mongo(serverList.asJava, options)
         primaryMongoConnections += (servers -> primary)

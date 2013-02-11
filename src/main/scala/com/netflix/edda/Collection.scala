@@ -17,7 +17,7 @@ package com.netflix.edda
 
 import scala.actors.Actor
 import scala.actors.TIMEOUT
-import scala.actors.scheduler.ForkJoinScheduler
+// import scala.actors.scheduler.ForkJoinScheduler
 import scala.util.Random
 
 import java.util.concurrent.TimeUnit
@@ -113,16 +113,19 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
    */
   lazy val liveOverride = Utils.getProperty(ctx.config, "edda.collection", "noCache", name, "false").toBoolean
 
-  /** use separate ForkJoin scheduler for the Collection actors so one Collection doesn't end
-    * up starving the global actor pool.
-    */
-  lazy val fjScheduler = new ForkJoinScheduler(
-    Utils.getProperty(ctx.config, "edda.collection", "scheduler.coreSize", name, "5").toInt,
-    Utils.getProperty(ctx.config, "edda.collection", "scheduler.maxSize", name, "50").toInt,
-    true,
-    true
-  )
-  override def scheduler = fjScheduler
+  override
+  lazy val queryTimeout = Utils.getProperty(ctx.config, "edda.collection", "queryTimeout", name, "60000").toLong
+
+  // /** use separate ForkJoin scheduler for the Collection actors so one Collection doesn't end
+  //   * up starving the global actor pool.
+  //   */
+  // lazy val fjScheduler = new ForkJoinScheduler(
+  //   Utils.getProperty(ctx.config, "edda.collection", "scheduler.coreSize", name, "5").toInt,
+  //   Utils.getProperty(ctx.config, "edda.collection", "scheduler.maxSize", name, "50").toInt,
+  //   true,
+  //   true
+  // )
+  // override def scheduler = fjScheduler
 
   /** see [[com.netflix.edda.Queryable.query()]].  Overridden to return Nil when Collection is not enabled */
   override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): Seq[Record] = {
@@ -522,7 +525,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     logger.info("Stoping " + this)
     Option(elector).foreach(_.stop())
     Option(crawler).foreach(_.stop())
-    fjScheduler.shutdown()
+    // fjScheduler.shutdown()
     super.stop()
   }
 }
