@@ -88,6 +88,8 @@ class CollectionResource {
 
     details.matrixArgs.foreach {
       case (k, null) => query += prefix + k -> Map("$nin" -> List(null, ""))
+      case (k, "true") => query += prefix + k -> true
+      case (k, "false") => query += prefix + k -> false
       case (k, v: String) if v.contains(',') =>
         query += prefix + k -> Map("$in" -> v.split(',').toList)
       case (k, v) => query += prefix + k -> v
