@@ -18,6 +18,7 @@ package com.netflix.edda
 import scala.actors.Actor
 
 import com.netflix.servo.monitor.Monitors
+import org.slf4j.LoggerFactory
 
 /** Queryable companion object that declares StateMachine messages used to query Collections */
 object Queryable {
@@ -39,6 +40,8 @@ abstract class Queryable extends Observable {
 
   import Queryable._
 
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+
   private[this] val queryTimer = Monitors.newTimer("query")
   private[this] val queryCounter = Monitors.newCounter("query.count")
   private[this] val queryErrorCounter = Monitors.newCounter("query.errors")
@@ -57,7 +60,9 @@ abstract class Queryable extends Observable {
   def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): Seq[Record] = {
     val self = this
     val stopwatch = queryTimer.start()
-    self !?(queryTimeout, Query(self, queryMap, limit, live, keys, replicaOk)) match {
+    val msg = Query(self, queryMap, limit, live, keys, replicaOk)
+    logger.debug(this + " sending: " + msg + " -> " + self + " with " + queryTimeout + "ms timeout")
+    self !?(queryTimeout, msg) match {
       case Some(QueryResult(`self`, results)) => {
         stopwatch.stop()
         queryCounter.increment()
@@ -84,7 +89,9 @@ abstract class Queryable extends Observable {
     case (Query(from, queryMap, limit, live, keys, replicaOk), state) => {
       val replyTo = sender
       Utils.NamedActor(this + " Query processor") {
-        replyTo ! QueryResult(this, doQuery(queryMap, limit, live, keys, replicaOk, state))
+        val msg = QueryResult(this, doQuery(queryMap, limit, live, keys, replicaOk, state))
+        logger.debug(this + " sending: " + msg + " -> " + replyTo)
+        replyTo ! msg
       }
       state
     }

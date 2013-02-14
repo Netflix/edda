@@ -53,7 +53,9 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
   /** synchronous call to the StateMachine to fetch the leadership status */
   def isLeader: Boolean = {
     val self = this
-    this !?(10000, IsLeader(this)) match {
+    val msg = IsLeader(this)
+    logger.debug(this + " sending: " + msg + " -> " + this + " with 10000ms timeout")
+    this !?(10000, msg) match {
       case Some(ElectionResult(`self`, result)) => result
       case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to determine leadership: " + message)
       case None => throw new java.lang.RuntimeException("TIMEOUT: isLeader response within 10s")
@@ -75,7 +77,9 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
     Actor.actor {
       this.addObserver(this)
     }
-    this ! RunElection(this)
+    val msg = RunElection(this)
+    logger.debug(this + " sending: " + msg + " -> " + this)
+    this ! msg
     electionPoller()
   }
 
@@ -86,7 +90,9 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
       Actor.loop {
         Actor.reactWithin(pollCycle) {
           case TIMEOUT => {
-            elector ! RunElection(this)
+            val msg = RunElection(this)
+            logger.debug(this + " sending: " + msg + " -> " + elector)
+            elector ! msg
           }
         }
       }
@@ -100,7 +106,11 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
     case (RunElection(from), state) => {
       Utils.NamedActor(this + " election runner") {
         val result = runElection()
-        Observable.localState(state).observers.foreach(_ ! ElectionResult(this, result))
+        val msg = ElectionResult(this, result)
+        Observable.localState(state).observers.foreach(o => {
+            logger.debug(this + " sending: " + msg + " -> " + o)
+            o ! msg
+        })
       }
       state
     }
@@ -108,7 +118,9 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
       setLocalState(state, ElectorState(result))
     }
     case (IsLeader(from), state) => {
-      sender ! ElectionResult(this, localState(state).isLeader)
+      val msg = ElectionResult(this, localState(state).isLeader)
+      logger.debug(this + " sending: " + msg + " -> " + sender)
+      sender ! msg
       state
     }
   }

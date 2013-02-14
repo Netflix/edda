@@ -106,7 +106,9 @@ class StateMachine extends Actor {
 
   /** stop the state machine */
   def stop() {
-    this ! Stop(this)
+    val msg = Stop(this)
+    logger.debug(this + " sending: " + msg + " -> " + this)
+    this ! msg
   }
 
   /** used from subclasses initState routine to add their localState object to the overall StateMachine state */
@@ -156,9 +158,11 @@ class StateMachine extends Actor {
         case message: Message => {
           if (!transitions.isDefinedAt(message, state)) {
             logger.error("Unknown Message " + message + " sent from " + sender)
-            sender ! UnknownMessageError(this, "Unknown Message " + message, message)
+            val msg = UnknownMessageError(this, "Unknown Message " + message, message) 
+            logger.debug(this + " sending: " + msg + " -> " + sender)
+            sender ! msg
           }
-          logger.debug(sender + ": " + message + " -> " + this)
+          logger.debug(sender + " received: " + message + " -> " + this)
           try {
             state = transitions(message, state)
           } catch {
@@ -169,7 +173,9 @@ class StateMachine extends Actor {
         }
         case message => {
           logger.error("Invalid Message " + message + " sent from " + sender)
-          sender ! InvalidMessageError(this, "Invalid Message " + message, message)
+          val msg = InvalidMessageError(this, "Invalid Message " + message, message) 
+          logger.debug(this + " sending: " + msg + " -> " + sender)
+          sender ! msg
         }
       }
     }

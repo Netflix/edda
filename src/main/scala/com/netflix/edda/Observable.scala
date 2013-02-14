@@ -17,6 +17,8 @@ package com.netflix.edda
 
 import scala.actors.Actor
 
+import org.slf4j.LoggerFactory
+
 /** local state for StateMachine */
 case class ObservableState(observers: List[Actor] = List[Actor]())
 
@@ -44,9 +46,13 @@ abstract class Observable extends StateMachine {
 
   import Observable._
 
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+
   //* notify the given actor when the state changes */
   def addObserver(actor: Actor) {
-    this !?(60000, Observe(this, actor)) match {
+    val msg = Observe(this, actor)
+    logger.debug(this + " sending: " + msg + " -> " + this + " with 60s timeout")
+    this !?(60000, msg) match {
       case Some(OK(from)) =>
       case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to add observer " + message)
       case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to register observer in 60s")
@@ -55,7 +61,9 @@ abstract class Observable extends StateMachine {
 
   //* stop notifying the give actor when the state changes */
   def delObserver(actor: Actor) {
-    this !?(60000, Ignore(this, actor)) match {
+    val msg = Ignore(this, actor)
+    logger.debug(this + " sending: " + msg + " -> " + this + " with 60s timeout")
+    this !?(60000, msg) match {
       case Some(OK(from)) =>
       case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to remove observer " + message)
       case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " ailed to unregister observer in 60s")
@@ -67,11 +75,15 @@ abstract class Observable extends StateMachine {
   /** setup trasitions to handle Oberserve and Ignore messages */
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Observe(from, caller), state) => {
-      sender ! OK(this)
+      val msg = OK(this)
+      logger.debug(this + " sending: " + msg + " -> " + sender)
+      sender ! msg
       setLocalState(state, ObservableState(caller :: localState(state).observers))
     }
     case (Ignore(from, caller), state) => {
-      sender ! OK(this)
+      val msg = OK(this)
+      logger.debug(this + " sending: " + msg + " -> " + sender)
+      sender ! msg
       setLocalState(state, ObservableState(localState(state).observers diff List(caller)))
     }
   }

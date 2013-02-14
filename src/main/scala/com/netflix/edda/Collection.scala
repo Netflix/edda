@@ -316,7 +316,13 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         Actor.reactWithin(timeLeft(lastRun, timeout)) {
           case TIMEOUT => {
             val full = if( timeLeft(lastFullLoad, cacheFullRefresh) > 0 ) false else true
-            if (amLeader) crawler.crawl() else this ! Load(this, full)
+            if (amLeader) { 
+                crawler.crawl() }
+            else {
+                val msg = Load(this,full)
+                logger.debug(this + " sending: " + msg + " -> " + this)
+                this ! msg
+            }
             lastRun = DateTime.now
           }
           case Elector.ElectionResult(from, result) => {
@@ -394,8 +400,12 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       val replyTo = sender
       NamedActor(this + " SyncLoad processor") {
         val records = doLoad(replicaOk = false)
-        this ! Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
-        replyTo ! OK(this)
+        val msg = Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
+        logger.debug(this + " sending: " + msg + " -> " + this)
+        this ! msg
+        val msg2 = OK(this)
+        logger.debug(this + " sending: " + msg2 + " -> " + replyTo)
+        replyTo ! msg2
       }
       state
     }
@@ -440,7 +450,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           logger.info("{} Loaded {} records in {} sec", toObjects(
               this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
 
-          this ! Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
+          val msg = Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
+          logger.debug(this + " sending: " + msg + " -> " + this)
+          this ! msg
       }
       state
     }
@@ -472,7 +484,11 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
               logger.info("\n{}", diff)
             })
 
-          Observable.localState(state).observers.foreach(_ ! DeltaResult(this, d))
+          val msg = DeltaResult(this, d)
+          Observable.localState(state).observers.foreach(o => {
+              logger.debug(this + " sending: " + msg + " -> " + o)
+              o ! msg
+          })
         }
         setLocalState(state, localState(state).copy(crawled = newRecords))
       } else state

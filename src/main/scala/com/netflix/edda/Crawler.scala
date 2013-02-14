@@ -58,7 +58,11 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
 
   /** start a crawl if the crawler is enabled */
   def crawl() {
-    if (enabled) this ! Crawl(this)
+    if (enabled) {
+        val msg = Crawl(this)
+        logger.debug(this + " sending: " + msg + " -> " + this)
+        this ! msg
+    }
   }
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Crawler is not enabled */
@@ -109,7 +113,11 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
       logger.info("{} Crawled {} records in {} sec", toObjects(
         this, newRecords.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000D -> "%.2f"))
       crawlCounter.increment(newRecords.size)
-      Observable.localState(state).observers.foreach(_ ! Crawler.CrawlResult(this, newRecords))
+      Observable.localState(state).observers.foreach(o => {
+          val msg = Crawler.CrawlResult(this, newRecords)
+          logger.debug(this + " sending: " + msg + " -> " + o)
+          o ! msg
+      })
       setLocalState(state, CrawlerState(records = newRecords))
 
       // } else state

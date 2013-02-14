@@ -47,7 +47,11 @@ trait GroupCollection extends Collection {
         val timeout = cacheRefresh
         Actor.reactWithin(timeLeft(lastRun, timeout)) {
           case TIMEOUT => {
-            if (!amLeader) this ! Collection.Load(this)
+            if (!amLeader) {
+              val msg = Collection.Load(this)
+              logger.debug(this + " sending: " + msg + " -> " + this)
+              this ! msg
+            }
             lastRun = DateTime.now
           }
           case Elector.ElectionResult(from, result) => {
