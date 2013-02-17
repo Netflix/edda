@@ -15,6 +15,8 @@
  */
 package com.netflix.edda.aws
 
+import scala.actors.Actor
+
 import com.netflix.edda.StateMachine
 import com.netflix.edda.Crawler
 import com.netflix.edda.CrawlerState
@@ -307,7 +309,11 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
   protected override def initState = addInitialState(super.initState, newLocalState(AwsInstanceHealthCrawlerState()))
 
   protected override def init() {
-    crawler.addObserver(this)
+    import Utils._
+    crawler.addObserver(this) {
+      case Failure(msg) => this.init
+      case Success(msg) => super.init
+    }
   }
 
   protected def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
@@ -407,7 +413,11 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
   protected override def initState = addInitialState(super.initState, newLocalState(AwsInstanceCrawlerState()))
 
   protected override def init() {
-    crawler.addObserver(this)
+    import Utils._
+    crawler.addObserver(this) {
+      case Failure(msg) => Actor.self.restart
+      case Success(msg) => super.init
+    }
   }
 
   protected def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {

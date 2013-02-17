@@ -35,6 +35,18 @@ object Utils {
   private lazy val factory = new MappingJsonFactory
   private lazy val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
 
+  class EventStatus() {}
+  
+  type EventHandlers = PartialFunction[EventStatus,Unit]
+  
+  case class Success(event: Any) extends EventStatus
+  case class Failure(event: Any) extends EventStatus
+  
+  val DefaultEventHandlers: EventHandlers = {
+    case Success(event) => 
+    case Failure(event) => throw new java.lang.RuntimeException(event.toString)
+  }
+
   /** class used to assist logging and allow for abstracted exception handling
     * for simple actors
     * @param name name of actor that is seen when logging

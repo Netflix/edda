@@ -16,6 +16,7 @@
 package com.netflix.edda
 
 import scala.actors.Actor
+import scala.actors.TIMEOUT
 
 import java.util.concurrent.TimeUnit
 
@@ -60,19 +61,29 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
   def crawl() {
     if (enabled) {
         val msg = Crawl(this)
-        logger.debug(this + " sending: " + msg + " -> " + this)
+        logger.debug(Actor.self + " sending: " + msg + " -> " + this)
         this ! msg
     }
   }
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Crawler is not enabled */
-  override def addObserver(actor: Actor) {
-    if (enabled) super.addObserver(actor)
+  override def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
+    if (enabled) super.addObserver(actor)(events) else Actor.self.reactWithin(0) {
+      case got @ TIMEOUT => {
+        logger.debug(Actor.self + " received: " + got + " from " + sender + " for disabled crawler")
+        events(Success(Observable.OK(Actor.self)))
+      }
+    }
   }
 
   /** see [[com.netflix.edda.Observable.delObserver()]].  Overridden to be a NoOp when Crawler is not enabled */
-  override def delObserver(actor: Actor) {
-    if (enabled) super.delObserver(actor)
+  override def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
+    if (enabled) super.delObserver(actor)(events) else Actor.self.reactWithin(0) {
+      case got @ TIMEOUT => {
+        logger.debug(Actor.self + " received: " + got + " from " + sender + " for disabled crawler")
+        events(Success(Observable.OK(Actor.self)))
+      }
+    }
   }
 
   /** name of the Crawler, typically matches the name of the Collection that the Crawler works with */
@@ -92,6 +103,7 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
   /** init just registers metrics for Servo */
   protected override def init() {
     Monitors.registerObject("edda.crawler." + name, this)
+    super.init
   }
 
   /** handle Crawl Messages to the StateMachine */

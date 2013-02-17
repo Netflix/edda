@@ -133,13 +133,23 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   }
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Collection is not enabled */
-  override def addObserver(actor: Actor) {
-    if (enabled) super.addObserver(actor)
+  override def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
+    if (enabled) super.addObserver(actor)(events) else Actor.self.reactWithin(0) { 
+      case msg @ TIMEOUT => {
+        logger.debug(Actor.self + " received: " + msg + " from " + sender + " for disabled collection")
+        events(Success(Observable.OK(Actor.self)))
+      }
+    }
   }
 
   /** see [[com.netflix.edda.Observable.delObserver()]].  Overridden to be a NoOp when Collection is not enabled */
-  override def delObserver(actor: Actor) {
-    if (enabled) super.delObserver(actor)
+  override def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
+    if (enabled) super.delObserver(actor)(events) else Actor.self.reactWithin(0) {
+      case msg @ TIMEOUT => {
+        logger.debug(Actor.self + " received: " + msg + " from " + sender + " for disabled collection")
+        events(Success(Observable.OK(Actor.self)))
+      }
+    }
   }
 
   /** query datastore or in memory collection. */
@@ -266,29 +276,57 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     */
   protected override def init() {
     Monitors.registerObject("edda.collection." + name, this)
-
-    if (Utils.getProperty(ctx.config, "edda.collection", "jitter.enabled", name, "true").toBoolean) {
-      val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
-      // adding in random jitter on start so we dont crush the datastore immediately if multiple
-      // systems are coming up at the same time
-      val rand = new Random
-      val jitter = (2 * cacheRefresh * rand.nextDouble).toLong
-      logger.info(this + " start delayed by " + jitter + "ms")
-      Thread.sleep(jitter)
+    Utils.NamedActor(this + " init") {
+      // create routine to run after the jitter timeout
+      // or to run immediately if jitter is disabled
+      def postJitter = {
+        if (dataStore.isDefined) {
+          dataStore.get.init()
+        }
+        
+        // routine to run on success of crawler addObserver call
+        // or to run immediately if crawler is disabled
+        def postObserver = {
+          refresher()
+          // super.init will cause normal event processing to start on this
+          // collection actor, so the next addObserver should procceed
+          super.init()
+          // listen to our own DeltaResult events
+          def retry: Nothing = {
+            this.addObserver(this) {
+              case Success(msg) => 
+                case Failure(msg) => retry
+            }
+          }
+          retry
+        }
+        
+        if( Option(crawler).isDefined ) {
+          crawler.addObserver(this) {
+            case Success(msg) => postObserver
+          }
+        }
+        else postObserver
+      }
+      
+      if (Utils.getProperty(ctx.config, "edda.collection", "jitter.enabled", name, "true").toBoolean) {
+        val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
+        // adding in random jitter on start so we dont crush the datastore immediately if multiple
+        // systems are coming up at the same time
+        val rand = new Random
+        val jitter = (2 * cacheRefresh * rand.nextDouble).toLong
+        logger.info(this + " start delayed by " + jitter + "ms")
+        Actor.self.reactWithin(jitter) {
+          case msg @ TIMEOUT => {
+            logger.debug(Actor.self + " received: " + msg + " from " + sender + " for jitter timeout")
+            postJitter
+          }
+        }
+      }
+      else postJitter
     }
-
-    if (dataStore.isDefined) {
-      dataStore.get.init()
-    }
-    Option(crawler).foreach(_.addObserver(this))
-    // listen to our own DeltaResult events
-    // it is a sync call so put it in another actor
-    Actor.actor {
-      this.addObserver(this)
-    }
-    refresher()
   }
-
+  
   /** helper routine to calculate timeLeft before a Crawl request shoudl be made */
   def timeLeft(lastRun: DateTime, millis: Long): Long = {
     val timeLeft = millis - (DateTime.now.getMillis - lastRun.getMillis)
@@ -305,40 +343,47 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
     val cacheFullRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.full.refresh", name, "1800000").toLong
     NamedActor(this + " refresher") {
-      elector.addObserver(Actor.self)
-      var amLeader = elector.isLeader
-      // crawl immediately the first time
-      if (amLeader) crawler.crawl()
-
-      var lastRun = DateTime.now
-      Actor.loop {
-        val timeout = if (amLeader) refresh else cacheRefresh
-        Actor.reactWithin(timeLeft(lastRun, timeout)) {
-          case TIMEOUT => {
-            val full = if( timeLeft(lastFullLoad, cacheFullRefresh) > 0 ) false else true
-            if (amLeader) { 
-                crawler.crawl() }
-            else {
-                val msg = Load(this,full)
-                logger.debug(this + " sending: " + msg + " -> " + this)
-                this ! msg
-            }
-            lastRun = DateTime.now
-          }
-          case Elector.ElectionResult(from, result) => {
-            // if we just became leader, then start a crawl
-            if (!amLeader && result) {
-              this !?(300000, SyncLoad(this)) match {
-                case Some(OK(frm)) => Unit
-                case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data in 5m as we became leader")
+      elector.addObserver(Actor.self) {
+        case Failure(msg) => {
+          logger.error(Actor.self + " failed to addObserver: " + msg)
+          refresher
+        }
+        case Success(msg) => {
+          var amLeader = elector.isLeader
+          // crawl immediately the first time
+          if (amLeader) crawler.crawl()
+          
+          var lastRun = DateTime.now
+          Actor.self.loop {
+            val timeout = if (amLeader) refresh else cacheRefresh
+            Actor.self.reactWithin(timeLeft(lastRun, timeout)) {
+              case msg @ TIMEOUT => {
+                logger.debug(Actor.self + " received: " + msg + " from " + sender)
+                val full = if( timeLeft(lastFullLoad, cacheFullRefresh) > 0 ) false else true
+                if (amLeader) { 
+                  crawler.crawl()
+                }
+                else {
+                  val msg = Load(this,full)
+                  logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+                  this ! msg
+                }
+                lastRun = DateTime.now
               }
-              crawler.crawl()
-              lastRun = DateTime.now
+              case msg @ Elector.ElectionResult(from, result) => {
+                logger.debug(Actor.self + " received: " + msg + " from " + sender)
+                // if we just became leader, then start a crawl
+                if (!amLeader && result) {
+                  this !?(300000, SyncLoad(this)) match {
+                    case Some(OK(frm)) => Unit
+                    case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data in 5m as we became leader")
+                  }
+                  crawler.crawl()
+                  lastRun = DateTime.now
+                }
+                amLeader = result
+              }
             }
-            amLeader = result
-          }
-          case message => {
-            logger.error("Invalid message " + message + " from sender " + sender)
           }
         }
       }

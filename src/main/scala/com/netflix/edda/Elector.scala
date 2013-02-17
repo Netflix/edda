@@ -49,6 +49,7 @@ object Elector extends StateMachine.LocalState[ElectorState] {
 abstract class Elector(ctx: ConfigContext) extends Observable {
 
   import Elector._
+  import Utils._
 
   /** synchronous call to the StateMachine to fetch the leadership status */
   def isLeader: Boolean = {
@@ -73,26 +74,33 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
   /** set up observers to watch ourselves for leadership results.  Start an election immediately
     * then start the poller that will periodically run elections. */
   protected override def init() {
-    // it is a sync call so put it in another thread
-    Actor.actor {
-      this.addObserver(this)
+    Utils.NamedActor(this + " init") {
+      val msg = RunElection(this)
+      logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+      this ! msg
+      electionPoller()
+      super.init
+      // listen to our own message events
+      def retry: Nothing = {
+        this.addObserver(this) {
+          case Failure(msg) => retry
+          case Success(msg) =>
+        }
+      }
+      retry
     }
-    val msg = RunElection(this)
-    logger.debug(this + " sending: " + msg + " -> " + this)
-    this ! msg
-    electionPoller()
   }
 
   /** run an election periodically */
   protected def electionPoller() {
-    val elector = this
     Utils.NamedActor(this + " poller") {
-      Actor.loop {
-        Actor.reactWithin(pollCycle) {
-          case TIMEOUT => {
+      Actor.self.loop {
+        Actor.self.reactWithin(pollCycle) {
+          case got @ TIMEOUT => {
+            logger.debug(Actor.self + " received: " + got + " from " + sender)
             val msg = RunElection(this)
-            logger.debug(this + " sending: " + msg + " -> " + elector)
-            elector ! msg
+            logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+            this ! msg
           }
         }
       }
