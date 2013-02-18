@@ -18,6 +18,7 @@ package com.netflix.edda.aws
 import com.netflix.edda.Collection
 import com.netflix.edda.CollectionManager
 import com.netflix.edda.MergedCollection
+import com.netflix.edda.Queryable
 import com.netflix.edda.GroupCollection
 import com.netflix.edda.RootCollection
 import com.netflix.edda.Elector
@@ -537,6 +538,8 @@ class GroupAutoScalingGroups(
                               dsFactory: String => Option[DataStore],
                               val elector: Elector,
                               override val ctx: AwsCollection.Context) extends RootCollection("group.autoScalingGroups", asgCollection.accountName, ctx) with GroupCollection {
+  import Utils._
+  import Queryable._
   val crawler = asgCollection.crawler
   val dataStore: Option[DataStore] = dsFactory(name)
 
@@ -553,41 +556,48 @@ class GroupAutoScalingGroups(
     * @param oldRecords these are the previous generation of group.autoScalingGroup records
     * @return the [[com.netflix.edda.Collection.Delta]] modified from [[com.netflix.edda.GroupCollection.groupDelta]]
     */
-  override protected def delta(newRecords: Seq[Record], oldRecords: Seq[Record]) = {
+  override protected def delta(newRecords: Seq[Record], oldRecords: Seq[Record])(events: EventHandlers = DefaultEventHandlers): Nothing = {
     // newRecords will be from the ASG crawler, we need to convert it
     // to the Group records then call groupDelta
 
     val slotMap = groupSlots(oldRecords)
-
-    val instanceMap = instanceCollection.query(instanceQuery).map(rec => rec.id -> rec).toMap
-
-    val oldMap = oldRecords.map(rec => rec.id -> rec).toMap
-
-    val modNewRecords = newRecords.map(
-      asgRec => {
-        val newInstances = assignSlots(
-          AwsCollection.makeGroupInstances(asgRec, instanceMap),
-          "instanceId",
-          slotMap("instances"))
-        val asgData = asgRec.data.asInstanceOf[Map[String, Any]]
-
-        val ctime = oldMap.get(asgRec.id) match {
-          case Some(rec) => rec.ctime
-          case None => asgRec.ctime
-        }
-
-        val data = Map(
-          "desiredCapacity" -> asgData.get("desiredCapacity").getOrElse(null),
-          "instances" -> newInstances,
-          "launchConfigurationName" -> asgData.get("launchConfigurationName").getOrElse(null),
-          "loadBalancerNames" -> asgData.get("loadBalancerNames").getOrElse(List()),
-          "maxSize" -> asgData.get("maxSize").getOrElse(null),
-          "minSize" -> asgData.get("minSize").getOrElse(null),
-          "name" -> asgRec.id,
-          "start" -> ctime)
-
-        asgRec.copy(data = data)
-      })
-    super.delta(modNewRecords, oldRecords)
+    instanceCollection.query(instanceQuery) {
+      case Failure(error) => {
+        logger.error("Failed to query " + instanceCollection + ": " + error)
+        throw new java.lang.RuntimeException("Failed to query " + instanceCollection + ": " + error)
+      }
+      case Success(results: QueryResult) => {
+        val instanceMap = results.records.map(rec => rec.id -> rec).toMap
+        
+        val oldMap = oldRecords.map(rec => rec.id -> rec).toMap
+        
+        val modNewRecords = newRecords.map(
+          asgRec => {
+            val newInstances = assignSlots(
+              AwsCollection.makeGroupInstances(asgRec, instanceMap),
+              "instanceId",
+              slotMap("instances"))
+            val asgData = asgRec.data.asInstanceOf[Map[String, Any]]
+            
+            val ctime = oldMap.get(asgRec.id) match {
+              case Some(rec) => rec.ctime
+              case None => asgRec.ctime
+            }
+            
+            val data = Map(
+              "desiredCapacity" -> asgData.get("desiredCapacity").getOrElse(null),
+              "instances" -> newInstances,
+              "launchConfigurationName" -> asgData.get("launchConfigurationName").getOrElse(null),
+              "loadBalancerNames" -> asgData.get("loadBalancerNames").getOrElse(List()),
+              "maxSize" -> asgData.get("maxSize").getOrElse(null),
+              "minSize" -> asgData.get("minSize").getOrElse(null),
+              "name" -> asgRec.id,
+              "start" -> ctime)
+            
+            asgRec.copy(data = data)
+          })
+        super.delta(modNewRecords, oldRecords)(events)
+      }
+    }
   }
 }

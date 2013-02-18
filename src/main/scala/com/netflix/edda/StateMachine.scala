@@ -145,7 +145,10 @@ class StateMachine extends Actor {
   protected val mailboxSizeGauge = new BasicGauge[java.lang.Long](
     MonitorConfig.builder("mailboxSize").build(),
     new Callable[java.lang.Long] {
-      def call() = self.mailboxSize
+      def call() = {
+        logger.info(self + " mailboxSize: " + self.mailboxSize)
+        self.mailboxSize
+      }
     })
 
   /** the main loop for the StateMachine actor.  It will call initState then start looping

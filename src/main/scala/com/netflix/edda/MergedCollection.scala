@@ -15,10 +15,7 @@
  */
 package com.netflix.edda
 
-import java.util.concurrent.Executors
-import java.util.concurrent.Callable
-
-// import scala.actors.Futures.{ future, awaitAll }
+import scala.actors.Actor
 
 import org.slf4j.LoggerFactory
 
@@ -31,56 +28,70 @@ import org.slf4j.LoggerFactory
 class MergedCollection(val name: String, val collections: Seq[Collection]) extends Queryable {
   override def toString = "[MergedCollection " + name + "]"
 
+  import Queryable._
+  import Utils._
+
   private[this] val logger = LoggerFactory.getLogger(getClass)
-  private[this] val threadPool = collections.size match {
-    case 1 => None
-    case _ => Some(Executors.newFixedThreadPool(collections.size * 10))
-  }
 
-  /** using a dedicated thread pool simultaneously dispatch the query to all the collections that are
-    * are being merged, then merge the results (sorted by record stime) and return the results
-    * see [[com.netflix.edda.Queryable.query()]]
-    */
-  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
-    // if they have specified a subset of keys, then we need to make
-    // sure stime is in there so we can sort
-    val requiredKeys = if (keys.isEmpty) keys else (keys + "stime")
-
-    if (threadPool == None) {
-      // only one collection so don't bother with futures
-      collections.head.query(queryMap, limit, live, requiredKeys, replicaOk)
-    } else {
-      val futures: Seq[java.util.concurrent.Future[Seq[Record]]] = collections.map(
-        coll => {
-          threadPool.get.submit(
-            new Callable[Seq[Record]] {
-              def call() = {
-                coll.query(queryMap, limit, live, requiredKeys, replicaOk)
-              }
-            }
-          )
+  // helper function to run query and make reply
+  def queryRunner(coll: Collection, query: Query, replyTo: scala.actors.OutputChannel[Any]): Unit = {
+    Actor.actor {
+      coll.query(query.query, query.limit, query.live, query.keys, query.replicaOk) {
+        case Success(results: QueryResult) => {
+          logger.debug(Actor.self + " sending: " + results + " -> " + replyTo)
+          replyTo ! results
         }
-      )
-      var failed: Boolean = false
-      val records = futures.map(
-        f => {
-          try f.get
-          catch {
-            case e: Exception => {
-              failed = true
-              logger.error(this + "exception querying", e)
-              Seq()
-            }
-          }
+        case Failure(error) => {
+          logger.error("query on " + coll + " failed: " + query + " with error: " + error) 
+          val msg = QueryError(this, error)
+          logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
+          replyTo ! msg
         }
-      ).flatten
-
-      if (failed) {
-        throw new java.lang.RuntimeException("query failed")
       }
-      firstOf(limit, records.sortWith((a, b) => a.stime.isAfter(b.stime)))
     }
   }
+
+  /** handle Query Message for MergedCollection */
+  private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
+    case (query @ Query(from, queryMap, limit, live, keys, replicaOk), state) => {
+      val replyTo = sender
+
+      Utils.NamedActor(this + " Query processor") {
+        if( collections.size == 1 ) {
+          queryRunner(collections.head, query, replyTo)
+        } else {
+          // handle multiple results to all collections
+          val merger = Utils.NamedActor(this + " query merger") {
+            var expected = collections.size
+            var merged: Seq[Record] = Seq()
+            Actor.self.loopWhile( expected > 0 ) {
+              Actor.self.react {
+                case QueryResult(from, results) => {
+                  merged = merged ++ results
+                  expected -= 1
+                  if( expected == 0 ) {
+                    val msg = QueryResult(this, firstOf(limit, merged.sortWith((a, b) => a.stime.isAfter(b.stime))))
+                    logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
+                    replyTo ! msg
+                  }
+                }
+                case msg @ QueryError(from, error) => {
+                  replyTo ! msg
+                  expected = 0
+                }
+              }
+            }
+          }
+          collections.foreach( queryRunner(_, query, merger) )
+        }
+      }
+      state
+    }
+  }
+
+  override protected def transitions = localTransitions orElse super.transitions
+
+  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = { throw new java.lang.RuntimeException("doQuery on MergedCollection should not be called") }
 
   /** start the actors for all the merged collections then start this actor */
   override def start() = {

@@ -83,7 +83,10 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
       // listen to our own message events
       def retry: Nothing = {
         this.addObserver(this) {
-          case Failure(msg) => retry
+          case Failure(msg) => {
+            logger.error(Actor.self + "failed to add observer " + this + " to " + this + ", retrying")
+            retry
+          }
           case Success(msg) =>
         }
       }

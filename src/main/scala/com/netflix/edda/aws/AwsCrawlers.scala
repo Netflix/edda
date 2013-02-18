@@ -310,9 +310,14 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
 
   protected override def init() {
     import Utils._
-    crawler.addObserver(this) {
-      case Failure(msg) => this.init
-      case Success(msg) => super.init
+    Utils.NamedActor(this + " init") {
+      crawler.addObserver(this) {
+        case Failure(msg) => {
+          logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
+          this.init
+        }
+        case Success(msg) => super.init
+      }
     }
   }
 
@@ -392,6 +397,8 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
 
   import AwsInstanceCrawler._
 
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+
   override def crawl() {}
 
   // we dont crawl, just get updates from crawler when it crawls
@@ -414,9 +421,14 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
 
   protected override def init() {
     import Utils._
-    crawler.addObserver(this) {
-      case Failure(msg) => Actor.self.restart
-      case Success(msg) => super.init
+    Utils.NamedActor(this + " init") {
+      crawler.addObserver(this) {
+        case Failure(msg) => {
+          logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
+          this.init
+        }
+        case Success(msg) => super.init
+      }
     }
   }
 

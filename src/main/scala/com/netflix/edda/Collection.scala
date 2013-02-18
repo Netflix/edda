@@ -81,6 +81,7 @@ object Collection extends StateMachine.LocalState[CollectionState] {
 abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   import Collection._
+  import Queryable._
   import Utils._
 
   val logger = LoggerFactory.getLogger(getClass)
@@ -128,8 +129,13 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   // override def scheduler = fjScheduler
 
   /** see [[com.netflix.edda.Queryable.query()]].  Overridden to return Nil when Collection is not enabled */
-  override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): Seq[Record] = {
-    if (enabled) super.query(queryMap, limit, live || liveOverride, keys, replicaOk) else Seq.empty
+  override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(events: EventHandlers = DefaultEventHandlers): Nothing = {
+    if (enabled) super.query(queryMap, limit, live || liveOverride, keys, replicaOk)(events) else Actor.self.reactWithin(0) {
+      case msg @ TIMEOUT => {
+        logger.debug(Actor.self + " received: " + msg + " from " + sender + " for disabled collection")
+        events(Success(QueryResult(Actor.self,Seq.empty)))
+      }
+    }
   }
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Collection is not enabled */
@@ -210,7 +216,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     * @param newRecords records from the Crawler
     * @param oldRecords records from previous Delta result
     */
-  protected def delta(newRecordsIn: Seq[Record], oldRecords: Seq[Record]): Delta = {
+  protected def delta(newRecordsIn: Seq[Record], oldRecords: Seq[Record])(events: EventHandlers = DefaultEventHandlers): Nothing = {
     val now = DateTime.now
     val newRecords = newRecordsIn.map( rec => rec.copy(mtime = now) )
 
@@ -265,7 +271,11 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
 
     logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + remove.size)
-    Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = remove)
+    Actor.self.reactWithin(0) {
+      case TIMEOUT => {
+        events(Success(Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = remove)))
+      }
+    }
   }
 
   /** setup CollectionState, initialize the records to be loaded from the DataStore before the Actor starts accepting message */
@@ -279,7 +289,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     Utils.NamedActor(this + " init") {
       // create routine to run after the jitter timeout
       // or to run immediately if jitter is disabled
-      def postJitter = {
+      def postJitter: Nothing = {
         if (dataStore.isDefined) {
           dataStore.get.init()
         }
@@ -295,7 +305,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           def retry: Nothing = {
             this.addObserver(this) {
               case Success(msg) => 
-                case Failure(msg) => retry
+              case Failure(msg) => {
+                logger.error(Actor.self + " failed to add observer " + this + " to " + this + " with error: " + msg + ", retrying")
+                retry
+              }
             }
           }
           retry
@@ -304,6 +317,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         if( Option(crawler).isDefined ) {
           crawler.addObserver(this) {
             case Success(msg) => postObserver
+            case Failure(msg) => {
+              logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + " with error: " + msg + ", retrying")
+              postJitter
+            }
           }
         }
         else postObserver
@@ -374,14 +391,20 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                 logger.debug(Actor.self + " received: " + msg + " from " + sender)
                 // if we just became leader, then start a crawl
                 if (!amLeader && result) {
-                  this !?(300000, SyncLoad(this)) match {
-                    case Some(OK(frm)) => Unit
-                    case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data in 5m as we became leader")
+                  this ! SyncLoad(this)
+                  Actor.self.reactWithin(300000) {
+                    case msg @ OK(frm) => {
+                      crawler.crawl()
+                      lastRun = DateTime.now
+                      amLeader = result
+                    }
+                    case msg @ TIMEOUT => {
+                      logger.error(this + " failed to reload data in 5m as we became leader")
+                      throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data in 5m as we became leader")
+                    }
                   }
-                  crawler.crawl()
-                  lastRun = DateTime.now
                 }
-                amLeader = result
+                else amLeader = result
               }
             }
           }
@@ -506,34 +529,41 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       lastCrawl = DateTime.now
       if (newRecords ne localState(state).crawled) {
         NamedActor(this + " CrawlResult processor") {
-          val d: Delta =
-            if (from == this) {
-              // this is from a Load so no need to calculate Delta
-              Delta(newRecords, Seq(), Seq(), Seq())
-            } else {
-              delta(newRecords, localState(state).records)
-            }
-
-          lazy val path = name.replace('.', '/')
-          d.added.foreach(
-            rec => {
-              logger.info("Added {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
-            })
-          d.removed.foreach(
-            rec => {
-              logger.info("Removing {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
-            })
-          d.changed.foreach(
-            update => {
-              lazy val diff: String = Utils.diffRecords(Array(update.newRecord, update.oldRecord), Some(1), path)
-              logger.info("\n{}", diff)
-            })
-
-          val msg = DeltaResult(this, d)
-          Observable.localState(state).observers.foreach(o => {
+          def processDelta(d: Delta) = {
+            lazy val path = name.replace('.', '/')
+            d.added.foreach(
+              rec => {
+                logger.info("Added {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
+              })
+            d.removed.foreach(
+              rec => {
+                logger.info("Removing {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
+              })
+            d.changed.foreach(
+              update => {
+                lazy val diff: String = Utils.diffRecords(Array(update.newRecord, update.oldRecord), Some(1), path)
+                logger.info("\n{}", diff)
+              })
+            
+            val msg = DeltaResult(this, d)
+            Observable.localState(state).observers.foreach(o => {
               logger.debug(this + " sending: " + msg + " -> " + o)
               o ! msg
-          })
+            })
+          }
+
+          if (from == this) {
+            // this is from a Load so no need to calculate Delta
+            processDelta(Delta(newRecords, Seq(), Seq(), Seq()))
+          } else {
+            delta(newRecords, localState(state).records) { 
+              case Failure(error) => {
+                logger.error(this + " delta failed: " + error)
+                throw new java.lang.RuntimeException(this + " delta failed: " + error)
+              }
+              case Success(delta: Delta) => processDelta(delta)
+            }
+          }
         }
         setLocalState(state, localState(state).copy(crawled = newRecords))
       } else state

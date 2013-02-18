@@ -29,6 +29,7 @@ import com.netflix.edda.web.MatchAnyExpr
 import com.netflix.edda.CollectionManager
 import com.netflix.edda.Record
 import com.netflix.edda.Utils
+import com.netflix.edda.Queryable
 
 import org.codehaus.jackson.JsonEncoding.UTF8
 import org.codehaus.jackson.util.DefaultPrettyPrinter
@@ -41,6 +42,9 @@ import org.joda.time.DateTime
 /** resource class to query collections registered with the CollectionManager */
 @Path("/v2")
 class CollectionResource {
+
+  import Utils._
+  import Queryable._
 
   private val logger = LoggerFactory.getLogger(getClass)
 
@@ -308,52 +312,71 @@ class CollectionResource {
 
   /** get query response an setup formatting for output */
   def handleBasicCollection(collName: String, details: ReqDetails): Response = {
-    val recs = selectRecords(collName, details)
-    // if only single item requested either print it out, or see if it exists and is
-    // expired in which case send GONE, otherwise send NOT_FOUND
-    // if not single just open json array for output
-    if (details.single) {
-      if (recs.isEmpty) {
-        if (!details.timeTravelling) {
-          val recs = selectRecords(collName, details.copy(metaArgs = details.metaArgs ++ Map("_live" -> null, "_since" -> "0", "_limit" -> "1")))
-          if (!recs.isEmpty) {
-            return fail("record \"" + details.id + "\" is no longer valid in collection " + collName + ". Use _at, _since or _all arguments to fetch historical records.  Last seen at " + recs.head.stime.getMillis, Response.Status.GONE)
+    var response: Response = null
+    Utils.SYNC {
+      selectRecords(collName, details) {
+        case Failure(error) => response = fail("query failed: " + error, Response.Status.INTERNAL_SERVER_ERROR)
+        case Success(results) => {
+          val recs = results.asInstanceOf[Seq[Record]]
+          // if only single item requested either print it out, or see if it exists and is
+          // expired in which case send GONE, otherwise send NOT_FOUND
+          // if not single just open json array for output
+          if (details.single) {
+            if (recs.isEmpty) {
+              if (!details.timeTravelling) {
+                selectRecords(collName, details.copy(metaArgs = details.metaArgs ++ Map("_live" -> null, "_since" -> "0", "_limit" -> "1"))) {
+                  case Failure(error) => response = fail("query failed: " + error, Response.Status.INTERNAL_SERVER_ERROR)
+                  case Success(results) => {
+                    val recs = results.asInstanceOf[Seq[Record]]
+                    if (!recs.isEmpty) {
+                      response = fail("record \"" + details.id + "\" is no longer valid in collection " + collName + ". Use _at, _since or _all arguments to fetch historical records.  Last seen at " + recs.head.stime.getMillis, Response.Status.GONE)
+                      throw new java.lang.RuntimeException("return")
+                    }
+                    else {
+                      response = fail("record \"" + details.id + "\" not found in collection " + collName, Response.Status.NOT_FOUND)
+                      throw new java.lang.RuntimeException("return")
+                    }
+                  }
+                }
+              }
+            }
+          } else if (details.diff == None && !details.single) details.gen.writeStartArray()
+          
+          // handle diffing records if _diff is used or expand records if _expand is specified
+          if (details.diff != None && details.id != null) {
+            if (recs.size == 1) {
+              response = fail("_diff requires at least 2 documents, only 1 found", Response.Status.BAD_REQUEST)
+              throw new java.lang.RuntimeException("return")
+            }
+            
+            val prefix = details.req.getContextPath + details.req.getServletPath + "/v2/";
+            
+            val diff = Utils.diffRecords(
+              recs,
+              details.diff.collect({
+                case x: String => x.toInt
+              }),
+              prefix + collName.replace('.','/')
+            )
+            val bytes = diff.getBytes
+            details.baos.write(bytes, 0, bytes.size)
+            
+          } else {
+            details.expand match {
+              case true => recs.foreach(writeMaybeMeta(_, details))
+              case _ => recs.map(r => r.id).foreach(details.gen.writeString(_))
+            }
           }
+          if (details.diff == None && (!details.single)) details.gen.writeEndArray()
+          response = details.response()
         }
-        return fail("record \"" + details.id + "\" not found in collection " + collName, Response.Status.NOT_FOUND)
-      }
-    } else if (details.diff == None && !details.single) details.gen.writeStartArray()
-
-    // handle diffing records if _diff is used or expand records if _expand is specified
-    if (details.diff != None && details.id != null) {
-      if (recs.size == 1) {
-        return fail("_diff requires at least 2 documents, only 1 found", Response.Status.BAD_REQUEST)
-      }
-
-      val prefix = details.req.getContextPath + details.req.getServletPath + "/v2/";
-        
-      val diff = Utils.diffRecords(
-        recs,
-        details.diff.collect({
-          case x: String => x.toInt
-        }),
-        prefix + collName.replace('.','/')
-      )
-      val bytes = diff.getBytes
-      details.baos.write(bytes, 0, bytes.size)
-
-    } else {
-      details.expand match {
-        case true => recs.foreach(writeMaybeMeta(_, details))
-        case _ => recs.map(r => r.id).foreach(details.gen.writeString(_))
       }
     }
-    if (details.diff == None && (!details.single)) details.gen.writeEndArray()
-    details.response()
+    response
   }
-
+      
   /** apply query to appropriate collection.  */
-  def selectRecords(collName: String, details: ReqDetails): Seq[Record] = {
+  def selectRecords(collName: String, details: ReqDetails)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     val coll = CollectionManager.get(collName).get
     val query = if (details.id != null) {
       val idQuery = if (details.id.contains(',')) {
@@ -363,7 +386,13 @@ class CollectionResource {
     } else makeQuery(details)
     logger.info(coll + " query: " + Utils.toJson(query))
     val keys: Set[String] = if (details.expand) details.fields else Set("id")
-    unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
+    // unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
+    coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true) {
+      case Success(results: QueryResult) => {
+        events(Success(unique(results.records, details)))
+      }
+      case msg @ Failure(error) => events(msg)
+    }
   }
 
   /** handle HTTP request.  Map uri path to collection name, matrix arguments and field selectors */

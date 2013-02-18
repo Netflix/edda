@@ -16,6 +16,7 @@
 package com.netflix.edda
 
 import scala.actors.Actor
+import scala.actors.TIMEOUT
 
 import com.netflix.servo.monitor.Monitors
 import org.slf4j.LoggerFactory
@@ -24,13 +25,15 @@ import org.slf4j.LoggerFactory
 object Queryable {
 
   /** Message to to query the StateMachine */
-  private case class Query(from: Actor, query: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean) extends StateMachine.Message
+  case class Query(from: Actor, query: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean) extends StateMachine.Message
 
   /** response Message from a Query Message */
-  private case class QueryResult(from: Actor, records: Seq[Record]) extends StateMachine.Message {
+  case class QueryResult(from: Actor, records: Seq[Record]) extends StateMachine.Message {
     override def toString = "QueryResult(records=" + records.size + ")"
   }
 
+  /** response Message from a Query Message */
+  case class QueryError(from: Actor, error: Any) extends StateMachine.Message
 }
 
 /** this class add a query routine and messages to the StateMachine that supports the query routine.
@@ -39,6 +42,7 @@ object Queryable {
 abstract class Queryable extends Observable {
 
   import Queryable._
+  import Utils._
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
@@ -57,21 +61,29 @@ abstract class Queryable extends Observable {
    * @param replicaOk boolean flag to specify if is ok for the query to be sent to a data replica in the case of a primary/secondary datastore set.
    * @return the records that match the query criteria
    */
-  def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): Seq[Record] = {
-    val self = this
+  def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     val stopwatch = queryTimer.start()
-    val msg = Query(self, queryMap, limit, live, keys, replicaOk)
-    logger.debug(this + " sending: " + msg + " -> " + self + " with " + queryTimeout + "ms timeout")
-    self !?(queryTimeout, msg) match {
-      case Some(QueryResult(`self`, results)) => {
+    val msg = Query(Actor.self, queryMap, limit, live, keys, replicaOk)
+    logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with " + queryTimeout + "ms timeout")
+    this ! msg
+    Actor.self.reactWithin(queryTimeout) {
+      case msg @ QueryResult(from, results) => {
         stopwatch.stop()
         queryCounter.increment()
-        results
+        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        events(Success(msg))
       }
-      case None => {
+      case msg @ QueryError(from, results) => {
         stopwatch.stop()
         queryErrorCounter.increment()
-        throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to fetch query results within " + queryTimeout + "ms for query: " + queryMap + " limit: " + limit + " keys: " + keys)
+        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        events(Failure(msg))
+      }
+      case msg @ TIMEOUT => {
+        stopwatch.stop()
+        queryErrorCounter.increment()
+        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        events(Failure((msg, queryTimeout)))
       }
     }
   }
