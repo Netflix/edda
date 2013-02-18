@@ -26,6 +26,7 @@ import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingCli
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.sqs.AmazonSQSClient
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
+import com.amazonaws.services.route53.AmazonRoute53Client
 
 /** provides access to AWS service client objects
   *
@@ -102,4 +103,11 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
     client.setEndpoint("monitoring." + region + ".amazonaws.com")
     client
   }
+ 
+   /** get [[com.amazonaws.services.route53.AmazonRoute53Client]] object */
+   def route53 = {
+      val client = new AmazonRoute53Client(provider)
+      client.setEndpoint("route53.amazonaws.com")
+      client
+   }
 }

@@ -49,6 +49,9 @@ import com.amazonaws.services.autoscaling.model.DescribePoliciesRequest
 import com.amazonaws.services.elasticloadbalancing.model.DescribeLoadBalancersRequest
 import com.amazonaws.services.elasticloadbalancing.model.DescribeInstanceHealthRequest
 
+import com.amazonaws.services.route53.model.ListHostedZonesRequest
+import com.amazonaws.services.route53.model.GetHostedZoneRequest
+
 import collection.JavaConverters._
 
 import java.util.concurrent.Executors
@@ -577,3 +580,53 @@ class AwsReservedInstanceCrawler(val name: String, val ctx: AwsCrawler.Context) 
   override def doCrawl() = ctx.awsClient.ec2.describeReservedInstances(request).getReservedInstances.asScala.map(
     item => Record(item.getReservedInstancesId, new DateTime(item.getStart), ctx.beanMapper(item))).toSeq
 }
+
+
+/** crawler for Route53 Hosted Zones (DNS records)
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
+class AwsHostedZoneCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+  val request = new ListHostedZonesRequest
+
+  override def doCrawl() =  ctx.awsClient.route53.listHostedZones(request).getHostedZones.asScala.map(
+      item => Record(item.getId, ctx.beanMapper(item))).toSeq
+}
+/* wip:
+class AwsHostedZoneCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+  val request = new ListHostedZonesRequest
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  private[this] val threadPool = Executors.newFixedThreadPool(10)
+  
+  override def doCrawl() = {
+    val zones = ctx.awsClient.route53.listHostedZones(request).getHostedZones.asScala
+    val futures: Seq[java.util.concurrent.Future[Record]] = zones.map(
+        threadPool.submit(
+          new Callable[Record] {
+            def call() = {
+              val item = Record(item.getId, ctx.beanMapper(item))
+              val recordSet = new ListResourceRecordSetsRequest().withHostedZoneId(item.getId).asScala.map(
+                recordSet => Record(recordSet.getName, ctime, ctx.beanMapper(recordSet)))
+              recordSet
+            }
+          }
+        )
+      )
+    val records = futures.map(
+      f => {
+        try Some(f.get)
+        catch {
+          case e: Exception => {
+            logger.error(this + "exception from route53 getResourceRecordSets", e)
+            None
+          }
+        }
+      }
+    ).collect {
+      case Some(rec) => rec
+    }
+    records
+  }
+}
+*/

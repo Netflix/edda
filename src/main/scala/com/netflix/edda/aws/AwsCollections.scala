@@ -113,7 +113,8 @@ object AwsCollectionBuilder {
       new AwsBucketCollection(dsFactory, accountName, elector, ctx),
       new AwsSimpleQueueCollection(dsFactory, accountName, elector, ctx),
       new AwsReservedInstanceCollection(dsFactory, accountName, elector, ctx),
-      new GroupAutoScalingGroups(asg, inst, dsFactory, elector, ctx))
+      new GroupAutoScalingGroups(asg, inst, dsFactory, elector, ctx),
+      new AwsHostedZoneCollection(dsFactory, accountName, elector, ctx))
   }
 }
 
@@ -590,4 +591,24 @@ class GroupAutoScalingGroups(
       })
     super.delta(modNewRecords, oldRecords)
   }
+}
+
+/** collection for AWS Route53 hosted zones
+  *
+  * root collection name: aws.hostedZones
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsReservedInstanceCrawler]]
+  *
+  * @param dsFactory function that creates new DataStore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for configuration and AWS clients objects
+  */
+class AwsHostedZoneCollection(
+                           dsFactory: String => Option[DataStore],
+                           val accountName: String,
+                           val elector: Elector,
+                           override val ctx: AwsCollection.Context) extends RootCollection("aws.hostedZones", accountName, ctx) {
+  val dataStore: Option[DataStore] = dsFactory(name)
+  val crawler = new AwsHostedZoneCrawler(name, ctx)
 }

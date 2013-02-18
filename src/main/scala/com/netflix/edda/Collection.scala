@@ -519,7 +519,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   /** stop elector, crawler and shutdown ForkJoin special scheduler */
   override def stop() {
-    logger.info("Stoping " + this)
+    logger.info("Stopping " + this)
     Option(elector).foreach(_.stop())
     Option(crawler).foreach(_.stop())
     fjScheduler.shutdown()
