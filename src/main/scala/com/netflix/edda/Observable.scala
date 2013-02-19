@@ -52,7 +52,7 @@ abstract class Observable extends StateMachine {
 
   //* notify the given actor when the state changes */
   def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    val msg = Observe(this, actor)
+    val msg = Observe(Actor.self, actor)
     logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
     this ! msg
     Actor.self.reactWithin(60000) {
@@ -61,7 +61,7 @@ abstract class Observable extends StateMachine {
         events(Success(msg))
       }
       case msg @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        logger.debug(Actor.self + " received: " + msg)
         events(Failure((msg, 60000)))
       }
     }
@@ -69,7 +69,7 @@ abstract class Observable extends StateMachine {
 
   //* stop notifying the give actor when the state changes */
   def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    val msg = Ignore(this, actor)
+    val msg = Ignore(Actor.self, actor)
     logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
     this ! msg
     Actor.self.reactWithin(60000) {
@@ -78,7 +78,7 @@ abstract class Observable extends StateMachine {
         events(Success(msg))
       }
       case msg @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        logger.debug(Actor.self + " received: " + msg)
         events(Failure((msg, 60000)))
       }
     }

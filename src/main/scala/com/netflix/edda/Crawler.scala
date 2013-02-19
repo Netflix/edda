@@ -60,7 +60,7 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
   /** start a crawl if the crawler is enabled */
   def crawl() {
     if (enabled) {
-        val msg = Crawl(this)
+        val msg = Crawl(Actor.self)
         logger.debug(Actor.self + " sending: " + msg + " -> " + this)
         this ! msg
     }
@@ -70,7 +70,7 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
   override def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     if (enabled) super.addObserver(actor)(events) else Actor.self.reactWithin(0) {
       case got @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + got + " from " + sender + " for disabled crawler")
+        logger.debug(Actor.self + " received: " + got + " for disabled crawler")
         events(Success(Observable.OK(Actor.self)))
       }
     }
@@ -80,7 +80,7 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
   override def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     if (enabled) super.delObserver(actor)(events) else Actor.self.reactWithin(0) {
       case got @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + got + " from " + sender + " for disabled crawler")
+        logger.debug(Actor.self + " received: " + got + " for disabled crawler")
         events(Success(Observable.OK(Actor.self)))
       }
     }

@@ -132,7 +132,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     if (enabled) super.query(queryMap, limit, live || liveOverride, keys, replicaOk)(events) else Actor.self.reactWithin(0) {
       case msg @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + msg + " from " + sender + " for disabled collection")
+        logger.debug(Actor.self + " received: " + msg + " for disabled collection")
         events(Success(QueryResult(Actor.self,Seq.empty)))
       }
     }
@@ -142,7 +142,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   override def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     if (enabled) super.addObserver(actor)(events) else Actor.self.reactWithin(0) { 
       case msg @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + msg + " from " + sender + " for disabled collection")
+        logger.debug(Actor.self + " received: " + msg + " for disabled collection")
         events(Success(Observable.OK(Actor.self)))
       }
     }
@@ -152,7 +152,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   override def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     if (enabled) super.delObserver(actor)(events) else Actor.self.reactWithin(0) {
       case msg @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + msg + " from " + sender + " for disabled collection")
+        logger.debug(Actor.self + " received: " + msg + " for disabled collection")
         events(Success(Observable.OK(Actor.self)))
       }
     }
@@ -331,11 +331,11 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         // adding in random jitter on start so we dont crush the datastore immediately if multiple
         // systems are coming up at the same time
         val rand = new Random
-        val jitter = (2 * cacheRefresh * rand.nextDouble).toLong
+        val jitter = (cacheRefresh * rand.nextDouble).toLong
         logger.info(this + " start delayed by " + jitter + "ms")
         Actor.self.reactWithin(jitter) {
           case msg @ TIMEOUT => {
-            logger.debug(Actor.self + " received: " + msg + " from " + sender + " for jitter timeout")
+            logger.debug(Actor.self + " received: " + msg + " for jitter timeout")
             postJitter
           }
         }
@@ -375,13 +375,13 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             val timeout = if (amLeader) refresh else cacheRefresh
             Actor.self.reactWithin(timeLeft(lastRun, timeout)) {
               case msg @ TIMEOUT => {
-                logger.debug(Actor.self + " received: " + msg + " from " + sender)
+                logger.debug(Actor.self + " received: " + msg)
                 val full = if( timeLeft(lastFullLoad, cacheFullRefresh) > 0 ) false else true
                 if (amLeader) { 
                   crawler.crawl()
                 }
                 else {
-                  val msg = Load(this,full)
+                  val msg = Load(Actor.self,full)
                   logger.debug(Actor.self + " sending: " + msg + " -> " + this)
                   this ! msg
                 }
@@ -391,7 +391,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                 logger.debug(Actor.self + " received: " + msg + " from " + sender)
                 // if we just became leader, then start a crawl
                 if (!amLeader && result) {
-                  this ! SyncLoad(this)
+                  val msg = SyncLoad(Actor.self)
+                  logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+                  this ! msg
                   Actor.self.reactWithin(300000) {
                     case msg @ OK(frm) => {
                       crawler.crawl()

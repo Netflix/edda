@@ -82,7 +82,7 @@ abstract class Queryable extends Observable {
       case msg @ TIMEOUT => {
         stopwatch.stop()
         queryErrorCounter.increment()
-        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        logger.debug(Actor.self + " received: " + msg)
         events(Failure((msg, queryTimeout)))
       }
     }

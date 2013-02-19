@@ -55,8 +55,8 @@ trait GroupCollection extends Collection {
             Actor.reactWithin(timeLeft(lastRun, timeout)) {
                 case TIMEOUT => {
                   if (!amLeader) {
-                    val msg = Collection.Load(this)
-                    logger.debug(this + " sending: " + msg + " -> " + this)
+                    val msg = Collection.Load(Actor.self)
+                    logger.debug(Actor.self + " sending: " + msg + " -> " + this)
                     this ! msg
                   }
                   lastRun = DateTime.now

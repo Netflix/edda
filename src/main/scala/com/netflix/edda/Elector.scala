@@ -53,11 +53,10 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
 
   /** synchronous call to the StateMachine to fetch the leadership status */
   def isLeader: Boolean = {
-    val self = this
-    val msg = IsLeader(this)
-    logger.debug(this + " sending: " + msg + " -> " + this + " with 10000ms timeout")
+    val msg = IsLeader(Actor.self)
+    logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 10000ms timeout")
     this !?(10000, msg) match {
-      case Some(ElectionResult(`self`, result)) => result
+      case Some(ElectionResult(from, result)) => result
       case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to determine leadership: " + message)
       case None => throw new java.lang.RuntimeException("TIMEOUT: isLeader response within 10s")
     }
@@ -75,7 +74,7 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
     * then start the poller that will periodically run elections. */
   protected override def init() {
     Utils.NamedActor(this + " init") {
-      val msg = RunElection(this)
+      val msg = RunElection(Actor.self)
       logger.debug(Actor.self + " sending: " + msg + " -> " + this)
       this ! msg
       electionPoller()
@@ -100,8 +99,8 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
       Actor.self.loop {
         Actor.self.reactWithin(pollCycle) {
           case got @ TIMEOUT => {
-            logger.debug(Actor.self + " received: " + got + " from " + sender)
-            val msg = RunElection(this)
+            logger.debug(Actor.self + " received: " + got)
+            val msg = RunElection(Actor.self)
             logger.debug(Actor.self + " sending: " + msg + " -> " + this)
             this ! msg
           }
