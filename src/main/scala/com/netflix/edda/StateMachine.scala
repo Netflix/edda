@@ -110,7 +110,7 @@ class StateMachine extends Actor {
 
   /** stop the state machine */
   def stop() {
-    val msg = Stop(this)
+    val msg = Stop(Actor.self)
     logger.debug(Actor.self + " sending: " + msg + " -> " + this)
     this ! msg
   }
@@ -141,26 +141,16 @@ class StateMachine extends Actor {
       throw new java.lang.RuntimeException(reason)
   }
 
-  private[this] val self = this
-  protected val mailboxSizeGauge = new BasicGauge[java.lang.Long](
-    MonitorConfig.builder("mailboxSize").build(),
-    new Callable[java.lang.Long] {
-      def call() = {
-        logger.info(self + " mailboxSize: " + self.mailboxSize)
-        self.mailboxSize
-      }
-    })
-
   /** the main loop for the StateMachine actor.  It will call initState then start looping
     * and react'ing to messages until it gets a Stop message. */
   final def act() {
-    logger.debug(this + " before init")
     init()
-    logger.debug(this + " after init")
     Actor.self.react { 
       case msg @ 'INIT => {
+        var state = Utils.RETRY {
+          initState
+        }
         logger.debug(this + " received: " + msg + " from " + sender)
-        var state = initState
         var keepLooping = true
         Actor.self.loopWhile(keepLooping) {
           Actor.self.react {

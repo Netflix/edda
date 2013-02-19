@@ -85,6 +85,32 @@ object Utils {
     }
   }
 
+  /** object to help retry critical operations.   It catches
+    * any exceptions, logs them, and retrys the operation.
+    * {{{
+    * val state = RETRY { initState }
+    * }}}
+    * @param action closure to run and retry upon exception
+    */
+  object RETRY {
+    @annotation.tailrec
+    def apply[T](action: => T): T = {
+      {
+        try {
+          Some(action)
+        } catch {
+          case e: Exception => {
+            logger.error("caught retryable exception:" + e, e)
+            None
+          }
+        }
+      } match {
+        case Some(t) => t.asInstanceOf[T]
+        case None => RETRY.apply(action)
+      }
+    }
+  }
+
   /** class used to assist logging and allow for abstracted exception handling
     * for simple actors
     * @param name name of actor that is seen when logging
