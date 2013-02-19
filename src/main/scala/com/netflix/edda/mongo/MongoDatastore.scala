@@ -244,6 +244,10 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
       val x = cursor.asScala.map(mongoToRecord(_)).toSeq.map(_.copy(mtime=mtime))
       logger.info(this + " Loaded " + x.size + " records")
       x
+    } catch {
+      case e: Exception => {
+        throw new java.lang.RuntimeException(this + " failed to load", e)
+      }
     } finally {
       cursor.close()
     }
