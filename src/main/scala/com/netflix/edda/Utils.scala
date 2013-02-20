@@ -67,12 +67,11 @@ object Utils {
     def apply(action: => Unit): Unit = {
       val trapExit = Actor.self.trapExit
       Actor.self.trapExit = true
-      val replyTo = Actor.self
       val actor = Actor.link(
         Actor.actor {
           Actor.self.react {
             case 'GO => {
-              Actor.reply(action)
+              action
             }
           }
         }
