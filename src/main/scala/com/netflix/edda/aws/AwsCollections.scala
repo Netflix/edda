@@ -111,6 +111,10 @@ object AwsCollectionBuilder {
       new AwsTagCollection(dsFactory, accountName, elector, ctx),
       new AwsVolumeCollection(dsFactory, accountName, elector, ctx),
       new AwsBucketCollection(dsFactory, accountName, elector, ctx),
+      new AwsIamUserCollection(dsFactory, accountName, elector, ctx),
+      new AwsIamGroupCollection(dsFactory, accountName, elector, ctx),
+      new AwsIamRoleCollection(dsFactory, accountName, elector, ctx),
+      new AwsIamVirtualMFADeviceCollection(dsFactory, accountName, elector, ctx),
       new AwsSimpleQueueCollection(dsFactory, accountName, elector, ctx),
       new AwsReservedInstanceCollection(dsFactory, accountName, elector, ctx),
       new GroupAutoScalingGroups(asg, inst, dsFactory, elector, ctx))
@@ -462,6 +466,86 @@ class AwsBucketCollection(
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.buckets", accountName, ctx) {
   val dataStore: Option[DataStore] = dsFactory(name)
   val crawler = new AwsBucketCrawler(name, ctx)
+}
+
+/** collection for AWS IAM Users
+  *
+  * root collection name: aws.users
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsIamUserCrawler]]
+  *
+  * @param dsFactory function that creates new DataStore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for configuration and AWS clients objects
+  */
+class AwsIamUserCollection(
+                           dsFactory: String => Option[DataStore],
+                           val accountName: String,
+                           val elector: Elector,
+                           override val ctx: AwsCollection.Context) extends RootCollection("aws.users", accountName, ctx) {
+  val dataStore: Option[DataStore] = dsFactory(name)
+  val crawler = new AwsIamUserCrawler(name, ctx)
+}
+
+/** collection for AWS IAM Groups
+  *
+  * root collection name: aws.groups
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsIamGroupCrawler]]
+  *
+  * @param dsFactory function that creates new DataStore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for configuration and AWS clients objects
+  */
+class AwsIamGroupCollection(
+                           dsFactory: String => Option[DataStore],
+                           val accountName: String,
+                           val elector: Elector,
+                           override val ctx: AwsCollection.Context) extends RootCollection("aws.groups", accountName, ctx) {
+  val dataStore: Option[DataStore] = dsFactory(name)
+  val crawler = new AwsIamGroupCrawler(name, ctx)
+}
+
+/** collection for AWS IAM Roles
+  *
+  * root collection name: aws.roles
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsIamRoleCrawler]]
+  *
+  * @param dsFactory function that creates new DataStore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for configuration and AWS clients objects
+  */
+class AwsIamRoleCollection(
+                           dsFactory: String => Option[DataStore],
+                           val accountName: String,
+                           val elector: Elector,
+                           override val ctx: AwsCollection.Context) extends RootCollection("aws.roles", accountName, ctx) {
+  val dataStore: Option[DataStore] = dsFactory(name)
+  val crawler = new AwsIamRoleCrawler(name, ctx)
+}
+
+/** collection for AWS IAM VirtualMFADevices
+  *
+  * root collection name: aws.virtualmfadevices
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsIamVirtualMFADeviceCrawler]]
+  *
+  * @param dsFactory function that creates new DataStore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for configuration and AWS clients objects
+  */
+class AwsIamVirtualMFADeviceCollection(
+                           dsFactory: String => Option[DataStore],
+                           val accountName: String,
+                           val elector: Elector,
+                           override val ctx: AwsCollection.Context) extends RootCollection("aws.virtualmfadevices", accountName, ctx) {
+  val dataStore: Option[DataStore] = dsFactory(name)
+  val crawler = new AwsIamVirtualMFADeviceCrawler(name, ctx)
 }
 
 /** collection for AWS Simple Queue (SQS)
