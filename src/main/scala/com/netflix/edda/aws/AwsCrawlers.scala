@@ -277,8 +277,14 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
         threadPool.submit(
           new Callable[Record] {
             def call() = {
-              val instances = ctx.awsClient.elb.describeInstanceHealth(new DescribeInstanceHealthRequest(elb.id)).getInstanceStates
-              elb.copy(data = Map("name" -> elb.id, "instances" -> instances.asScala.map(ctx.beanMapper(_))))
+              try {
+                val instances = ctx.awsClient.elb.describeInstanceHealth(new DescribeInstanceHealthRequest(elb.id)).getInstanceStates
+                elb.copy(data = Map("name" -> elb.id, "instances" -> instances.asScala.map(ctx.beanMapper(_))))
+              } catch {
+                case e: Exception => {
+                  throw new java.lang.RuntimeError(this + " describeInstanceHealth failed for ELB " + elb.id, e)
+                }
+              }
             }
           }
         )
@@ -291,7 +297,7 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
         catch {
           case e: Exception => {
             failed = true
-            logger.error(this + "exception from describeInstanceHealth", e)
+            logger.error(this + " exception from describeInstanceHealth", e)
             None
           }
         }
