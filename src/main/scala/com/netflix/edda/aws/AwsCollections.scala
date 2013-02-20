@@ -95,6 +95,8 @@ object AwsCollectionBuilder {
     val elb = new AwsLoadBalancerCollection(dsFactory, accountName, elector, ctx)
     val asg = new AwsAutoScalingGroupCollection(dsFactory, accountName, elector, ctx)
     val inst = new AwsInstanceCollection(res.crawler, dsFactory, accountName, elector, ctx)
+    val hostedZones = new AwsHostedZoneCollection(dsFactory, accountName, elector, ctx)
+    val resourceRecordSets = new AwsResourceRecordSetCollection(hostedZones.crawler, dsFactory, accountName, elector, ctx)
     Seq(
       new AwsAddressCollection(dsFactory, accountName, elector, ctx),
       asg,
@@ -114,7 +116,9 @@ object AwsCollectionBuilder {
       new AwsSimpleQueueCollection(dsFactory, accountName, elector, ctx),
       new AwsReservedInstanceCollection(dsFactory, accountName, elector, ctx),
       new GroupAutoScalingGroups(asg, inst, dsFactory, elector, ctx),
-      new AwsHostedZoneCollection(dsFactory, accountName, elector, ctx))
+      hostedZones,
+      resourceRecordSets
+    )
   }
 }
 
@@ -597,7 +601,7 @@ class GroupAutoScalingGroups(
   *
   * root collection name: aws.hostedZones
   *
-  * see crawler details [[com.netflix.edda.aws.AwsReservedInstanceCrawler]]
+  * see crawler details [[com.netflix.edda.aws.AwsHostedZoneCrawler]]
   *
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
@@ -611,4 +615,25 @@ class AwsHostedZoneCollection(
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.hostedZones", accountName, ctx) {
   val dataStore: Option[DataStore] = dsFactory(name)
   val crawler = new AwsHostedZoneCrawler(name, ctx)
+}
+
+/** collection for AWS Route53 record sets
+  *
+  * root collection name: aws.resourceRecordSets
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsResourceRecordSetCrawler]]
+  *
+  * @param dsFactory function that creates new DataStore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for configuration and AWS clients objects
+  */
+class AwsResourceRecordSetCollection(
+                           val zoneCrawler: AwsHostedZoneCrawler,
+                           dsFactory: String => Option[DataStore],
+                           val accountName: String,
+                           val elector: Elector,
+                           override val ctx: AwsCollection.Context) extends RootCollection("aws.resourceRecordSets", accountName, ctx) {
+  val dataStore: Option[DataStore] = dsFactory(name)
+  val crawler = new AwsResourceRecordSetCrawler(name, ctx, zoneCrawler)
 }
