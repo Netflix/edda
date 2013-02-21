@@ -592,12 +592,12 @@ class AwsHostedZoneCrawler(val name: String, val ctx: AwsCrawler.Context) extend
   val request = new ListHostedZonesRequest
 
   override def doCrawl() =  ctx.awsClient.route53.listHostedZones(request).getHostedZones.asScala.map(
-      item => Record(item.getId, ctx.beanMapper(item))).toSeq
+      item => Record(item.getName, ctx.beanMapper(item))).toSeq
 }
 
-case class AwsResourceRecordSetCrawlerState(hostedZones: Seq[Record] = Seq[Record]())
+case class AwsHostedRecordCrawlerState(hostedZones: Seq[Record] = Seq[Record]())
 
-object AwsResourceRecordSetCrawler extends StateMachine.LocalState[AwsResourceRecordSetCrawlerState]
+object AwsHostedRecordCrawler extends StateMachine.LocalState[AwsHostedRecordCrawlerState]
 
 /** crawler for Route53 Resource Record Sets (DNS records)
   *  this is a secondary crawler that crawls the resource recordsets for each hosted zone
@@ -607,14 +607,14 @@ object AwsResourceRecordSetCrawler extends StateMachine.LocalState[AwsResourceRe
   * @param ctx context to provide beanMapper and configuration
   * @param crawler the awsHostedZone crawler
   */ 
-class AwsResourceRecordSetCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
+class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
 
-  import AwsResourceRecordSetCrawler._
+  import AwsHostedRecordCrawler._
 
   override def crawl() {}
 
   // we dont crawl, just get updates from crawler when it crawls
-  override def doCrawl() = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on ResourceRecordSetCrawler")
+  override def doCrawl() = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on HostedRecordCrawler")
   
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(10)
@@ -625,11 +625,13 @@ class AwsResourceRecordSetCrawler(val name: String, val ctx: AwsCrawler.Context,
     */
   def doCrawl(zones: Seq[Record]): Seq[Record] = {
     
-    val futures: Seq[java.util.concurrent.Future[Record]] = zones.map(
+    val futures: Seq[java.util.concurrent.Future[Seq[Record]]] = zones.map(
       zone => {
-        val request = new ListResourceRecordSetsRequest(zone.id)
+        val zoneId = zone.data.asInstanceOf[Map[String,Any]]("id").asInstanceOf[String]
+        val zoneName = zone.id
+        val request = new ListResourceRecordSetsRequest(zoneId)
         threadPool.submit(
-          new Callable[Record] {
+          new Callable[Seq[Record]] {
             def call() = {
               val it = new AwsIterator() {
                 def next() = {
@@ -637,12 +639,12 @@ class AwsResourceRecordSetCrawler(val name: String, val ctx: AwsCrawler.Context,
                   this.nextToken = Option(response.getNextRecordName)
                   response.getResourceRecordSets.asScala.map(
                     item => {
-                      Record(item.getName, ctx.beanMapper(item))
-                    }).toList
+                      Record(item.getName, ctx.beanMapper(item).asInstanceOf[Map[String,Any]] ++ Map("zone" -> Map("id" -> zoneId, "name" -> zoneName)))
+                    }
+                  ).toList
                 }
               }
-              val resourceRecordSets = it.toList.flatten
-              zone.copy(data = Map("zone" -> zone.toMap, "resourceRecordSets" -> resourceRecordSets.toString))
+              it.toList.flatten
             }
           }
         )
@@ -660,9 +662,9 @@ class AwsResourceRecordSetCrawler(val name: String, val ctx: AwsCrawler.Context,
           }
         }
       }
-    ).collect {
+    ).collect({
       case Some(rec) => rec
-    }
+    }).flatten
 
     if (failed) {
       throw new java.lang.RuntimeException("failed to crawl resource record sets")
@@ -670,7 +672,7 @@ class AwsResourceRecordSetCrawler(val name: String, val ctx: AwsCrawler.Context,
     records
   }
 
-  protected override def initState = addInitialState(super.initState, newLocalState(AwsResourceRecordSetCrawlerState()))
+  protected override def initState = addInitialState(super.initState, newLocalState(AwsHostedRecordCrawlerState()))
 
   protected override def init() {
     crawler.addObserver(this)
@@ -682,7 +684,7 @@ class AwsResourceRecordSetCrawler(val name: String, val ctx: AwsCrawler.Context,
       if (hostedZones ne localState(state).hostedZones) {
         val newRecords = doCrawl(hostedZones)
         Observable.localState(state).observers.foreach(_ ! Crawler.CrawlResult(this, newRecords))
-        setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), AwsResourceRecordSetCrawlerState(hostedZones))
+        setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), AwsHostedRecordCrawlerState(hostedZones))
       } else state
     }
   }
