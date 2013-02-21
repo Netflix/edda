@@ -282,7 +282,7 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
                 elb.copy(data = Map("name" -> elb.id, "instances" -> instances.asScala.map(ctx.beanMapper(_))))
               } catch {
                 case e: Exception => {
-                  throw new java.lang.RuntimeError(this + " describeInstanceHealth failed for ELB " + elb.id, e)
+                  throw new java.lang.RuntimeException(this + " describeInstanceHealth failed for ELB " + elb.id, e)
                 }
               }
             }
