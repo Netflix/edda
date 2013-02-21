@@ -279,7 +279,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   }
 
   /** setup CollectionState, initialize the records to be loaded from the DataStore before the Actor starts accepting message */
-  protected override def initState = addInitialState(super.initState, newLocalState(CollectionState(records = load(replicaOk = false))))
+  protected override def initState = addInitialState(super.initState, newLocalState(CollectionState(records = load(replicaOk = true))))
 
   /** initialize servo metrics for Collection.  Delay start based on random jitter to prevent DataStore from being
     * overloaded by all Collection loading all at once.
@@ -366,7 +366,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           refresher
         }
         case Success(msg) => {
-          var amLeader = elector.isLeader
+          var amLeader = false
           // crawl immediately the first time
           if (amLeader) crawler.crawl()
           
