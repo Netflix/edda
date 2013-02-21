@@ -91,7 +91,7 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
 
   /** stop the actors for all the merged collections then stop this actor */
   override def stop() {
-    logger.info("Stoping " + this)
+    logger.info("Stopping " + this)
     collections.foreach(_.stop())
     super.stop()
   }
