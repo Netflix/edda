@@ -23,6 +23,7 @@ import com.netflix.edda.aws.AwsClient
 import com.netflix.edda.CollectionManager
 import com.netflix.edda.mongo.MongoDatastore
 import com.netflix.edda.mongo.MongoElector
+import com.netflix.edda.Utils
 
 import javax.servlet.http.HttpServlet
 
@@ -43,13 +44,13 @@ class BasicServer extends HttpServlet {
 
     val bm = new BasicBeanMapper(BasicContext) with AwsBeanMapper
 
-    val awsClientFactory = (account: String, region: String) => {
-      Option(BasicContext.config.getProperty("edda.aws.accessKey")) match {
-        case None => new AwsClient(region)
+    val awsClientFactory = (account: String) => {
+      Option(Utils.getProperty(BasicContext.config, "edda", "aws.accessKey", account, null)) match {
+        case None => new AwsClient(Utils.getProperty(BasicContext.config, "edda", "region", account, null))
         case Some(accessKey) => new AwsClient(
           accessKey,
-          BasicContext.config.getProperty("edda.aws.secretKey"),
-          region)
+          Utils.getProperty(BasicContext.config, "edda", "aws.secretKey", account, null),
+          Utils.getProperty(BasicContext.config, "edda", "region", account, null))
       }
     }
 
