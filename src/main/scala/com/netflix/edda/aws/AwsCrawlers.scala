@@ -15,6 +15,8 @@
  */
 package com.netflix.edda.aws
 
+import scala.actors.Actor
+
 import com.netflix.edda.StateMachine
 import com.netflix.edda.Crawler
 import com.netflix.edda.CrawlerState
@@ -279,8 +281,14 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
         threadPool.submit(
           new Callable[Record] {
             def call() = {
-              val instances = ctx.awsClient.elb.describeInstanceHealth(new DescribeInstanceHealthRequest(elb.id)).getInstanceStates
-              elb.copy(data = Map("name" -> elb.id, "instances" -> instances.asScala.map(ctx.beanMapper(_))))
+              try {
+                val instances = ctx.awsClient.elb.describeInstanceHealth(new DescribeInstanceHealthRequest(elb.id)).getInstanceStates
+                elb.copy(data = Map("name" -> elb.id, "instances" -> instances.asScala.map(ctx.beanMapper(_))))
+              } catch {
+                case e: Exception => {
+                  throw new java.lang.RuntimeException(this + " describeInstanceHealth failed for ELB " + elb.id, e)
+                }
+              }
             }
           }
         )
@@ -293,7 +301,7 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
         catch {
           case e: Exception => {
             failed = true
-            logger.error(this + "exception from describeInstanceHealth", e)
+            logger.error(this + " exception from describeInstanceHealth", e)
             None
           }
         }
@@ -311,7 +319,16 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
   protected override def initState = addInitialState(super.initState, newLocalState(AwsInstanceHealthCrawlerState()))
 
   protected override def init() {
-    crawler.addObserver(this)
+    import Utils._
+    Utils.NamedActor(this + " init") {
+      crawler.addObserver(this) {
+        case Failure(msg) => {
+          logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
+          this.init
+        }
+        case Success(msg) => super.init
+      }
+    }
   }
 
   protected def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
@@ -390,6 +407,8 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
 
   import AwsInstanceCrawler._
 
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+
   override def crawl() {}
 
   // we dont crawl, just get updates from crawler when it crawls
@@ -411,7 +430,16 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
   protected override def initState = addInitialState(super.initState, newLocalState(AwsInstanceCrawlerState()))
 
   protected override def init() {
-    crawler.addObserver(this)
+    import Utils._
+    Utils.NamedActor(this + " init") {
+      crawler.addObserver(this) {
+        case Failure(msg) => {
+          logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
+          this.init
+        }
+        case Success(msg) => super.init
+      }
+    }
   }
 
   protected def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
