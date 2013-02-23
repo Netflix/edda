@@ -703,7 +703,16 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
   protected override def initState = addInitialState(super.initState, newLocalState(AwsHostedRecordCrawlerState()))
 
   protected override def init() {
-    crawler.addObserver(this)
+    import Utils._
+    Utils.NamedActor(this + " init") {
+      crawler.addObserver(this) {
+        case Failure(msg) => {
+          logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
+          this.init
+        }
+        case Success(msg) => super.init
+      }
+    }
   }
 
   protected def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
