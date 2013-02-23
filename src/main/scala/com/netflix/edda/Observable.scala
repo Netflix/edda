@@ -16,6 +16,9 @@
 package com.netflix.edda
 
 import scala.actors.Actor
+import scala.actors.TIMEOUT
+
+import org.slf4j.LoggerFactory
 
 /** local state for StateMachine */
 case class ObservableState(observers: List[Actor] = List[Actor]())
@@ -43,22 +46,41 @@ object Observable extends StateMachine.LocalState[ObservableState] {
 abstract class Observable extends StateMachine {
 
   import Observable._
+  import Utils._
+
+  private[this] val logger = LoggerFactory.getLogger(getClass)
 
   //* notify the given actor when the state changes */
-  def addObserver(actor: Actor) {
-    this !?(60000, Observe(this, actor)) match {
-      case Some(OK(from)) =>
-      case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to add observer " + message)
-      case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to register observer in 60s")
+  def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
+    val msg = Observe(Actor.self, actor)
+    logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
+    this ! msg
+    Actor.self.reactWithin(60000) {
+      case msg: OK => {
+        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        events(Success(msg))
+      }
+      case msg @ TIMEOUT => {
+        logger.debug(Actor.self + " received: " + msg)
+        events(Failure((msg, 60000)))
+      }
     }
   }
 
   //* stop notifying the give actor when the state changes */
-  def delObserver(actor: Actor) {
-    this !?(60000, Ignore(this, actor)) match {
-      case Some(OK(from)) =>
-      case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to remove observer " + message)
-      case None => throw new java.lang.RuntimeException("TIMEOUT: " + this + " ailed to unregister observer in 60s")
+  def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
+    val msg = Ignore(Actor.self, actor)
+    logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
+    this ! msg
+    Actor.self.reactWithin(60000) {
+      case msg: OK => {
+        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        events(Success(msg))
+      }
+      case msg @ TIMEOUT => {
+        logger.debug(Actor.self + " received: " + msg)
+        events(Failure((msg, 60000)))
+      }
     }
   }
 
@@ -67,11 +89,15 @@ abstract class Observable extends StateMachine {
   /** setup trasitions to handle Oberserve and Ignore messages */
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Observe(from, caller), state) => {
-      sender ! OK(this)
+      val msg = OK(this)
+      logger.debug(this + " sending: " + msg + " -> " + sender)
+      sender ! msg
       setLocalState(state, ObservableState(caller :: localState(state).observers))
     }
     case (Ignore(from, caller), state) => {
-      sender ! OK(this)
+      val msg = OK(this)
+      logger.debug(this + " sending: " + msg + " -> " + sender)
+      sender ! msg
       setLocalState(state, ObservableState(localState(state).observers diff List(caller)))
     }
   }

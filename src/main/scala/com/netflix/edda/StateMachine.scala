@@ -49,7 +49,7 @@ object StateMachine {
 
   /** sent in the case there are no matching case clauses for the the incoming message */
   case class UnknownMessageError(from: Actor, reason: String, message: Any) extends ErrorMessage
-
+  
   /** keep track of a local state for each subclass of the StateMachine. For the inheritance of
     * Collection->Queryable->Observable->StateMachine we could have separate states
     * for Collection, Queryable, and Observable. (in this case Queryable has no internal state)
@@ -94,7 +94,11 @@ class StateMachine extends Actor {
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
-  protected def init() {}
+  protected def init() {
+    val msg = 'INIT
+    logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+    this ! msg
+  }
 
   /** subclasses need to overload this routine when local state is required:
     * {{{
@@ -106,7 +110,9 @@ class StateMachine extends Actor {
 
   /** stop the state machine */
   def stop() {
-    this ! Stop(this)
+    val msg = Stop(Actor.self)
+    logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+    this ! msg
   }
 
   /** used from subclasses initState routine to add their localState object to the overall StateMachine state */
@@ -135,41 +141,46 @@ class StateMachine extends Actor {
       throw new java.lang.RuntimeException(reason)
   }
 
-  private[this] val self = this
-  protected val mailboxSizeGauge = new BasicGauge[java.lang.Long](
-    MonitorConfig.builder("mailboxSize").build(),
-    new Callable[java.lang.Long] {
-      def call() = self.mailboxSize
-    })
-
   /** the main loop for the StateMachine actor.  It will call initState then start looping
     * and react'ing to messages until it gets a Stop message. */
   final def act() {
     init()
-    var state = initState
-    var keepLooping = true
-    loopWhile(keepLooping) {
-      react {
-        case Stop(from) => {
-          keepLooping = false
+    Actor.self.react { 
+      case msg @ 'INIT => {
+        var state = Utils.RETRY {
+          initState
         }
-        case message: Message => {
-          if (!transitions.isDefinedAt(message, state)) {
-            logger.error("Unknown Message " + message + " sent from " + sender)
-            sender ! UnknownMessageError(this, "Unknown Message " + message, message)
-          }
-          logger.debug(sender + ": " + message + " -> " + this)
-          try {
-            state = transitions(message, state)
-          } catch {
-            case e: Exception => {
-              logger.error("failed to handle event " + message, e)
+        logger.debug(this + " received: " + msg + " from " + sender)
+        var keepLooping = true
+        Actor.self.loopWhile(keepLooping) {
+          Actor.self.react {
+            case msg @ Stop(from) => {
+              logger.debug(this + " received: " + msg + " from " + sender)
+              keepLooping = false
+            }
+            case message: Message => {
+              if (!transitions.isDefinedAt(message, state)) {
+                logger.error("Unknown Message " + message + " sent from " + sender)
+                val msg = UnknownMessageError(this, "Unknown Message " + message, message) 
+                logger.debug(this + " sending: " + msg + " -> " + sender)
+                sender ! msg
+              }
+              logger.debug(this + " received: " + message + " from " + sender)
+              try {
+                state = transitions(message, state)
+              } catch {
+                case e: Exception => {
+                  logger.error("failed to handle event " + message, e)
+                }
+              }
+            }
+            case message => {
+              logger.error("Invalid Message " + message + " sent from " + sender)
+              val msg = InvalidMessageError(this, "Invalid Message " + message, message) 
+              logger.debug(this + " sending: " + msg + " -> " + sender)
+              sender ! msg
             }
           }
-        }
-        case message => {
-          logger.error("Invalid Message " + message + " sent from " + sender)
-          sender ! InvalidMessageError(this, "Invalid Message " + message, message)
         }
       }
     }

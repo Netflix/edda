@@ -29,6 +29,8 @@ trait GroupCollection extends Collection {
 
   def logger: Logger
 
+  import Utils._
+
   /** group collections do not have a dedicated crawler that we need crawl.  We will get
     * Crawl events as a secondary result of other Collections/Crawlers running.  For example
     * we have group.autoScalingGroups collection which modified results from the aws.autoScalingGroups
@@ -40,21 +42,32 @@ trait GroupCollection extends Collection {
     if (Option(crawler) == None || Option(elector) == None) return
     val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
     Utils.NamedActor(this + " refresher") {
-      elector.addObserver(Actor.self)
-      var amLeader = elector.isLeader
-      var lastRun = DateTime.now
-      Actor.loop {
-        val timeout = cacheRefresh
-        Actor.reactWithin(timeLeft(lastRun, timeout)) {
-          case TIMEOUT => {
-            if (!amLeader) this ! Collection.Load(this)
-            lastRun = DateTime.now
-          }
-          case Elector.ElectionResult(from, result) => {
-            amLeader = result
-          }
-          case message => {
-            logger.error("Invalid message " + message + " from sender " + sender)
+      elector.addObserver(Actor.self) {
+        case Failure(msg) => {
+          logger.error(Actor.self + " failed to addObserver: " + msg)
+          refresher
+        }
+        case Success(msg) => {
+          var amLeader = elector.isLeader
+          var lastRun = DateTime.now
+          Actor.loop {
+            val timeout = cacheRefresh
+            Actor.reactWithin(timeLeft(lastRun, timeout)) {
+                case TIMEOUT => {
+                  if (!amLeader) {
+                    val msg = Collection.Load(Actor.self)
+                    logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+                    this ! msg
+                  }
+                  lastRun = DateTime.now
+                }
+              case Elector.ElectionResult(from, result) => {
+                amLeader = result
+                }
+              case message => {
+                logger.error("Invalid message " + message + " from sender " + sender)
+              }
+            }
           }
         }
       }
