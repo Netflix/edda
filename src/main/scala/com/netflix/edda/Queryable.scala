@@ -16,20 +16,24 @@
 package com.netflix.edda
 
 import scala.actors.Actor
+import scala.actors.TIMEOUT
 
 import com.netflix.servo.monitor.Monitors
+import org.slf4j.LoggerFactory
 
 /** Queryable companion object that declares StateMachine messages used to query Collections */
 object Queryable {
 
   /** Message to to query the StateMachine */
-  private case class Query(from: Actor, query: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean) extends StateMachine.Message
+  case class Query(from: Actor, query: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean) extends StateMachine.Message
 
   /** response Message from a Query Message */
-  private case class QueryResult(from: Actor, records: Seq[Record]) extends StateMachine.Message {
+  case class QueryResult(from: Actor, records: Seq[Record]) extends StateMachine.Message {
     override def toString = "QueryResult(records=" + records.size + ")"
   }
 
+  /** response Message from a Query Message */
+  case class QueryError(from: Actor, error: Any) extends StateMachine.Message
 }
 
 /** this class add a query routine and messages to the StateMachine that supports the query routine.
@@ -38,10 +42,15 @@ object Queryable {
 abstract class Queryable extends Observable {
 
   import Queryable._
+  import Utils._
+
+  private[this] val logger = LoggerFactory.getLogger(getClass)
 
   private[this] val queryTimer = Monitors.newTimer("query")
   private[this] val queryCounter = Monitors.newCounter("query.count")
   private[this] val queryErrorCounter = Monitors.newCounter("query.errors")
+
+  def queryTimeout = 60000L
 
   /** query a collection for Records.
    *
@@ -52,19 +61,29 @@ abstract class Queryable extends Observable {
    * @param replicaOk boolean flag to specify if is ok for the query to be sent to a data replica in the case of a primary/secondary datastore set.
    * @return the records that match the query criteria
    */
-  def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): Seq[Record] = {
-    val self = this
+  def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     val stopwatch = queryTimer.start()
-    self !?(60000, Query(self, queryMap, limit, live, keys, replicaOk)) match {
-      case Some(QueryResult(`self`, results)) => {
+    val msg = Query(Actor.self, queryMap, limit, live, keys, replicaOk)
+    logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with " + queryTimeout + "ms timeout")
+    this ! msg
+    Actor.self.reactWithin(queryTimeout) {
+      case msg @ QueryResult(from, results) => {
         stopwatch.stop()
         queryCounter.increment()
-        results
+        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        events(Success(msg))
       }
-      case None => {
+      case msg @ QueryError(from, results) => {
         stopwatch.stop()
         queryErrorCounter.increment()
-        throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to fetch query results within 60s for query: " + queryMap + " limit: " + limit + " keys: " + keys)
+        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        events(Failure(msg))
+      }
+      case msg @ TIMEOUT => {
+        stopwatch.stop()
+        queryErrorCounter.increment()
+        logger.debug(Actor.self + " received: " + msg)
+        events(Failure((msg, queryTimeout)))
       }
     }
   }
@@ -82,7 +101,9 @@ abstract class Queryable extends Observable {
     case (Query(from, queryMap, limit, live, keys, replicaOk), state) => {
       val replyTo = sender
       Utils.NamedActor(this + " Query processor") {
-        replyTo ! QueryResult(this, doQuery(queryMap, limit, live, keys, replicaOk, state))
+        val msg = QueryResult(this, doQuery(queryMap, limit, live, keys, replicaOk, state))
+        logger.debug(this + " sending: " + msg + " -> " + replyTo)
+        replyTo ! msg
       }
       state
     }

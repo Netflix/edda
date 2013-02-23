@@ -15,7 +15,7 @@
  */
 package com.netflix.edda.resources
 
-import collection.mutable.{Set => MSet}
+import scala.collection.mutable.{Set => MSet}
 
 import javax.servlet.http.HttpServletRequest
 import javax.ws.rs.{GET, Path}
@@ -29,6 +29,7 @@ import com.netflix.edda.web.MatchAnyExpr
 import com.netflix.edda.CollectionManager
 import com.netflix.edda.Record
 import com.netflix.edda.Utils
+import com.netflix.edda.Queryable
 
 import org.codehaus.jackson.JsonEncoding.UTF8
 import org.codehaus.jackson.util.DefaultPrettyPrinter
@@ -41,6 +42,9 @@ import org.joda.time.DateTime
 /** resource class to query collections registered with the CollectionManager */
 @Path("/v2")
 class CollectionResource {
+
+  import Utils._
+  import Queryable._
 
   private val logger = LoggerFactory.getLogger(getClass)
 
@@ -88,6 +92,8 @@ class CollectionResource {
 
     details.matrixArgs.foreach {
       case (k, null) => query += prefix + k -> Map("$nin" -> List(null, ""))
+      case (k, "true") => query += prefix + k -> true
+      case (k, "false") => query += prefix + k -> false
       case (k, v: String) if v.contains(',') =>
         query += prefix + k -> Map("$in" -> v.split(',').toList)
       case (k, v) => query += prefix + k -> v
@@ -361,7 +367,17 @@ class CollectionResource {
     } else makeQuery(details)
     logger.info(coll + " query: " + Utils.toJson(query))
     val keys: Set[String] = if (details.expand) details.fields else Set("id")
-    unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
+    // unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
+    var records: Seq[Record] = Seq()
+    Utils.SYNC {
+      coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true) {
+        case Success(results: QueryResult) => {
+          records = unique(results.records, details)
+        }
+        case msg @ Failure(error) => throw new java.lang.RuntimeException(this + "query failed: " + query + " error: " + error)
+      }
+    }
+    return records
   }
 
   /** handle HTTP request.  Map uri path to collection name, matrix arguments and field selectors */

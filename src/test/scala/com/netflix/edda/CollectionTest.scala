@@ -24,12 +24,20 @@ import org.scalatest.FunSuite
 import org.joda.time.DateTime
 
 class CollectionTest extends FunSuite {
+  import Utils._
+  import Queryable._
+
   val logger = LoggerFactory.getLogger(getClass)
   test("load") {
     val coll = new TestCollection
     coll.start()
-    expect(Nil) {
-      coll.query(Map("id" -> "b"))
+
+    SYNC {
+      coll.query(Map("id" -> "b")) {
+        case Success(results: QueryResult) => {
+          expect(Nil) { results.records }
+        }
+      }
     }
 
     // dont let the crawler reset our records
@@ -38,26 +46,36 @@ class CollectionTest extends FunSuite {
     coll ! Collection.Load(coll)
     // allow for collection to load
     Thread.sleep(1000)
-    val records = coll.query(Map("id" -> "b"))
-    expect(1) {
-      records.size
+    SYNC {
+      coll.query(Map("id" -> "b")) {
+        case Success(results: QueryResult) => {
+          expect(1) {
+            results.records.size
+          }
+          expect(2) {
+            results.records.head.data
+          }
+          expect("b") {
+            results.records.head.id
+          }
+          coll.stop()
+        }
+      }
     }
-    expect(2) {
-      records.head.data
-    }
-    expect("b") {
-      records.head.id
-    }
-    coll.stop()
   }
-
+  
   test("update") {
     val coll = new TestCollection
     coll.dataStore.get.records = Seq(Record("a", 1), Record("b", 2), Record("c", 3))
     coll.start()
 
-    expect(3) {
-      coll.query().size
+
+    SYNC {
+      coll.query() {
+        case Success(results: QueryResult) => {
+          expect(3) { results.records.size }
+        }
+      }
     }
 
     coll.crawler.records = Seq(Record("a", 1), Record("b", 3), Record("c", 4), Record("d", 5))
@@ -65,10 +83,12 @@ class CollectionTest extends FunSuite {
     // allow for crawl to propagate
     Thread.sleep(1000)
 
-    val records = coll.query(Map("data" -> Map("$gte" -> 3)))
-
-    expect(3) {
-      records.size
+    SYNC {
+      coll.query(Map("data" -> Map("$gte" -> 3))) {
+        case Success(results: QueryResult) => {
+          expect(3) { results.records.size }
+        }
+      }
     }
   }
 
@@ -85,18 +105,26 @@ class CollectionTest extends FunSuite {
     coll.dataStore.get.records = dataStoreResults
     coll.start()
 
-    // expect data loaded form dataStore
-    expect(3) {
-      coll.query().size
+    SYNC {
+      // expect data loaded form dataStore
+      coll.query() {
+        case Success(results: QueryResult) => {
+          expect(3) { results.records.size }
+        }
+      }
     }
 
     // set crawler results and wait for the crawler results to propagate
     coll.crawler.records = crawlResults
     Thread.sleep(1000)
 
-    // we should get 4 records now
-    expect(4) {
-      coll.query().size
+    SYNC {
+      // we should get 4 records now
+      coll.query() {
+        case Success(results: QueryResult) => {
+          expect(4) { results.records.size }
+        }
+      }
     }
 
     // now drop leader role and wait for dataStore results to reload
@@ -107,13 +135,20 @@ class CollectionTest extends FunSuite {
     coll.dataStore.get.records = newA +: coll.dataStore.get.records.tail
     Thread.sleep(1000)
 
-    expect(3) {
-      coll.query().size
+    SYNC {
+      coll.query() {
+        case Success(results: QueryResult) => {
+          expect(3) { results.records.size }
+        }
+      }
     }
 
-    // verify that "a" was removed after ltime was set 
-    expect(0) {
-      coll.query(Map("id" -> "a")).size
-    }    
+    SYNC {
+      coll.query(Map("id" -> "a")) {
+        case Success(results: QueryResult) => {
+          expect(0) { results.records.size }
+        }
+      }
+    }
   }
 }

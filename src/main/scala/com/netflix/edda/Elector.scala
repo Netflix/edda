@@ -49,12 +49,14 @@ object Elector extends StateMachine.LocalState[ElectorState] {
 abstract class Elector(ctx: ConfigContext) extends Observable {
 
   import Elector._
+  import Utils._
 
   /** synchronous call to the StateMachine to fetch the leadership status */
   def isLeader: Boolean = {
-    val self = this
-    this !?(10000, IsLeader(this)) match {
-      case Some(ElectionResult(`self`, result)) => result
+    val msg = IsLeader(Actor.self)
+    logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 10000ms timeout")
+    this !?(10000, msg) match {
+      case Some(ElectionResult(from, result)) => result
       case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to determine leadership: " + message)
       case None => throw new java.lang.RuntimeException("TIMEOUT: isLeader response within 10s")
     }
@@ -71,22 +73,36 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
   /** set up observers to watch ourselves for leadership results.  Start an election immediately
     * then start the poller that will periodically run elections. */
   protected override def init() {
-    // it is a sync call so put it in another thread
-    Actor.actor {
-      this.addObserver(this)
+    Utils.NamedActor(this + " init") {
+      val msg = RunElection(Actor.self)
+      logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+      this ! msg
+      electionPoller()
+      super.init
+      // listen to our own message events
+      def retry: Nothing = {
+        this.addObserver(this) {
+          case Failure(msg) => {
+            logger.error(Actor.self + "failed to add observer " + this + " to " + this + ", retrying")
+            retry
+          }
+          case Success(msg) =>
+        }
+      }
+      retry
     }
-    this ! RunElection(this)
-    electionPoller()
   }
 
   /** run an election periodically */
   protected def electionPoller() {
-    val elector = this
     Utils.NamedActor(this + " poller") {
-      Actor.loop {
-        Actor.reactWithin(pollCycle) {
-          case TIMEOUT => {
-            elector ! RunElection(this)
+      Actor.self.loop {
+        Actor.self.reactWithin(pollCycle) {
+          case got @ TIMEOUT => {
+            logger.debug(Actor.self + " received: " + got)
+            val msg = RunElection(Actor.self)
+            logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+            this ! msg
           }
         }
       }
@@ -100,7 +116,11 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
     case (RunElection(from), state) => {
       Utils.NamedActor(this + " election runner") {
         val result = runElection()
-        Observable.localState(state).observers.foreach(_ ! ElectionResult(this, result))
+        val msg = ElectionResult(this, result)
+        Observable.localState(state).observers.foreach(o => {
+            logger.debug(this + " sending: " + msg + " -> " + o)
+            o ! msg
+        })
       }
       state
     }
@@ -108,7 +128,9 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
       setLocalState(state, ElectorState(result))
     }
     case (IsLeader(from), state) => {
-      sender ! ElectionResult(this, localState(state).isLeader)
+      val msg = ElectionResult(this, localState(state).isLeader)
+      logger.debug(this + " sending: " + msg + " -> " + sender)
+      sender ! msg
       state
     }
   }

@@ -15,7 +15,9 @@
  */
 package com.netflix.edda
 
+import scala.actors.Actor
 import scala.actors.DaemonActor
+import scala.actors.Exit
 
 import java.io.ByteArrayOutputStream
 import java.util.Date
@@ -23,6 +25,7 @@ import java.util.Properties
 import java.text.SimpleDateFormat
 
 import org.joda.time.DateTime
+import org.slf4j.LoggerFactory
 
 import org.codehaus.jackson.JsonGenerator
 import org.codehaus.jackson.JsonEncoding.UTF8
@@ -34,6 +37,78 @@ import org.codehaus.jackson.JsonNode
 object Utils {
   private lazy val factory = new MappingJsonFactory
   private lazy val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+
+  class EventStatus() {}
+  
+  type EventHandlers = PartialFunction[EventStatus,Unit]
+  
+  case class Success(event: Any) extends EventStatus
+  case class Failure(event: Any) extends EventStatus
+  
+  val DefaultEventHandlers: EventHandlers = {
+    case Success(event) => 
+    case Failure(event) => throw new java.lang.RuntimeException(event.toString)
+  }
+
+  /** object to help syncronize an event base api (like Collection.query)
+    * that requires onComplete event handlers
+    * {{{
+    * var queryResults: Seq[Record] = Seq()
+    * SYNC {
+    *   collection.query(queryMap, limit, live, keys, replicaOk) {
+    *     case Success(results: QueryResult) => queryResults = results.records
+    *   }
+    * }
+    * }}}  
+    * @param action closure to run and wait for completion
+    */
+  object SYNC {
+    def apply(action: => Unit): Unit = {
+      val trapExit = Actor.self.trapExit
+      Actor.self.trapExit = true
+      val actor = Actor.link(
+        Actor.actor {
+          Actor.self.react {
+            case 'GO => {
+              action
+            }
+          }
+        }
+      )
+      actor ! 'GO
+      Actor.self.receive {
+        case Exit(`actor`, reason) =>
+      }
+      Actor.self.trapExit = trapExit
+    }
+  }
+
+  /** object to help retry critical operations.   It catches
+    * any exceptions, logs them, and retrys the operation.
+    * {{{
+    * val state = RETRY { initState }
+    * }}}
+    * @param action closure to run and retry upon exception
+    */
+  object RETRY {
+    @annotation.tailrec
+    def apply[T](action: => T): T = {
+      {
+        try {
+          Some(action)
+        } catch {
+          case e: Exception => {
+            logger.error("caught retryable exception:" + e, e)
+            None
+          }
+        }
+      } match {
+        case Some(t) => t.asInstanceOf[T]
+        case None => RETRY.apply(action)
+      }
+    }
+  }
 
   /** class used to assist logging and allow for abstracted exception handling
     * for simple actors
