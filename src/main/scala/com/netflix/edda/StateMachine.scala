@@ -16,6 +16,8 @@
 package com.netflix.edda
 
 import scala.actors.Actor
+import scala.actors.TIMEOUT
+
 import org.slf4j.LoggerFactory
 
 import java.util.concurrent.Callable
@@ -121,6 +123,22 @@ class StateMachine extends Actor {
     state isDefinedAt localStateKey match {
       case true => throw new java.lang.RuntimeException("State for " + localStateKey + " already initialized")
       case false => state + (localStateKey -> initValue)
+    }
+  }
+
+  /** used to drain the actor mailbox of messages when desired.
+   * {{{
+   * flushMessages {
+   *   case Crawl(from) => true
+   * }
+   * }}}
+   */
+  protected def flushMessages(pf: PartialFunction[Any,Boolean]) {
+    var keepLooping = true
+    while ( keepLooping ) {
+      keepLooping = Actor.self.receiveWithin(0)(pf orElse {
+        case TIMEOUT => false
+      })
     }
   }
 

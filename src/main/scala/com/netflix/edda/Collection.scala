@@ -467,6 +467,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     case (SyncLoad(from), state) => {
       // SyncLoad allows us to make sure we have a current cache in memory of "live" records
       // before we take over as "Leader" and start writing to the DataStore
+      flushMessages {
+        case SyncLoad(from) => true
+      }
       val replyTo = sender
       NamedActor(this + " SyncLoad processor") {
         val records = doLoad(replicaOk = false)
@@ -480,6 +483,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       state
     }
     case (Load(from, full), state) => {
+      flushMessages {
+        case Load(from, full) => true
+      }
       NamedActor(this + " Load processor") {
           val stopwatch = loadTimer.start()
           val records = try {
