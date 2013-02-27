@@ -114,6 +114,9 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
   /** handle StateMachine messages */
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (RunElection(from), state) => {
+      flushMessages {
+        case RunElection(from) => true
+      }
       Utils.NamedActor(this + " election runner") {
         val result = runElection()
         val msg = ElectionResult(this, result)

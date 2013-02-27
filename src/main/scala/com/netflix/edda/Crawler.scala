@@ -60,9 +60,9 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
   /** start a crawl if the crawler is enabled */
   def crawl() {
     if (enabled) {
-        val msg = Crawl(Actor.self)
-        logger.debug(Actor.self + " sending: " + msg + " -> " + this)
-        this ! msg
+      val msg = Crawl(Actor.self)
+      logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+      this ! msg
     }
   }
 
@@ -110,6 +110,13 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Crawl(from), state) => {
       // this is blocking so we don't crawl in parallel
+
+      // in case we are crawling slower than expected
+      // we might have a bunch of Crawl messages in the 
+      // mailbox, so just burn through them now
+      flushMessages {
+        case Crawl(from) => true
+      }
       val stopwatch = crawlTimer.start()
       val newRecords = try {
         doCrawl()
