@@ -148,8 +148,14 @@ object Utils {
     * then it will look for (in this order):
     *     edda.collection.test.us-east-1.aws.addresses.enabled
     *     edda.collection.test.us-east-1.aws.enabled
+    *     edda.collection.us-east-1.aws.addresses.enabled
     *     edda.collection.test.us-east-1.enabled
+    *     edda.collection.us-east-1.aws.enabled
+    *     edda.collection.aws.addresses.enabled
     *     edda.collection.test.enabled
+    *     edda.collection.us-east-1.enabled
+    *     edda.collection.aws.enabled
+    *     edda.collection.addresses.enabled
     *     edda.collection.enabled
     * else return default
     * }}}
@@ -163,8 +169,8 @@ object Utils {
   def getProperty(props: Properties, prefix: String, propName: String, nameContext: String, default: String): String = {
     val parts = nameContext.split('.')
     Range(1, parts.size + 1).reverse.map(
-      ix => prefix + "." + parts.take(ix).mkString(".") + "." + propName
-    ) collectFirst {
+      ix => parts.sliding(ix).map( prefix + "." + _.mkString(".") + "." + propName )
+    ).flatten collectFirst {
       case prop: String if props.containsKey(prop) => props.getProperty(prop)
     } match {
       case Some(v) => v
