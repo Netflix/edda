@@ -337,4 +337,16 @@ object Utils {
     })
     result.toString()
   }
+
+  def parseMatrixArguments(arguments: String): Map[String,String] = arguments match {
+    case m if m == null || m == "" => Map()
+    // skip null/or empty matrix (ie ";;a=b"), also map value null to matrix args missing value
+    case _ =>
+      arguments.tail.split(";").map(_ split "=").collect({
+        case Array(k, v) => (k, v)
+        case Array(m) if m != "" => (m, null)
+        case v: Array[String] if v.size > 2 => (v.head, v.tail.fold("")(_ + "=" + _))
+      }).toMap
+  }
+    
 }

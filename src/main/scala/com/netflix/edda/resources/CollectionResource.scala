@@ -143,16 +143,7 @@ class CollectionResource {
   /** companion object to handle matrix arguments */
   object ReqDetails {
     def apply(req: HttpServletRequest, id: String, matrixStr: String, exprStr: String): ReqDetails = {
-      val args: Map[String, String] = matrixStr match {
-        case m if m == null || m == "" => Map()
-        // skip null/or empty matrix (ie ";;a=b"), also map value null to matrix args missing value
-        case _ =>
-          matrixStr.tail.split(";").map(_ split "=").collect({
-            case Array(k, v) => (k, v)
-            case Array(m) if m != "" => (m, null)
-            case v: Array[String] if v.size > 2 => (v.head, v.tail.fold("")(_ + "=" + _))
-          }).toMap
-      }
+      val args: Map[String, String] = Utils.parseMatrixArguments(matrixStr)
       val expr = if (exprStr == null) MatchAnyExpr
       else FieldSelectorParser.parse(exprStr)
 

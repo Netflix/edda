@@ -36,6 +36,10 @@ class TestDataStore extends DataStore {
     records = d.records
   }
 
+  def remove(queryMap: Map[String, Any]) {
+    records
+  }
+
   def collectionModified = {
       DateTime.now
   }
