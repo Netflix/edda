@@ -35,47 +35,8 @@ trait GroupCollection extends Collection {
     * Crawl events as a secondary result of other Collections/Crawlers running.  For example
     * we have group.autoScalingGroups collection which modified results from the aws.autoScalingGroups
     * Crawler.  If aws.autoScalingGroups crawler is not run or not enabled, then the group collection will be stale.
-    *
-    * If we are not the leader then we need to refresh our cache, otherwise we wait.
     */
-  override protected def refresher() {
-    if (Option(crawler) == None || Option(elector) == None) return
-    val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
-    Utils.NamedActor(this + " refresher") {
-      elector.addObserver(Actor.self) {
-        case Failure(msg) => {
-          logger.error(Actor.self + " failed to addObserver: " + msg)
-          refresher
-        }
-        case Success(msg) => {
-          var amLeader = elector.isLeader
-          var lastRun = DateTime.now
-          Actor.loop {
-            val timeout = cacheRefresh
-            Actor.reactWithin(timeLeft(lastRun, timeout)) {
-                case TIMEOUT => {
-                  if (!amLeader) {
-                    val msg = Collection.Load(Actor.self)
-                    logger.debug(Actor.self + " sending: " + msg + " -> " + this)
-                    this ! msg
-                  }
-                  lastRun = DateTime.now
-                }
-              case Elector.ElectionResult(from, result) => {
-                amLeader = result
-                }
-              case message => {
-                logger.error("Invalid message " + message + " from sender " + sender)
-              }
-            }
-          }
-        }
-      }
-    }.addExceptionHandler({
-      case e: Exception => logger.error(this + " failed to refresh", e)
-    })
-
-  }
+  override protected def allowCrawl = false
 
   implicit def recordOrdering: Ordering[Record] = Ordering.fromLessThan(_.stime isBefore _.stime)
   implicit def timeOrdering: Ordering[DateTime] = Ordering.fromLessThan(_ isAfter _)
