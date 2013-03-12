@@ -68,9 +68,21 @@ object Collection extends StateMachine.LocalState[CollectionState] {
   /** Messsage to *Synchronously* Load the record set from the DataStore */
   case class SyncLoad(from: Actor) extends StateMachine.Message
 
+  /** Message to Purge the record set from the DataStore */
+  case class Purge(from: Actor) extends StateMachine.Message
+
   /** Response from the SyncLoad request */
   case class OK(from: Actor) extends StateMachine.Message
 
+  object RetentionPolicy extends Enumeration {
+    type RetentionPolicy = Value
+    val ALL, LIVE, LAST = Value
+  }
+
+  object PurgePolicy extends Enumeration {
+    type PurgePolicy = Value
+    val NONE, LIVE, LAST, AGE = Value
+  }
 }
 
 /** general Collection logic.  It is abstract to specify the collection name,
@@ -86,6 +98,14 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   val logger = LoggerFactory.getLogger(getClass)
   lazy val enabled = Utils.getProperty(ctx.config, "edda.collection", "enabled", name, "true").toBoolean
+
+  // pull out the purgePolicy and any options from strings like:
+  // edda.collection.purgePolicy=AGE;expiry=2678400000
+  lazy val (purgePolicy: PurgePolicy.Value, purgePolicyOptions: Map[_,_]) = {
+    val args: Map[String,String] = Utils.parseMatrixArguments(';' + Utils.getProperty(ctx.config, "edda.collection", "purgePolicy", name, "NONE"))
+    val policy = (PurgePolicy.values.map(_.toString) & args.keySet).head
+    (PurgePolicy.withName(policy), args - policy)
+  }
 
   /** name of the collection, typically the name of the corresponding crawler also.  Something like
     * test.us-east-1.aws.autoScalingGroups
@@ -365,6 +385,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     val refresh = Utils.getProperty(ctx.config, "edda.collection", "refresh", name, "60000").toLong
     val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
     val cacheFullRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.full.refresh", name, "1800000").toLong
+
+    // how often to purge history, default is every 6 hours
+    val purgeFrequency = Utils.getProperty(ctx.config, "edda.collection", "purgeFrequency", name, "21600000").toLong
+
     NamedActor(this + " refresher") {
       elector.addObserver(Actor.self) {
         case Failure(msg) => {
@@ -384,6 +408,12 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                 logger.debug(Actor.self + " received: " + msg)
                 val full = if( timeLeft(lastFullLoad, cacheFullRefresh) > 0 ) false else true
                 if (amLeader) { 
+                  val purge = if( timeLeft(lastPurge, purgeFrequency) > 0 ) false else true
+                  if( purge && purgePolicy != PurgePolicy.NONE ) {
+                    val msg = Purge(Actor.self)
+                    logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+                    this ! msg
+                  }         
                   if( allowCrawl ) crawler.crawl()
                 }
                 else {
@@ -397,6 +427,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                 logger.debug(Actor.self + " received: " + msg + " from " + sender)
                 // if we just became leader, then start a crawl
                 if (!amLeader && result) {
+                  val rand = new Random
+                  // purgeJitter is can be up to +/-20% of purgeFrequency
+                  val purgeJitter = (purgeFrequency * .2 * rand.nextDouble).toLong * (if( rand.nextBoolean ) 1 else -1);
+                  val lastPurge = new DateTime( DateTime.now().getMillis + purgeJitter)
                   val msg = SyncLoad(Actor.self)
                   logger.debug(Actor.self + " sending: " + msg + " -> " + this)
                   this ! msg
@@ -445,6 +479,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   private[this] var lastFullLoad: DateTime = new DateTime(0)
   private[this] var lastLoad: DateTime = new DateTime(0)
+  private[this] var lastPurge: DateTime = DateTime.now()
 
   // eliminate used-only-once warnings from IntelliJ
   if(false) crawlGauge
@@ -535,6 +570,36 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           val msg = Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
           logger.debug(this + " sending: " + msg + " -> " + this)
           this ! msg
+      }
+      state
+    }
+    case (Purge(from), state) => {
+      flushMessages {
+        case Purge(from) => true
+      }
+      lastPurge = DateTime.now
+      NamedActor(this + " Purge processor") {
+        if( dataStore.isDefined ) {
+          purgePolicy match {
+            case PurgePolicy.NONE =>
+            case PurgePolicy.LIVE => {
+              dataStore.get.remove(Map("ltime" -> Map("$ne" -> null)))
+            }
+            case PurgePolicy.LAST => {
+              logger.warn(this + " LAST PurgePolicy is not yet implelemented")
+            }
+            case PurgePolicy.AGE => {
+              val options = purgePolicyOptions.asInstanceOf[Map[String,String]]
+              if( options.contains("expiry") ) {
+                val expiry = options("expiry").toLong;
+                dataStore.get.remove(Map("ltime" -> Map("$lt" -> new DateTime( DateTime.now.getMillis - expiry ))))
+              }
+              else {
+                logger.error(this + " AGE PurgePolicy requires expiry option to be specified, such as AGE;expiry=2678400000")
+              }
+            }
+          }
+        }
       }
       state
     }
