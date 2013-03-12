@@ -187,10 +187,13 @@ object MongoDatastore {
 class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
 
   import MongoDatastore._
+  import Collection.RetentionPolicy._
 
   val primary = mongoCollection(name, ctx)
   val replica = mongoCollection(name, ctx, replicaOk=true)
   val monitor = mongoCollection(ctx.config.getProperty("edda.mongo.monitor.collectionName", "sys.monitor"), ctx)
+
+  lazy val retentionPolicy = Collection.RetentionPolicy.withName( Utils.getProperty(ctx.config, "edda.collection", "retentionPolicy", name, "ALL") )
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
@@ -255,23 +258,20 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
 
   /** update records, delete removed records, insert added records */
   override def update(d: Collection.Delta) {
-    val dropHistory = {
-      if (ctx.config.getProperty("edda.datastore.dropHistory", "false") == "true") true else false
-    }
     val records = d.removed ++ d.added ++ d.changed.flatMap(
       pair => {
         // only update oldRecord if the stime is changed, this allows
         // for inplace updates when we dont want to create new document
         // revision, but still want the record updated
-        if (pair.oldRecord.stime != pair.newRecord.stime) {
-            Seq(pair.oldRecord, pair.newRecord)
+        if (pair.oldRecord.stime == pair.newRecord.stime || retentionPolicy == LAST) {
+            Seq(pair.newRecord)
         }
         else {
-            Seq(pair.newRecord)
+            Seq(pair.oldRecord, pair.newRecord)
         }
       })
     
-    records.foreach( r => if (dropHistory && r.ltime != null) remove(r) else upsert(r) )
+    records.foreach( r => if (retentionPolicy == LIVE && r.ltime != null) remove(r) else upsert(r) )
     markCollectionModified
   }
 
@@ -338,18 +338,19 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
   }
 
   protected def remove(record: Record) {
+    remove(Map("_id" -> (record.id + "|" + record.stime.getMillis)));
+  }
+
+  override def remove(queryMap: Map[String, Any]) {
     try {
-      primary.remove(
-        mapToMongo(Map("_id" -> (record.id + "|" + record.stime.getMillis))) // query
-      )
+      primary.remove(mapToMongo(queryMap))
     } catch {
       case e: Exception => {
-        logger.error("failed to remove record: " + record)
+        logger.error("failed to remove records: " + queryMap)
         throw e
       }
     }
   }
-
-
+    
   override def toString = "[MongoDatastore " + name + "]"
 }

@@ -36,6 +36,9 @@ trait DataStore {
   /** make changes to the data store depending on the Collection delta found after a Crawl result */
   def update(d: Collection.Delta)
 
+  /** remove records that match the query */
+  def remove(queryMap: Map[String, Any])
+
   /** when was the last time the collection was updated */
   def collectionModified: DateTime
 }

@@ -31,7 +31,7 @@ trait GroupCollection extends Collection {
 
   import Utils._
 
-  /** group collections do not have a dedicated crawler that we need crawl.  We will get
+  /**
     * Crawl events as a secondary result of other Collections/Crawlers running.  For example
     * we have group.autoScalingGroups collection which modified results from the aws.autoScalingGroups
     * Crawler.  If aws.autoScalingGroups crawler is not run or not enabled, then the group collection will be stale.
