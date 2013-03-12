@@ -343,6 +343,12 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       else postJitter
     }
   }
+
+  /** some collections do not need to trigger crawl requests directly
+   * in the case where the are downstream of another collection/crawler that
+   * just post-processes crawl results from another collection.
+   */
+  protected def allowCrawl = true
   
   /** helper routine to calculate timeLeft before a Crawl request shoudl be made */
   def timeLeft(lastRun: DateTime, millis: Long): Long = {
@@ -368,7 +374,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         case Success(msg) => {
           var amLeader = false
           // crawl immediately the first time
-          if (amLeader) crawler.crawl()
+          if (amLeader && allowCrawl) crawler.crawl()
           
           var lastRun = DateTime.now
           Actor.self.loop {
@@ -378,7 +384,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                 logger.debug(Actor.self + " received: " + msg)
                 val full = if( timeLeft(lastFullLoad, cacheFullRefresh) > 0 ) false else true
                 if (amLeader) { 
-                  crawler.crawl()
+                  if( allowCrawl ) crawler.crawl()
                 }
                 else {
                   val msg = Load(Actor.self,full)
@@ -396,7 +402,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                   this ! msg
                   Actor.self.reactWithin(300000) {
                     case msg @ OK(frm) => {
-                      crawler.crawl()
+                      if( allowCrawl ) crawler.crawl()
                       lastRun = DateTime.now
                       amLeader = result
                     }
