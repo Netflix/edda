@@ -2,6 +2,9 @@
 
 Edda is a Service to track changes in your cloud deployments.
 
+## CloudBees build status
+[![Build Status](https://netflixoss.ci.cloudbees.com/job/edda-master/badge/icon)](https://netflixoss.ci.cloudbees.com/job/edda-master/)
+
 ## DETAILS
 
 Please see the [wiki](https://github.com/Netflix/edda/wiki).
