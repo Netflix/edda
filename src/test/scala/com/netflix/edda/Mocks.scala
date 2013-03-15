@@ -46,22 +46,22 @@ class TestDataStore extends DataStore {
 }
 
 
-class TestCrawler(ctx: ConfigContext, val name: String = "TestCrawler") extends Crawler(ctx) {
+class TestCrawler(val name: String = "TestCrawler") extends Crawler {
   var records = Seq[Record]()
 
   protected def doCrawl(): Seq[Record] = records
 }
 
 
-class TestElector(ctx: ConfigContext) extends Elector(ctx) {
+class TestElector extends Elector {
   var leader = true
 
   protected def runElection(): Boolean = leader
 }
 
 class TestCollection(val name: String = "test.collection") extends Collection(BasicContext) {
-  val crawler = new TestCrawler(BasicContext, name + " Crawler")
+  val crawler = new TestCrawler(name + " Crawler")
   val dataStore = Some(new TestDataStore)
-  val elector = new TestElector(BasicContext)
+  val elector = new TestElector
 }
 

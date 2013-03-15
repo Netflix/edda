@@ -18,7 +18,6 @@ package com.netflix.edda.mongo
 import com.netflix.edda.Record
 import com.netflix.edda.Collection
 import com.netflix.edda.DataStore
-import com.netflix.edda.ConfigContext
 import com.netflix.edda.Utils
 
 // http://www.mongodb.org/display/DOCS/Java+Tutorial
@@ -114,17 +113,17 @@ object MongoDatastore {
   }
 
   /** helper to fetch properties for mongo related settings */
-  def mongoProperty(props: Properties, propName: String, dsName: String, dflt: String): String = {
-    Utils.getProperty(props, "edda", "mongo." + propName, "datastore." + dsName, dflt)
+  def mongoProperty(propName: String, dsName: String, dflt: String): String = {
+    Utils.getProperty("edda", "mongo." + propName, "datastore." + dsName, dflt).get
   }
 
   var primaryMongoConnections: Map[String,Mongo] = Map()
   var replicaMongoConnections: Map[String,Mongo] = Map()
 
   /** from the collection name string return a Mongo DB Connection */
-  def mongoConnection(name: String, ctx: ConfigContext, replicaOk: Boolean = false): Mongo = {
+  def mongoConnection(name: String, replicaOk: Boolean = false): Mongo = {
     import collection.JavaConverters._
-    val servers = mongoProperty(ctx.config, "address", name, "");
+    val servers = mongoProperty("address", name, "");
     if( replicaOk && replicaMongoConnections.contains(servers) ) 
         replicaMongoConnections(servers)
     else if( !replicaOk && primaryMongoConnections.contains(servers) ) 
@@ -142,7 +141,7 @@ object MongoDatastore {
                 }).toList
         )
 
-        val queryTimeout = Utils.getProperty(ctx.config, "edda.collection", "queryTimeout", name, "60000").toInt
+        val queryTimeout = Utils.getProperty("edda.collection", "queryTimeout", name, "60000").get.toInt
 
         val options = new MongoOptions
         options.autoConnectRetry = true
@@ -165,14 +164,14 @@ object MongoDatastore {
 
   /** from the collection name string return a Mongo Collection (creates the collection
     * if it does not exist) */
-  def mongoCollection(name: String, ctx: ConfigContext, replicaOk: Boolean = false) = {
-    val conn = mongoConnection(name, ctx, replicaOk)
-    val db = conn.getDB(mongoProperty(ctx.config, "database", name, "edda"))
-    val user = mongoProperty(ctx.config, "user", name, null)
+  def mongoCollection(name: String, replicaOk: Boolean = false) = {
+    val conn = mongoConnection(name, replicaOk)
+    val db = conn.getDB(mongoProperty("database", name, "edda"))
+    val user = mongoProperty("user", name, null)
     if (user != null) {
       db.authenticate(
         user,
-        mongoProperty(ctx.config, "password", name, "").toArray)
+        mongoProperty("password", name, "").toArray)
     }
     if (db.collectionExists(name)) db.getCollection(name) else db.createCollection(name, null)
   }
@@ -181,19 +180,18 @@ object MongoDatastore {
 
 /** [[com.netflix.edda.DataStore]] subclass that allows MongoDB to be used
  *
- * @param ctx configuration context to setup how we connect to Mongo
  * @param name the name of the collection the datastore is for
  */
-class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
+class MongoDatastore(val name: String) extends DataStore {
 
   import MongoDatastore._
   import Collection.RetentionPolicy._
 
-  val primary = mongoCollection(name, ctx)
-  val replica = mongoCollection(name, ctx, replicaOk=true)
-  val monitor = mongoCollection(ctx.config.getProperty("edda.mongo.monitor.collectionName", "sys.monitor"), ctx)
+  val primary = mongoCollection(name)
+  val replica = mongoCollection(name, replicaOk=true)
+  val monitor = mongoCollection(Utils.getProperty("edda.mongo", "monitor.collectionName", "name", "sys.monitor").get)
 
-  lazy val retentionPolicy = Collection.RetentionPolicy.withName( Utils.getProperty(ctx.config, "edda.collection", "retentionPolicy", name, "ALL") )
+  lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
@@ -263,7 +261,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
         // only update oldRecord if the stime is changed, this allows
         // for inplace updates when we dont want to create new document
         // revision, but still want the record updated
-        if (pair.oldRecord.stime == pair.newRecord.stime || retentionPolicy == LAST) {
+        if (pair.oldRecord.stime == pair.newRecord.stime || Collection.RetentionPolicy.withName(retentionPolicy.get) == LAST) {
             Seq(pair.newRecord)
         }
         else {
@@ -271,7 +269,7 @@ class MongoDatastore(ctx: ConfigContext, val name: String) extends DataStore {
         }
       })
     
-    records.foreach( r => if (retentionPolicy == LIVE && r.ltime != null) remove(r) else upsert(r) )
+    records.foreach( r => if (Collection.RetentionPolicy.withName(retentionPolicy.get) == LIVE && r.ltime != null) remove(r) else upsert(r) )
     markCollectionModified
   }
 

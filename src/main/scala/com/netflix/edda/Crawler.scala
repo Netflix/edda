@@ -46,20 +46,18 @@ object Crawler extends StateMachine.LocalState[CrawlerState] {
 /** Crawler to crawl something and generate Records based on what was crawled.
   * Those records are then passed to a Collection (typically) by sending the
   * crawl results to all observers.
- *
- * @param ctx configuration context
  */
-abstract class Crawler(ctx: ConfigContext) extends Observable {
+abstract class Crawler extends Observable {
 
   import Crawler._
   import Utils._
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
-  lazy val enabled = Utils.getProperty(ctx.config, "edda.crawler", "enabled", name, "true").toBoolean
+  lazy val enabled = Utils.getProperty("edda.crawler", "enabled", name, "true")
 
   /** start a crawl if the crawler is enabled */
   def crawl() {
-    if (enabled) {
+    if (enabled.get.toBoolean) {
       val msg = Crawl(Actor.self)
       logger.debug(Actor.self + " sending: " + msg + " -> " + this)
       this ! msg
@@ -68,7 +66,7 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Crawler is not enabled */
   override def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    if (enabled) super.addObserver(actor)(events) else Actor.self.reactWithin(0) {
+    if (enabled.get.toBoolean) super.addObserver(actor)(events) else Actor.self.reactWithin(0) {
       case got @ TIMEOUT => {
         logger.debug(Actor.self + " received: " + got + " for disabled crawler")
         events(Success(Observable.OK(Actor.self)))
@@ -78,7 +76,7 @@ abstract class Crawler(ctx: ConfigContext) extends Observable {
 
   /** see [[com.netflix.edda.Observable.delObserver()]].  Overridden to be a NoOp when Crawler is not enabled */
   override def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    if (enabled) super.delObserver(actor)(events) else Actor.self.reactWithin(0) {
+    if (enabled.get.toBoolean) super.delObserver(actor)(events) else Actor.self.reactWithin(0) {
       case got @ TIMEOUT => {
         logger.debug(Actor.self + " received: " + got + " for disabled crawler")
         events(Success(Observable.OK(Actor.self)))

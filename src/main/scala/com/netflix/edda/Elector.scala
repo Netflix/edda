@@ -42,11 +42,9 @@ object Elector extends StateMachine.LocalState[ElectorState] {
 }
 
 /** interface for determining leadership in a multi system configuration.
-  *
-  * @param ctx configuration context
   */
 
-abstract class Elector(ctx: ConfigContext) extends Observable {
+abstract class Elector extends Observable {
 
   import Elector._
   import Utils._
@@ -62,7 +60,7 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
     }
   }
 
-  val pollCycle = ctx.config.getProperty("edda.elector.refresh", "10000").toInt
+  val pollCycle = Utils.getProperty("edda.elector", "refresh", "", "10000")
 
   /** abstract method to determine leadership */
   protected def runElection(): Boolean
@@ -97,7 +95,7 @@ abstract class Elector(ctx: ConfigContext) extends Observable {
   protected def electionPoller() {
     Utils.NamedActor(this + " poller") {
       Actor.self.loop {
-        Actor.self.reactWithin(pollCycle) {
+        Actor.self.reactWithin(pollCycle.get.toInt) {
           case got @ TIMEOUT => {
             logger.debug(Actor.self + " received: " + got)
             val msg = RunElection(Actor.self)

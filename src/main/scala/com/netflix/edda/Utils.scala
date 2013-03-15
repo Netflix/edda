@@ -24,6 +24,10 @@ import java.util.Date
 import java.util.Properties
 import java.text.SimpleDateFormat
 
+import com.netflix.config.DynamicProperty
+import com.netflix.config.DynamicPropertyFactory
+import com.netflix.config.DynamicStringProperty
+
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
 
@@ -32,6 +36,12 @@ import org.codehaus.jackson.JsonEncoding.UTF8
 import org.codehaus.jackson.util.DefaultPrettyPrinter
 import org.codehaus.jackson.map.MappingJsonFactory
 import org.codehaus.jackson.JsonNode
+
+import com.netflix.config.ConcurrentCompositeConfiguration
+import com.netflix.config.DynamicPropertyFactory
+import com.netflix.config.FixedDelayPollingScheduler
+import com.netflix.config.sources.URLConfigurationSource
+import com.netflix.config.DynamicConfiguration
 
 /** singleton object for various helper functions */
 object Utils {
@@ -166,15 +176,15 @@ object Utils {
     * @param default the default value to return if no matching properties are found
     * @return the best matching property value
     */
-  def getProperty(props: Properties, prefix: String, propName: String, nameContext: String, default: String): String = {
+  def getProperty(prefix: String, propName: String, nameContext: String, default: String): DynamicStringProperty = {
     val parts = nameContext.split('.')
     Range(1, parts.size + 1).reverse.map(
       ix => parts.sliding(ix).map( prefix + "." + _.mkString(".") + "." + propName )
     ).flatten collectFirst {
-      case prop: String if props.containsKey(prop) => props.getProperty(prop)
+      case prop: String if Option(DynamicProperty.getInstance(prop).getString()).isDefined => DynamicPropertyFactory.getInstance().getStringProperty(prop, default)
     } match {
       case Some(v) => v
-      case None => props.getProperty(prefix + "." + propName, default)
+      case None => DynamicPropertyFactory.getInstance().getStringProperty(prefix + "." + propName, default)
     }
   }
 
@@ -338,6 +348,9 @@ object Utils {
     result.toString()
   }
 
+  /** utility to turn a matrix argument string into a map
+   *  note: the string must start with ';'
+   */
   def parseMatrixArguments(arguments: String): Map[String,String] = arguments match {
     case m if m == null || m == "" => Map()
     // skip null/or empty matrix (ie ";;a=b"), also map value null to matrix args missing value
@@ -348,5 +361,24 @@ object Utils {
         case v: Array[String] if v.size > 2 => (v.head, v.tail.fold("")(_ + "=" + _))
       }).toMap
   }
-    
+
+  /** initialize the Archaius configuration */
+  def initConfiguration(name: String) {
+    val composite = DynamicPropertyFactory.getBackingConfigurationSource.asInstanceOf[ConcurrentCompositeConfiguration]
+    if( composite == null ) {
+      // DynamicPropertyFactory not been initialized yet, so reset the default config file name
+      System.setProperty("archaius.configurationSource.defaultFileName", name);
+      // get an instance ... this will initialize configuration
+      DynamicPropertyFactory.getInstance
+    } else {
+      // DynamicPropertyFactory has been initialized, so just add
+      // the edda.config to the configuration composite
+      val scheduler = new FixedDelayPollingScheduler
+      val source = new URLConfigurationSource(
+        Thread.currentThread().getContextClassLoader().getResource(name) 
+      )
+      val eddaConfig = new DynamicConfiguration(source, scheduler)
+      composite.addConfiguration(eddaConfig, "eddaConfig")
+    }
+  }
 }
