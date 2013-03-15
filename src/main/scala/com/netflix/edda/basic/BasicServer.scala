@@ -38,19 +38,22 @@ class BasicServer extends HttpServlet {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
   override def init() {
-    logger.info("Staring Server")
-    val dsFactory = (name: String) => Some(new MongoDatastore(BasicContext, name))
-    val elector = new MongoElector(BasicContext)
 
-    val bm = new BasicBeanMapper(BasicContext) with AwsBeanMapper
+    Utils.initConfiguration(System.getProperty("edda.properties","edda.properties"))
+
+    logger.info("Staring Server")
+    val dsFactory = (name: String) => Some(new MongoDatastore(name))
+    val elector = new MongoElector
+
+    val bm = new BasicBeanMapper with AwsBeanMapper
 
     val awsClientFactory = (account: String) => {
-      Option(Utils.getProperty(BasicContext.config, "edda", "aws.accessKey", account, null)) match {
-        case None => new AwsClient(Utils.getProperty(BasicContext.config, "edda", "region", account, null))
-        case Some(accessKey) => new AwsClient(
+      Utils.getProperty("edda", "aws.accessKey", account, "").get match {
+        case v if v.isEmpty => new AwsClient(Utils.getProperty("edda", "region", account, "").get)
+        case accessKey => new AwsClient(
           accessKey,
-          Utils.getProperty(BasicContext.config, "edda", "aws.secretKey", account, null),
-          Utils.getProperty(BasicContext.config, "edda", "region", account, null))
+          Utils.getProperty("edda", "aws.secretKey", account, "").get,
+          Utils.getProperty("edda", "region", account, "").get)
       }
     }
 

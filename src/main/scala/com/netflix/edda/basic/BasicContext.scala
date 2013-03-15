@@ -27,21 +27,5 @@ import org.slf4j.LoggerFactory
   */
 object BasicContext extends Collection.Context {
   private[this] val logger = LoggerFactory.getLogger(getClass)
-  val propFile = System.getProperty("edda.properties", "/edda.properties")
-  val props = new Properties()
-  try {
-    val inputStream = getClass.getResourceAsStream(propFile)
-    try {
-      props.load(inputStream)
-    } finally {
-      inputStream.close()
-    }
-  } catch {
-    case e: Exception =>
-      logger.error("Unable to load properties file " + propFile
-        + " set System property \"edda.properties\" to valid file", e)
-  }
-  val config = props
-
   lazy val recordMatcher = new BasicRecordMatcher
 }

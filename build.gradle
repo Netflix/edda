@@ -40,6 +40,8 @@ dependencies {
     compile 'com.netflix.servo:servo-core:0.4.10'
     compile 'com.googlecode.java-diff-utils:diffutils:1.2.1'
 
+    compile 'com.netflix.archaius:archaius-core:0.5.6'
+
     compile 'org.mongodb:mongo-java-driver:2.6.5'
     
     testCompile 'org.testng:testng:6.1.1'
@@ -63,7 +65,7 @@ dependencies {
 test << {
     ant.taskdef(name: 'scalatest', classname: 'org.scalatest.tools.ScalaTestAntTask', classpath: classpath.asPath)
     ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false') {
-    // ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false', suite: 'com.netflix.edda.web.FieldSelectorExprTest') {
+    // ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false', suite: 'com.netflix.edda.UtilsTest') {
         reporter(type: 'stdout')
     }
 }

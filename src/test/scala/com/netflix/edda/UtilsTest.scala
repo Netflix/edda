@@ -19,33 +19,44 @@ import java.util.Properties
 import org.joda.time.DateTime
 import org.joda.time.DateTimeZone.UTC
 
+import com.netflix.config.DynamicPropertyFactory
+import com.netflix.config.ConcurrentCompositeConfiguration
+import org.apache.commons.configuration.MapConfiguration
+
 import org.scalatest.FunSuite
 
 class UtilsTest extends FunSuite {
   test("getProperty") {
-    val props = new Properties
-    props.setProperty("edda.setting", "value")
-    expect("value") {
-      Utils.getProperty(props, "edda", "setting", "my.context", "default")
-    }
+    DynamicPropertyFactory.getInstance()
+    val composite = DynamicPropertyFactory. getBackingConfigurationSource.asInstanceOf[ConcurrentCompositeConfiguration]
+    val config = new MapConfiguration(new Properties);
+    composite.addConfigurationAtFront(config, "testConfig")
 
-    props.clear()
-    props.setProperty("edda.my.setting", "value")
-    expect("value") {
-      Utils.getProperty(props, "edda", "setting", "my.context", "default")
-    }
-
-    props.clear()
-    props.setProperty("edda.my.context.setting", "value")
-    expect("value") {
-      Utils.getProperty(props, "edda", "setting", "my.context", "default")
-    }
-
-    props.clear()
-    props.setProperty("edda.other.context.setting", "value")
+    config.addProperty("edda.other.context.setting", "value1")
     expect("default") {
-      Utils.getProperty(props, "edda", "setting", "my.context", "default")
+      Utils.getProperty("edda", "setting", "my.context", "default").get
     }
+
+    config.addProperty("edda.setting", "value2")
+    expect("value2") {
+      Utils.getProperty("edda", "setting", "my.context", "default").get
+    }
+
+    config.addProperty("edda.context.setting", "value3")
+    expect("value3") {
+      Utils.getProperty("edda", "setting", "my.context", "default").get
+    }
+
+    config.addProperty("edda.my.setting", "value4")
+    expect("value4") {
+      Utils.getProperty("edda", "setting", "my.context", "default").get
+    }
+
+    config.addProperty("edda.my.context.setting", "value5")
+    expect("value5") {
+      Utils.getProperty("edda", "setting", "my.context", "default").get
+    }
+
   }
 
   test("toPrettyJson") {
