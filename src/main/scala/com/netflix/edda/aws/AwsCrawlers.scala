@@ -23,7 +23,6 @@ import com.netflix.edda.CrawlerState
 import com.netflix.edda.Observable
 import com.netflix.edda.Record
 import com.netflix.edda.BeanMapper
-import com.netflix.edda.ConfigContext
 import com.netflix.edda.Utils
 
 import org.joda.time.DateTime
@@ -68,7 +67,7 @@ object AwsCrawler {
   /** All AWS Crawlers require the basic ConfigContext
     * plus an [[com.netflix.edda.aws.AwsClient]] and [[com.netflix.edda.BeanMapper]]
     */
-  trait Context extends ConfigContext {
+  trait Context {
     def awsClient: AwsClient
 
     def beanMapper: BeanMapper
@@ -83,14 +82,12 @@ object AwsCrawler {
   * *code* field.
   */
 trait AwsBeanMapper extends BeanMapper {
-  def ctx: ConfigContext
-
   val instanceStateKeyMapper: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]] = {
     case (obj: com.amazonaws.services.ec2.model.InstanceState, "code", Some(value: Int)) => Some(0x00FF & value)
   }
   this.addKeyMapper(instanceStateKeyMapper)
 
-  val tags = ctx.config.getProperty("edda.crawler.aws.suppressTags", "")
+  val tags = Utils.getProperty("edda.crawler", "aws.suppressTags", "", "").get
   tags.split(",").foreach(tag => {
     val pf: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]] = {
       case (obj: com.amazonaws.services.ec2.model.Tag, "value", Some(x: Any)) if obj.getKey == tag => Some("[EDDA_SUPPRESSED]")
@@ -114,9 +111,9 @@ abstract class AwsIterator extends Iterator[Seq[Record]] {
 /** crawler for EIP Addresses
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsAddressCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsAddressCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeAddressesRequest
 
   override def doCrawl() =
@@ -127,13 +124,14 @@ class AwsAddressCrawler(val name: String, val ctx: AwsCrawler.Context) extends C
 /** crawler for AutoScalingGroups
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   private[this] val logger = LoggerFactory.getLogger(getClass)
   val request = new DescribeAutoScalingGroupsRequest
   request.setMaxRecords(50)
 
+  lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
   override def doCrawl() = {
     var tagCount = 0
     val it = new AwsIterator() {
@@ -149,7 +147,7 @@ class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) 
     }
     val list = it.toList.flatten
     if (tagCount == 0) {
-      if (Utils.getProperty(ctx.config, "edda.crawler", "abortWithoutTags", name, "false").toBoolean) {
+      if (abortWithoutTags.get.toBoolean) {
         throw new java.lang.RuntimeException("no tags found for any record in " + name + ", ignoring crawl results")
       } else logger.warn("no tags found for any record in " + name + ".  " +
         "If you expect at least one tag then set: edda.crawler." + name + ".abortWithoutTags=true")
@@ -161,9 +159,9 @@ class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) 
 /** crawler for ASG Policies
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsScalingPolicyCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsScalingPolicyCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   private[this] val logger = LoggerFactory.getLogger(getClass)
   val request = new DescribePoliciesRequest
   request.setMaxRecords(50)
@@ -186,9 +184,9 @@ class AwsScalingPolicyCrawler(val name: String, val ctx: AwsCrawler.Context) ext
 /** crawler for CLoudWatch Alarms
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsAlarmCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsAlarmCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   private[this] val logger = LoggerFactory.getLogger(getClass)
   val request = new DescribeAlarmsRequest
   request.setMaxRecords(100)
@@ -214,10 +212,11 @@ class AwsAlarmCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cra
   * so that the crawler can detect when AWS sends a degraded result without tag information.
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsImageCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsImageCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeImagesRequest
+  lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
 
   override def doCrawl() = {
     var tagCount = 0
@@ -226,7 +225,7 @@ class AwsImageCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cra
         tagCount += item.getTags.size
         Record(item.getImageId, ctx.beanMapper(item))
       }).toSeq
-    if (tagCount == 0 && Utils.getProperty(ctx.config, "edda.crawler", "abortWithoutTags", name, "false").toBoolean) {
+    if (tagCount == 0 && abortWithoutTags.get.toBoolean) {
       throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
     }
     list
@@ -236,9 +235,9 @@ class AwsImageCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cra
 /** crawler for LoadBalancers
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeLoadBalancersRequest
 
   override def doCrawl() = ctx.awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions.asScala.map(
@@ -255,10 +254,10 @@ object AwsInstanceHealthCrawler extends StateMachine.LocalState[AwsInstanceHealt
   * and then crawls the instance states for each ELB.
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   * @param crawler the LoadBalancer crawler
   */
-class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
+class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler {
 
   import AwsInstanceHealthCrawler._
 
@@ -349,9 +348,9 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
 /** crawler for LaunchConfigurations
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsLaunchConfigurationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsLaunchConfigurationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeLaunchConfigurationsRequest
   request.setMaxRecords(50)
 
@@ -371,11 +370,12 @@ class AwsLaunchConfigurationCrawler(val name: String, val ctx: AwsCrawler.Contex
 /** crawler for Reservations (ie group of instances, not pre-paid reserved instances)
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsReservationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsReservationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeInstancesRequest
 
+  lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
   override def doCrawl() = {
     var tagCount = 0
     val list = ctx.awsClient.ec2.describeInstances(request).getReservations.asScala.map(
@@ -383,7 +383,7 @@ class AwsReservationCrawler(val name: String, val ctx: AwsCrawler.Context) exten
         tagCount += item.getInstances.asScala.map(_.getTags.size).sum
         Record(item.getReservationId, ctx.beanMapper(item))
       }).toSeq
-    if (tagCount == 0 && Utils.getProperty(ctx.config, "edda.crawler", "abortWithoutTags", name, "false").toBoolean) {
+    if (tagCount == 0 && abortWithoutTags.get.toBoolean) {
       throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
     }
     list
@@ -400,10 +400,10 @@ object AwsInstanceCrawler extends StateMachine.LocalState[AwsInstanceCrawlerStat
   * and then pulls out each instance in the reservations to track them seperately
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   * @param crawler the AwsReservation crawler
   */
-class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
+class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler {
 
   import AwsInstanceCrawler._
 
@@ -459,10 +459,11 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
 /** crawler for Security Group
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsSecurityGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsSecurityGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeSecurityGroupsRequest
+  lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
 
   override def doCrawl() = {
     var tagCount = 0
@@ -471,7 +472,7 @@ class AwsSecurityGroupCrawler(val name: String, val ctx: AwsCrawler.Context) ext
         tagCount += item.getTags.size
         Record(item.getGroupId, ctx.beanMapper(item))
       }).toSeq
-    if (tagCount == 0 && Utils.getProperty(ctx.config, "edda.crawler", "abortWithoutTags", name, "false").toBoolean) {
+    if (tagCount == 0 && abortWithoutTags.get.toBoolean) {
       throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
     }
     list
@@ -481,10 +482,11 @@ class AwsSecurityGroupCrawler(val name: String, val ctx: AwsCrawler.Context) ext
 /** crawler for Snapshots
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsSnapshotCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsSnapshotCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeSnapshotsRequest
+  lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
 
   override def doCrawl() = {
     var tagCount = 0
@@ -493,7 +495,7 @@ class AwsSnapshotCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
         tagCount += item.getTags.size
         Record(item.getSnapshotId, new DateTime(item.getStartTime), ctx.beanMapper(item))
       }).toSeq
-    if (tagCount == 0 && Utils.getProperty(ctx.config, "edda.crawler", "abortWithoutTags", name, "false").toBoolean) {
+    if (tagCount == 0 && abortWithoutTags.get.toBoolean) {
       throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
     }
     list
@@ -503,9 +505,9 @@ class AwsSnapshotCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
 /** crawler for all Tags
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsTagCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsTagCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeTagsRequest
 
   override def doCrawl() = ctx.awsClient.ec2.describeTags(request).getTags.asScala.map(
@@ -515,10 +517,11 @@ class AwsTagCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawl
 /** crawler for Volumes
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsVolumeCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsVolumeCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeVolumesRequest
+  lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
 
   override def doCrawl() = {
     var tagCount = 0
@@ -527,7 +530,7 @@ class AwsVolumeCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
         tagCount += item.getTags.size
         Record(item.getVolumeId, new DateTime(item.getCreateTime), ctx.beanMapper(item))
       }).toSeq
-    if (tagCount == 0 && Utils.getProperty(ctx.config, "edda.crawler", "abortWithoutTags", name, "false").toBoolean) {
+    if (tagCount == 0 && abortWithoutTags.get.toBoolean) {
       throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
     }
     list
@@ -537,9 +540,9 @@ class AwsVolumeCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
 /** crawler for S3 Buckets
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsBucketCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsBucketCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new ListBucketsRequest
 
   override def doCrawl() = ctx.awsClient.s3.listBuckets(request).asScala.map(
@@ -552,9 +555,9 @@ class AwsBucketCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
   * get a list of SQS Queues then for each queue fan-out and query each queue.
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new ListQueuesRequest
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(10)
@@ -601,9 +604,9 @@ class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) exten
 /** crawler for ReservedInstance (ie pre-paid instances)
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */
-class AwsReservedInstanceCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsReservedInstanceCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeReservedInstancesRequest
 
   override def doCrawl() = ctx.awsClient.ec2.describeReservedInstances(request).getReservedInstances.asScala.map(
@@ -614,9 +617,9 @@ class AwsReservedInstanceCrawler(val name: String, val ctx: AwsCrawler.Context) 
 /** crawler for Route53 Hosted Zones (DNS records)
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   */ 
-class AwsHostedZoneCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsHostedZoneCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new ListHostedZonesRequest
 
   override def doCrawl() =  ctx.awsClient.route53.listHostedZones(request).getHostedZones.asScala.map(
@@ -632,10 +635,10 @@ object AwsHostedRecordCrawler extends StateMachine.LocalState[AwsHostedRecordCra
   * and then pulls out each recordset in the zones to track them seperately
   *
   * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper and configuration
+  * @param ctx context to provide beanMapper
   * @param crawler the awsHostedZone crawler
   */ 
-class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler(ctx) {
+class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler {
 
   import AwsHostedRecordCrawler._
 

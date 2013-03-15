@@ -16,7 +16,7 @@
 package com.netflix.edda.basic
 
 import com.netflix.edda.BeanMapper
-import com.netflix.edda.ConfigContext
+import com.netflix.edda.Utils
 
 import java.util.Date
 
@@ -27,17 +27,15 @@ import org.slf4j.LoggerFactory
 import org.apache.commons.beanutils.BeanMap
 
 /** Class to convert a Java Bean to a primitive Scala object (Map, Seq, etc)
- *
- * @param ctx configuration context
  */
-class BasicBeanMapper(val ctx: ConfigContext) extends BeanMapper {
+class BasicBeanMapper extends BeanMapper {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
   def apply(obj: Any): Any = {
     mkValue(obj).getOrElse(null)
   }
 
-  val argPattern = ctx.config.getProperty("edda.bean.argPattern", "[^a-zA-Z0-9_]").r
+  val argPattern = Utils.getProperty("edda", "bean.argPattern", "", "[^a-zA-Z0-9_]").get.r
 
   /** Create a Mongodb list from a java collection object. */
   def mkList(c: java.util.Collection[_ <: Any]): List[Any] = {

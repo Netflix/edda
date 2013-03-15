@@ -28,7 +28,7 @@ import org.scalatest.FunSuite
 class BasicBeanMapperTest extends FunSuite {
   val logger = LoggerFactory.getLogger(getClass)
   test("fromBean") {
-    val mapper = new BasicBeanMapper(BasicContext)
+    val mapper = new BasicBeanMapper
 
     val asg = new AutoScalingGroup
     asg.setVPCZoneIdentifier("")

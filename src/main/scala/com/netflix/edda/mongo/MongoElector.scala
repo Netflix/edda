@@ -16,7 +16,7 @@
 package com.netflix.edda.mongo
 
 import com.netflix.edda.Elector
-import com.netflix.edda.ConfigContext
+import com.netflix.edda.Utils
 
 import org.slf4j.LoggerFactory
 
@@ -26,23 +26,22 @@ import com.mongodb.DBCollection
 
 /** [[com.netflix.edda.Elector]] subclass that uses MongoDB's atomic write operations
   * to organize leadership
-  * @param ctx configuration context for mongo connection settings
   */
-class MongoElector(ctx: ConfigContext) extends Elector(ctx) {
+class MongoElector extends Elector {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
   val instance = Option(
-    System.getenv(ctx.config.getProperty("edda.elector.mongo.uniqueEnvName", "EC2_INSTANCE_ID"))).getOrElse("dev")
-  val name = ctx.config.getProperty("edda.elector.mongo.collectionName", "sys.monitor")
+    System.getenv(Utils.getProperty("edda.elector", "mongo.uniqueEnvName", "", "EC2_INSTANCE_ID").get)).getOrElse("dev")
+  val name = Utils.getProperty("edda.elector", "mongo.collectionName", "", "sys.monitor").get
   val mongo: DBCollection = try {
-    MongoDatastore.mongoCollection(name, ctx)
+    MongoDatastore.mongoCollection(name)
   } catch {
     case e: Exception => {
       logger.error("exception", e)
       null
     }
   }
-  val leaderTimeout = ctx.config.getProperty("edda.elector.mongo.leaderTimeout", "5000").toInt
+  val leaderTimeout = Utils.getProperty("edda.elector", "mongo.leaderTimeout", "", "5000")
 
   override def init() {
     super.init()
@@ -107,7 +106,7 @@ class MongoElector(ctx: ConfigContext) extends Elector(ctx) {
         // maybe we were too slow and someone took leader from us
         isLeader = if (result == null) false else true
       } else {
-        val timeout = DateTime.now().plusMillis(-1 * (pollCycle + leaderTimeout))
+        val timeout = DateTime.now().plusMillis(-1 * (pollCycle.get.toInt + leaderTimeout.get.toInt))
         if (mtime.isBefore(timeout)) {
           // assumer leader is dead, so try to become leader
           val result = mongo.findAndModify(

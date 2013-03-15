@@ -20,14 +20,27 @@ import org.slf4j.LoggerFactory
 import com.netflix.edda.basic.BasicContext
 
 import org.scalatest.FunSuite
+import org.scalatest.BeforeAndAfter
 
 import org.joda.time.DateTime
 
-class CollectionTest extends FunSuite {
+import java.util.Properties
+import com.netflix.config.DynamicPropertyFactory
+import com.netflix.config.ConcurrentCompositeConfiguration
+
+import org.apache.commons.configuration.MapConfiguration
+
+
+class CollectionTest extends FunSuite with BeforeAndAfter {
   import Utils._
   import Queryable._
 
   val logger = LoggerFactory.getLogger(getClass)
+
+  before {
+    Utils.initConfiguration("edda.properties")
+  }
+
   test("load") {
     val coll = new TestCollection
     coll.start()
@@ -93,11 +106,16 @@ class CollectionTest extends FunSuite {
   }
 
   test("leader") {
+    DynamicPropertyFactory.getInstance()
+    val composite = DynamicPropertyFactory. getBackingConfigurationSource.asInstanceOf[ConcurrentCompositeConfiguration]
+    val config = new MapConfiguration(new Properties);
+    composite.addConfigurationAtFront(config, "testConfig")
+
     // check for election results every 100ms
-    BasicContext.config.setProperty("edda.elector.refresh", "200")
+    config.addProperty("edda.elector.refresh", "200")
     // collection should crawl every 100ms
-    BasicContext.config.setProperty("edda.collection.refresh", "200")
-    BasicContext.config.setProperty("edda.collection.cache.refresh", "200")
+    config.addProperty("edda.collection.refresh", "200")
+    config.addProperty("edda.collection.cache.refresh", "200")
     val coll = new TestCollection
     val dataStoreResults = Seq(Record("a", 1), Record("b", 2), Record("c", 3))
     val crawlResults = Seq(Record("a", 1), Record("b", 3), Record("c", 4), Record("d", 5))

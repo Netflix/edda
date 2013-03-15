@@ -41,7 +41,7 @@ case class CollectionState(records: Seq[Record] = Seq[Record](), crawled: Seq[Re
 object Collection extends StateMachine.LocalState[CollectionState] {
 
   /** Collections need a recordMatcher as well as the ConfigContext to handle querying the inMemory record set. */
-  trait Context extends ConfigContext {
+  trait Context {
     def recordMatcher: RecordMatcher
   }
 
@@ -88,7 +88,7 @@ object Collection extends StateMachine.LocalState[CollectionState] {
 /** general Collection logic.  It is abstract to specify the collection name,
   * responsible Crawler, and optional DataStore and the Elector to determine leadership.
   *
-  * @param ctx context to get config, recordMatcher
+  * @param ctx context to get recordMatcher
   */
 abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
@@ -97,15 +97,11 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   import Utils._
 
   val logger = LoggerFactory.getLogger(getClass)
-  lazy val enabled = Utils.getProperty(ctx.config, "edda.collection", "enabled", name, "true").toBoolean
+  lazy val enabled = Utils.getProperty("edda.collection", "enabled", name, "true")
 
   // pull out the purgePolicy and any options from strings like:
   // edda.collection.purgePolicy=AGE;expiry=2678400000
-  lazy val (purgePolicy: PurgePolicy.Value, purgePolicyOptions: Map[_,_]) = {
-    val args: Map[String,String] = Utils.parseMatrixArguments(';' + Utils.getProperty(ctx.config, "edda.collection", "purgePolicy", name, "NONE"))
-    val policy = (PurgePolicy.values.map(_.toString) & args.keySet).head
-    (PurgePolicy.withName(policy), args - policy)
-  }
+  lazy val purgeProperty = Utils.getProperty("edda.collection", "purgePolicy", name, "NONE")
 
   /** name of the collection, typically the name of the corresponding crawler also.  Something like
     * test.us-east-1.aws.autoScalingGroups
@@ -132,17 +128,14 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   /** allow option to skip cache usage and go straigt to datastore
    */
-  lazy val liveOverride = Utils.getProperty(ctx.config, "edda.collection", "noCache", name, "false").toBoolean
-
-  override
-  lazy val queryTimeout = Utils.getProperty(ctx.config, "edda.collection", "queryTimeout", name, "60000").toLong
+  lazy val liveOverride = Utils.getProperty("edda.collection", "noCache", name, "false")
 
   // /** use separate ForkJoin scheduler for the Collection actors so one Collection doesn't end
   //   * up starving the global actor pool.
   //   */
   // lazy val fjScheduler = new ForkJoinScheduler(
-  //   Utils.getProperty(ctx.config, "edda.collection", "scheduler.coreSize", name, "5").toInt,
-  //   Utils.getProperty(ctx.config, "edda.collection", "scheduler.maxSize", name, "50").toInt,
+  //   Utils.getProperty("edda.collection", "scheduler.coreSize", name, "5").get.toInt,
+  //   Utils.getProperty("edda.collection", "scheduler.maxSize", name, "50").get.toInt,
   //   true,
   //   true
   // )
@@ -150,7 +143,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   /** see [[com.netflix.edda.Queryable.query()]].  Overridden to return Nil when Collection is not enabled */
   override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    if (enabled) super.query(queryMap, limit, live || liveOverride, keys, replicaOk)(events) else Actor.self.reactWithin(0) {
+    if (enabled.get.toBoolean) super.query(queryMap, limit, live || liveOverride.get.toBoolean, keys, replicaOk)(events) else Actor.self.reactWithin(0) {
       case msg @ TIMEOUT => {
         logger.debug(Actor.self + " received: " + msg + " for disabled collection")
         events(Success(QueryResult(Actor.self,Seq.empty)))
@@ -160,7 +153,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Collection is not enabled */
   override def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    if (enabled) super.addObserver(actor)(events) else Actor.self.reactWithin(0) { 
+    if (enabled.get.toBoolean) super.addObserver(actor)(events) else Actor.self.reactWithin(0) { 
       case msg @ TIMEOUT => {
         logger.debug(Actor.self + " received: " + msg + " for disabled collection")
         events(Success(Observable.OK(Actor.self)))
@@ -170,7 +163,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   /** see [[com.netflix.edda.Observable.delObserver()]].  Overridden to be a NoOp when Collection is not enabled */
   override def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    if (enabled) super.delObserver(actor)(events) else Actor.self.reactWithin(0) {
+    if (enabled.get.toBoolean) super.delObserver(actor)(events) else Actor.self.reactWithin(0) {
       case msg @ TIMEOUT => {
         logger.debug(Actor.self + " received: " + msg + " for disabled collection")
         events(Success(Observable.OK(Actor.self)))
@@ -181,7 +174,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   /** query datastore or in memory collection. */
   protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
     // generate function
-    if (live || liveOverride) {
+    if (live || liveOverride.get.toBoolean) {
       if (dataStore.isDefined) {
         return dataStore.get.query(queryMap, limit, keys, replicaOk)
       } else {
@@ -346,8 +339,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         else postObserver
       }
       
-      if (Utils.getProperty(ctx.config, "edda.collection", "jitter.enabled", name, "true").toBoolean) {
-        val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
+      if (Utils.getProperty("edda.collection", "jitter.enabled", name, "true").get.toBoolean) {
+        val cacheRefresh = Utils.getProperty("edda.collection", "cache.refresh", name, "10000").get.toLong
         // adding in random jitter on start so we dont crush the datastore immediately if multiple
         // systems are coming up at the same time
         val rand = new Random
@@ -382,12 +375,12 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     */
   protected def refresher() {
     if (Option(crawler) == None || Option(elector) == None) return
-    val refresh = Utils.getProperty(ctx.config, "edda.collection", "refresh", name, "60000").toLong
-    val cacheRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.refresh", name, "10000").toLong
-    val cacheFullRefresh = Utils.getProperty(ctx.config, "edda.collection", "cache.full.refresh", name, "1800000").toLong
+    val refresh = Utils.getProperty("edda.collection", "refresh", name, "60000")
+    val cacheRefresh = Utils.getProperty("edda.collection", "cache.refresh", name, "10000")
+    val cacheFullRefresh = Utils.getProperty("edda.collection", "cache.full.refresh", name, "1800000")
 
     // how often to purge history, default is every 6 hours
-    val purgeFrequency = Utils.getProperty(ctx.config, "edda.collection", "purgeFrequency", name, "21600000").toLong
+    val purgeFrequency = Utils.getProperty("edda.collection", "purgeFrequency", name, "21600000")
 
     NamedActor(this + " refresher") {
       elector.addObserver(Actor.self) {
@@ -402,14 +395,14 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           
           var lastRun = DateTime.now
           Actor.self.loop {
-            val timeout = if (amLeader) refresh else cacheRefresh
+            val timeout = if (amLeader) refresh.get.toLong else cacheRefresh.get.toLong
             Actor.self.reactWithin(timeLeft(lastRun, timeout)) {
               case msg @ TIMEOUT => {
                 logger.debug(Actor.self + " received: " + msg)
-                val full = if( timeLeft(lastFullLoad, cacheFullRefresh) > 0 ) false else true
+                val full = if( timeLeft(lastFullLoad, cacheFullRefresh.get.toLong) > 0 ) false else true
                 if (amLeader) { 
-                  val purge = if( timeLeft(lastPurge, purgeFrequency) > 0 ) false else true
-                  if( purge && purgePolicy != PurgePolicy.NONE ) {
+                  val purge = if( timeLeft(lastPurge, purgeFrequency.get.toLong) > 0 ) false else true
+                  if( purge ) {
                     val msg = Purge(Actor.self)
                     logger.debug(Actor.self + " sending: " + msg + " -> " + this)
                     this ! msg
@@ -429,7 +422,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                 if (!amLeader && result) {
                   val rand = new Random
                   // purgeJitter is can be up to +/-20% of purgeFrequency
-                  val purgeJitter = (purgeFrequency * .2 * rand.nextDouble).toLong * (if( rand.nextBoolean ) 1 else -1);
+                  val purgeJitter = (purgeFrequency.get.toLong * .2 * rand.nextDouble).toLong * (if( rand.nextBoolean ) 1 else -1);
                   val lastPurge = new DateTime( DateTime.now().getMillis + purgeJitter)
                   val msg = SyncLoad(Actor.self)
                   logger.debug(Actor.self + " sending: " + msg + " -> " + this)
@@ -580,6 +573,11 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       lastPurge = DateTime.now
       NamedActor(this + " Purge processor") {
         if( dataStore.isDefined ) {
+          val purgeArgs: Map[String,String] = Utils.parseMatrixArguments(';' + purgeProperty.get)
+          val policyName = (PurgePolicy.values.map(_.toString) & purgeArgs.keySet).head
+          val purgePolicy = PurgePolicy.withName(policyName)
+          val purgePolicyOptions = purgeArgs - policyName
+
           purgePolicy match {
             case PurgePolicy.NONE =>
             case PurgePolicy.LIVE => {
@@ -679,7 +677,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   /** if collection is enabled start elector, start crawler first */
   override def start(): Actor = {
-    if (enabled) {
+    if (enabled.get.toBoolean) {
       logger.info("Starting " + this)
       Option(elector).foreach(_.start())
       Option(crawler).foreach(_.start())
@@ -705,7 +703,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   * but then have a MergedCollection called "aws.autoScalingGroups" that will dispatch queries to both collections.
   * @param rootName base name of Collection (ie aws.autoScalingGroups)
   * @param accountName name of account (ie test.us-east-1)
-  * @param ctx the collection context for config and recordMatcher
+  * @param ctx the collection context for recordMatcher
   */
 abstract class RootCollection(val rootName: String, accountName: String, ctx: Collection.Context) extends Collection(ctx) {
   val name = accountName match {

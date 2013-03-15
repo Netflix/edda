@@ -45,12 +45,20 @@ object AwsCollectionBuilder {
     * @param dsFactory function to return a dataStore for each collection
     */
   def buildAll(ctx: Collection.Context, clientFactory: (String) => AwsClient, bm: BeanMapper, elector: Elector, dsFactory: String => Option[DataStore]) {
-    val collMap = Option(ctx.config.getProperty("edda.accounts")) match {
-      case Some(accountString) => {
+    val collMap = Utils.getProperty("edda","accounts","","").get match {
+      case "" => {
+        val context = new AwsCollection.Context {
+          val beanMapper = bm
+          val recordMatcher = ctx.recordMatcher
+          val awsClient = clientFactory("")
+        }
+        mkCollections(context, "", elector, dsFactory).map(
+          collection => collection.rootName -> collection).toMap
+      }
+      case accountString => {
         val accounts = accountString.split(",")
         val accountContexts = accounts.map(
           account => account -> new AwsCollection.Context {
-            val config = ctx.config
             val beanMapper = bm
             val recordMatcher = ctx.recordMatcher
             val awsClient = clientFactory(account)
@@ -73,22 +81,12 @@ object AwsCollectionBuilder {
             collections.map(coll => coll.name -> coll).toMap ++ Map(name -> new MergedCollection(name, collections))
           })
       }
-      case None => {
-        val context = new AwsCollection.Context {
-          val config = ctx.config
-          val beanMapper = bm
-          val recordMatcher = ctx.recordMatcher
-          val awsClient = clientFactory("")
-        }
-        mkCollections(context, "", elector, dsFactory).map(
-          collection => collection.rootName -> collection).toMap
-      }
     }
 
     collMap.foreach(pair => CollectionManager.register(pair._1, pair._2))
   }
 
-  /** called by *buildAll* for each account listed in the context config to
+  /** called by *buildAll* for each account listed in the config to
     * generate the Collection objects
     */
   def mkCollections(ctx: AwsCollection.Context, accountName: String, elector: Elector, dsFactory: String => Option[DataStore]): Seq[RootCollection] = {
@@ -177,7 +175,7 @@ object AwsCollection {
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsAddressCollection(
                             dsFactory: String => Option[DataStore],
@@ -197,7 +195,7 @@ class AwsAddressCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsAutoScalingGroupCollection(
                                      dsFactory: String => Option[DataStore],
@@ -217,7 +215,7 @@ class AwsAutoScalingGroupCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsScalingPolicyCollection(
                                      dsFactory: String => Option[DataStore],
@@ -237,7 +235,7 @@ class AwsScalingPolicyCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsAlarmCollection(
                                      dsFactory: String => Option[DataStore],
@@ -257,7 +255,7 @@ class AwsAlarmCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsImageCollection(
                           dsFactory: String => Option[DataStore],
@@ -277,7 +275,7 @@ class AwsImageCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsLoadBalancerCollection(
                                  dsFactory: String => Option[DataStore],
@@ -297,7 +295,7 @@ class AwsLoadBalancerCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsInstanceHealthCollection(
                                    val elbCrawler: AwsLoadBalancerCrawler,
@@ -318,7 +316,7 @@ class AwsInstanceHealthCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsLaunchConfigurationCollection(
                                         dsFactory: String => Option[DataStore],
@@ -338,7 +336,7 @@ class AwsLaunchConfigurationCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsReservationCollection(
                                 dsFactory: String => Option[DataStore],
@@ -358,7 +356,7 @@ class AwsReservationCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsInstanceCollection(
                              val resCrawler: AwsReservationCrawler,
@@ -379,7 +377,7 @@ class AwsInstanceCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsSecurityGroupCollection(
                                   dsFactory: String => Option[DataStore],
@@ -399,7 +397,7 @@ class AwsSecurityGroupCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsSnapshotCollection(
                              dsFactory: String => Option[DataStore],
@@ -419,7 +417,7 @@ class AwsSnapshotCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsTagCollection(
                         dsFactory: String => Option[DataStore],
@@ -439,7 +437,7 @@ class AwsTagCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsVolumeCollection(
                            dsFactory: String => Option[DataStore],
@@ -459,7 +457,7 @@ class AwsVolumeCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsBucketCollection(
                            dsFactory: String => Option[DataStore],
@@ -479,7 +477,7 @@ class AwsBucketCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsSimpleQueueCollection(
                                 dsFactory: String => Option[DataStore],
@@ -513,7 +511,7 @@ class AwsSimpleQueueCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsReservedInstanceCollection(
                                  dsFactory: String => Option[DataStore],
@@ -535,7 +533,7 @@ class AwsReservedInstanceCollection(
   * @param instanceCollection Instance Collection so we can query for instance details
   * @param dsFactory function that creates new DataStore object from collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class GroupAutoScalingGroups(
                               val asgCollection: AwsAutoScalingGroupCollection,
@@ -616,7 +614,7 @@ class GroupAutoScalingGroups(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsHostedZoneCollection(
                            dsFactory: String => Option[DataStore],
@@ -636,7 +634,7 @@ class AwsHostedZoneCollection(
   * @param dsFactory function that creates new DataStore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
-  * @param ctx context for configuration and AWS clients objects
+  * @param ctx context for AWS clients objects
   */
 class AwsHostedRecordCollection(
                            val zoneCrawler: AwsHostedZoneCrawler,
