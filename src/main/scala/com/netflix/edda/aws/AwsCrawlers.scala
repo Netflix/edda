@@ -23,6 +23,7 @@ import com.netflix.edda.CrawlerState
 import com.netflix.edda.Observable
 import com.netflix.edda.Record
 import com.netflix.edda.BeanMapper
+import com.netflix.edda.basic.BasicBeanMapper
 import com.netflix.edda.Utils
 
 import org.joda.time.DateTime
@@ -82,19 +83,37 @@ object AwsCrawler {
   * *code* field.
   */
 trait AwsBeanMapper extends BeanMapper {
+  val basicBeanMapper = new BasicBeanMapper
+  val suppressSet = Utils.getProperty("edda.crawler", "aws.suppressTags", "", "").get.split(",").toSet
+
+  val suppressKeyMapper: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]] = {
+    case (obj: com.amazonaws.services.ec2.model.Tag, "value", Some(x: Any)) if suppressSet.contains(obj.getKey) => Some("[EDDA_SUPPRESSED]")
+    case (obj: com.amazonaws.services.ec2.model.TagDescription, "value", Some(x: Any)) if suppressSet.contains(obj.getKey) => Some("[EDDA_SUPPRESSED]")
+    case (obj: com.amazonaws.services.autoscaling.model.Tag, "value", Some(x: Any)) if suppressSet.contains(obj.getKey) => Some("[EDDA_SUPPRESSED]")
+    case (obj: com.amazonaws.services.autoscaling.model.TagDescription, "value", Some(x: Any)) if suppressSet.contains(obj.getKey) => Some("[EDDA_SUPPRESSED]")
+  }
+  basicBeanMapper.addKeyMapper(suppressKeyMapper)
+
+  def flattenTag(obj: Map[String,Any]) = obj + (obj("key").asInstanceOf[String] -> obj("value"))
+
+  // this will flatten the tags so that we will have: { key -> a, value -> b, a -> b }
+  val tagObjMapper: PartialFunction[AnyRef,AnyRef] = {
+    case obj : com.amazonaws.services.ec2.model.Tag => 
+      flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
+    case obj : com.amazonaws.services.ec2.model.TagDescription => 
+      flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
+    case obj : com.amazonaws.services.autoscaling.model.Tag => 
+      flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
+    case obj : com.amazonaws.services.autoscaling.model.TagDescription => 
+      flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
+  }
+  this.addObjMapper(tagObjMapper)
+
   val instanceStateKeyMapper: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]] = {
     case (obj: com.amazonaws.services.ec2.model.InstanceState, "code", Some(value: Int)) => Some(0x00FF & value)
   }
   this.addKeyMapper(instanceStateKeyMapper)
 
-  val tags = Utils.getProperty("edda.crawler", "aws.suppressTags", "", "").get
-  tags.split(",").foreach(tag => {
-    val pf: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]] = {
-      case (obj: com.amazonaws.services.ec2.model.Tag, "value", Some(x: Any)) if obj.getKey == tag => Some("[EDDA_SUPPRESSED]")
-      case (obj: com.amazonaws.services.ec2.model.TagDescription, "value", Some(x: Any)) if obj.getKey == tag => Some("[EDDA_SUPPRESSED]")
-    }
-    this.addKeyMapper(pf)
-  })
 }
 
 /** iterator interface for working with the paginated results from some
