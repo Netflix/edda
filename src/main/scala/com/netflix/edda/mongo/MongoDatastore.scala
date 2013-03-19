@@ -256,20 +256,24 @@ class MongoDatastore(val name: String) extends DataStore {
 
   /** update records, delete removed records, insert added records */
   override def update(d: Collection.Delta) {
+    var toRemove: Seq[Record] = Seq();
     val records = d.removed ++ d.added ++ d.changed.flatMap(
       pair => {
         // only update oldRecord if the stime is changed, this allows
         // for inplace updates when we dont want to create new document
         // revision, but still want the record updated
-        if (pair.oldRecord.stime == pair.newRecord.stime || Collection.RetentionPolicy.withName(retentionPolicy.get) == LAST) {
-            Seq(pair.newRecord)
-        }
-        else {
-            Seq(pair.oldRecord, pair.newRecord)
+        if (pair.oldRecord.stime == pair.newRecord.stime) {
+          Seq(pair.newRecord)
+        } else if (Collection.RetentionPolicy.withName(retentionPolicy.get) == LAST) {
+          toRemove = pair.oldRecord +: toRemove
+          Seq(pair.newRecord)
+        } else {
+          Seq(pair.oldRecord, pair.newRecord)
         }
       })
     
     records.foreach( r => if (Collection.RetentionPolicy.withName(retentionPolicy.get) == LIVE && r.ltime != null) remove(r) else upsert(r) )
+    toRemove.foreach( remove(_) )
     markCollectionModified
   }
 
