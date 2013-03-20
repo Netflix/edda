@@ -30,17 +30,11 @@ import com.mongodb.DBCollection
 class MongoElector extends Elector {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
-  val instance = Option(
+  lazy val instance = Option(
     System.getenv(Utils.getProperty("edda.elector", "mongo.uniqueEnvName", "", "EC2_INSTANCE_ID").get)).getOrElse("dev")
-  val name = Utils.getProperty("edda.elector", "mongo.collectionName", "", "sys.monitor").get
-  val mongo: DBCollection = try {
-    MongoDatastore.mongoCollection(name)
-  } catch {
-    case e: Exception => {
-      logger.error("exception", e)
-      null
-    }
-  }
+  lazy val name = Utils.getProperty("edda.elector", "mongo.collectionName", "", "sys.monitor").get
+  lazy val mongo: DBCollection = MongoDatastore.mongoCollection(name)
+
   val leaderTimeout = Utils.getProperty("edda.elector", "mongo.leaderTimeout", "", "5000")
 
   override def init() {
