@@ -36,6 +36,13 @@ import java.util.Date
 
 import org.slf4j.LoggerFactory
 
+import org.elasticsearch.index.query.FilterBuilders
+import org.elasticsearch.index.query.FilterBuilder
+import org.elasticsearch.index.query.QueryBuilders
+import org.elasticsearch.index.query.QueryBuilder
+import org.elasticsearch.action.search.SearchRequestBuilder
+
+
 // /** helper object to store common Mongo related routines */
 object ElasticSearchDatastore {
 
@@ -182,6 +189,89 @@ object ElasticSearchDatastore {
 //     if (db.collectionExists(name)) db.getCollection(name) else db.createCollection(name, null)
 //   }
 
+  /** dispatch the match operator to the correct matching routine. */
+  protected def esFilterOp(key: String, value: Any, op: String): FilterBuilder = {
+    // $eq $ne $gt $lt $gte $lte $exists $in $nin $regex
+    op match {
+      case "$eq" => Option(value) match {
+        case None => FilterBuilders.missingFilter(key).nullValue(true).existence(true)
+        case Some(value) => FilterBuilders.termFilter(key, value)
+      }
+      case "$ne" => FilterBuilders.notFilter(esFilterOp(key, value, "$eq"))
+      case "$gt" => value match {
+        case v: String => FilterBuilders.rangeFilter(key).from(v).includeLower(false)
+        case _ => FilterBuilders.numericRangeFilter(key).from(value).includeLower(false)
+      }
+      case "$gte" => value match {
+        case v: String => FilterBuilders.rangeFilter(key).from(v).includeLower(true)
+        case _ => FilterBuilders.numericRangeFilter(key).from(value).includeLower(true)
+      }
+      case "$lt" => value match {
+        case v: String => FilterBuilders.rangeFilter(key).to(v).includeUpper(false)
+        case _ => FilterBuilders.numericRangeFilter(key).to(value).includeUpper(false)
+      }
+      case "$lte" => value match {
+        case v: String => FilterBuilders.rangeFilter(key).to(v).includeUpper(true)
+        case _ => FilterBuilders.numericRangeFilter(key).to(value).includeUpper(true)
+      }
+      case "$exists" => FilterBuilders.missingFilter(key).existence(true)
+      case "$in" => value.asInstanceOf[Seq[Any]].head match {
+        case _: String => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[String]].toArray)
+        case _: Long => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[Long]].toArray)
+        case _: Int => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[Int]].toArray)
+        case _: Double => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[Double]].toArray)
+        case _: Float => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[Float]].toArray)
+        case _: AnyRef => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[AnyRef]].toArray)
+      }
+      case "$nin" => FilterBuilders.notFilter(esFilterOp(key, value, "$in"))
+      case "$regex" => throw new java.lang.UnsupportedOperationException("$regex query not supported")
+      case unk => throw new java.lang.RuntimeException("uknown match operation: " + unk)
+    }
+  }
+
+  def esFilter(queryMap: Map[String, Any]): FilterBuilder = {
+    val filters = queryMap.map {
+      // { key: { $op1: val, $op2: val } } ==>
+      case (key: String, value: Map[_, _]) => {
+        if( value.size > 1 ) {
+          val andFilter = FilterBuilders.andFilter()
+          value.asInstanceOf[Map[String,Any]].foreach( kv => andFilter.add(esFilter( Map(key -> (kv._1, kv._2)) )) )
+          andFilter
+        } else {
+          val kv = value.asInstanceOf[Map[String,Any]].head
+          esFilter( Map(key -> (kv._1, kv._2)) )
+        }
+      }
+      // { $or: [ {key: value}, {key: value} ] }
+      case ("$or", value: Seq[_]) => {
+        val filters = value.asInstanceOf[Seq[Map[String,Any]]].map(esFilter(_)).toArray
+        val orFilter = FilterBuilders.orFilter()
+        filters.foreach( orFilter.add(_) )
+        orFilter
+      }
+      // { $and: [ {key: value}, {key: value} ] }
+      case ("$and", value: Seq[_]) => {
+        val filters = value.asInstanceOf[Seq[Map[String,Any]]].map(esFilter(_)).toArray
+        val andFilter = FilterBuilders.andFilter()
+        filters.foreach( andFilter.add(_) )
+        andFilter
+      }
+      // { key1: { $op1: val }, key2: { $op2: val } }
+      case (key: String, (op: String, value: Any)) => esFilterOp(key, value, op)
+      case (key: String, value: Any) => esFilterOp(key,value,"$eq")
+      case (key: String, null) => esFilterOp(key,null,"$eq")
+    } toSeq
+    
+    if( queryMap.size > 1 ) {
+      val andFilter = FilterBuilders.andFilter()
+      filters.foreach( andFilter.add(_) )
+      andFilter
+    } else filters.head
+  }
+
+  def esQuery(queryMap: Map[String, Any]): QueryBuilder = {
+    if( queryMap.isEmpty ) QueryBuilders.matchAllQuery else QueryBuilders.constantScoreQuery(esFilter(queryMap))
+  }
 }
 
 /** [[com.netflix.edda.DataStore]] subclass that allows MongoDB to be used
@@ -200,9 +290,8 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
   import org.elasticsearch.common.transport.InetSocketTransportAddress
   import org.elasticsearch.action.search.SearchOperationThreading._
 
-  val settings: Settings = ImmutableSettings.settingsBuilder().put("cluster.name", Utils.getProperty("edda", "elasticsearch.cluster", name, "edda").get).build()
-
-  val client: Client = Utils.getProperty("edda", "elasticsearch.address", name, "edda").get.split(',').fold(new TransportClient(settings))(
+  lazy val settings: Settings = ImmutableSettings.settingsBuilder().put("cluster.name", Utils.getProperty("edda", "elasticsearch.cluster", name, "edda").get).build()
+  lazy val client: Client = Utils.getProperty("edda", "elasticsearch.address", name, "edda").get.split(',').fold(new TransportClient(settings))(
     (client, addr) => {
       val parts = addr.asInstanceOf[String].split(':')
       client.asInstanceOf[TransportClient].addTransportAddress(new InetSocketTransportAddress(parts.head, parts.tail.head.toInt))
@@ -211,11 +300,15 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
         
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
-  def init() {}
+  def init() {
+    // TODO create index if missing (set replication and shards), add/update mapping
+  }
 
   /** perform query on data store, see [[com.netflix.edda.Queryable.query()]] */
   def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
-    Seq()
+    var builder = client.prepareSearch(name.toLowerCase).setQuery(esQuery(queryMap));
+    if( !replicaOk ) builder = builder.setPreference("_primary")
+    if( limit > 0 ) fetch(builder, limit) else scan(builder)
   }
 
   /** load records from data store, used at Collection start-up to prime in-memory cache and to refresh
@@ -225,31 +318,35 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     *                  redundant systems running for high-availability.
     */
   def load(replicaOk: Boolean): Seq[Record] = {
-    import collection.JavaConverters.iterableAsScalaIterableConverter
-    
-    // import org.elasticsearch.index.query.FilterBuilders._
-    // import org.elasticsearch.index.query.QueryBuilders._
-    
-    import org.elasticsearch.action.search.SearchResponse
-    import org.elasticsearch.action.search.SearchType
-    import org.elasticsearch.index.query.MissingFilterBuilder
-    import org.elasticsearch.index.query.QueryBuilders
-    import org.elasticsearch.common.unit.TimeValue
-
-    // val qb = termQuery("ltime", null)
-    
-    // val fb = new MissingFilterBuilder("ltime").nullValue(true).existence(true)
-    
-    logger.info("index: " + name + ".live")
-    val collType = name.split('.').toList.takeRight(2).mkString(".")
-
     var builder = client.prepareSearch(name.toLowerCase + ".live");
     if( !replicaOk ) builder = builder.setPreference("_primary")
+    scan(builder)
+  }
 
-    var scrollResp: SearchResponse = builder.
+  def fetch(search: SearchRequestBuilder, limit: Int): Seq[Record] = {
+    import collection.JavaConverters.iterableAsScalaIterableConverter
+    import org.elasticsearch.action.search.SearchResponse
+    import org.elasticsearch.action.search.SearchType
+    val searchResp = search.setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setFrom(0).setSize(limit).execute().actionGet();
+    searchResp.getHits().asScala.map(r => {
+      try esToRecord(r.getSource)    
+      catch {
+        case e: Exception => {
+          logger.error(this + " failed to parse record: " + r.getSource, e)
+          throw e
+        }
+      }
+    }) toSeq
+  }
+
+  def scan( search: SearchRequestBuilder): Seq[Record] = {
+    import collection.JavaConverters.iterableAsScalaIterableConverter
+    import org.elasticsearch.action.search.SearchResponse
+    import org.elasticsearch.action.search.SearchType
+    import org.elasticsearch.common.unit.TimeValue
+    var scrollResp: SearchResponse = search.
       setSearchType(SearchType.SCAN).
       setScroll(new TimeValue(60000)).
-      setOperationThreading(THREAD_PER_SHARD).
       setSize(100).execute().actionGet(); //100 hits per shard will be returned for each scroll
     
     //Scroll until no hits are returned
@@ -257,11 +354,9 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     var seq: Seq[Record] = Seq()
 
     while (keepLooping) {
-      scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(600000)).execute().actionGet()
+      scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(60000)).execute().actionGet()
       seq = seq ++ scrollResp.getHits().asScala.map(r => {
-        try {
-          esToRecord(r.getSource)
-        }
+        try esToRecord(r.getSource)
         catch {
           case e: Exception => {
             logger.error(this + " failed to parse record: " + r.getSource, e)
@@ -277,6 +372,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     }
     seq
   }
+
   
   /** make changes to the data store depending on the Collection delta found after a Crawl result */
   def update(d: Collection.Delta) {}
