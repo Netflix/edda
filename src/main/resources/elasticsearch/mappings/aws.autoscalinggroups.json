@@ -1,0 +1,148 @@
+{
+    "aws.autoscalinggroups": {
+        "properties": {
+            "ctime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "data": {
+                "dynamic": "true",
+                "properties": {
+                    "autoScalingGroupARN": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "autoScalingGroupName": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "availabilityZones": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "class": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "createdTime": {
+                        "type": "date",
+                        "format": "dateOptionalTime"
+                    },
+                    "defaultCooldown": {
+                        "type": "long"
+                    },
+                    "desiredCapacity": {
+                        "type": "long"
+                    },
+                    "healthCheckGracePeriod": {
+                        "type": "long"
+                    },
+                    "healthCheckType": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "instances": {
+                        "dynamic": "true",
+                        "properties": {
+                            "availabilityZone": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "class": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "healthStatus": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "instanceId": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "launchConfigurationName": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "lifecycleState": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            }
+                        }
+                    },
+                    "launchConfigurationName": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "loadBalancerNames": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "maxSize": {
+                        "type": "long"
+                    },
+                    "minSize": {
+                        "type": "long"
+                    },
+                    "status": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "suspendedProcesses": {
+                        "dynamic": "true",
+                        "properties": {
+                            "class": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "processName": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "suspensionReason": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            }
+                        }
+                    },
+                    "terminationPolicies": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    }
+                }
+            },
+            "id": {
+                "type": "string",
+                "index": "not_analyzed"
+            },
+            "ltime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "mtime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "stime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "tags": {
+                "dynamic": "true",
+                "properties": {
+                    "clusterName": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "clusterSlot": {
+                        "type": "long"
+                    },
+                    "generatedFrom": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    }
+                }
+            }
+        }
+    }
+}

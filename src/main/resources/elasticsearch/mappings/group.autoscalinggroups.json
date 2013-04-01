@@ -1,0 +1,112 @@
+{
+    "group.autoscalinggroups": {
+        "properties": {
+            "ctime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "data": {
+                "dynamic": "true",
+                "properties": {
+                    "desiredCapacity": {
+                        "type": "long"
+                    },
+                    "instances": {
+                        "dynamic": "true",
+                        "properties": {
+                            "availabilityZone": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "end": {
+                                "type": "date",
+                                "format": "dateOptionalTime"
+                            },
+                            "imageId": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "instanceId": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "instanceType": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "launchTime": {
+                                "type": "date",
+                                "format": "dateOptionalTime"
+                            },
+                            "lifecycleState": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "privateIpAddress": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "publicDnsName": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "publicIpAddress": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "slot": {
+                                "type": "long"
+                            },
+                            "start": {
+                                "type": "date",
+                                "format": "dateOptionalTime"
+                            }
+                        }
+                    },
+                    "launchConfigurationName": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "loadBalancerNames": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "maxSize": {
+                        "type": "long"
+                    },
+                    "minSize": {
+                        "type": "long"
+                    },
+                    "name": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "start": {
+                        "type": "date",
+                        "format": "dateOptionalTime"
+                    }
+                }
+            },
+            "id": {
+                "type": "string",
+                "index": "not_analyzed"
+            },
+            "ltime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "mtime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "stime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "tags": {
+                "type": "object",
+                "dynamic": "true"
+            }
+        }
+    }
+}

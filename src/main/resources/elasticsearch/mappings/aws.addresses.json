@@ -1,0 +1,71 @@
+{
+    "aws.addresses": {
+        "properties": {
+            "ctime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "data": {
+                "dynamic": "true",
+                "properties": {
+                    "allocationId": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "associationId": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "class": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "domain": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "instanceId": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "networkInterfaceId": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "networkInterfaceOwnerId": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "privateIpAddress": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "publicIp": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    }
+                }
+            },
+            "id": {
+                "type": "string",
+                "index": "not_analyzed"
+            },
+            "ltime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "mtime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "stime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "tags": {
+                "type": "object",
+                "dynamic": "true"
+            }
+        }
+    }
+}

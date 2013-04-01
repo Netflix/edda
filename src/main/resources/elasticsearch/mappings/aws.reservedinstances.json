@@ -1,0 +1,103 @@
+{
+    "aws.reservedinstances": {
+        "properties": {
+            "ctime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "data": {
+                "dynamic": "true",
+                "properties": {
+                    "availabilityZone": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "class": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "currencyCode": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "duration": {
+                        "type": "long"
+                    },
+                    "fixedPrice": {
+                        "type": "long"
+                    },
+                    "instanceCount": {
+                        "type": "long"
+                    },
+                    "instanceTenancy": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "instanceType": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "offeringType": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "productDescription": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "recurringCharges": {
+                        "dynamic": "true",
+                        "properties": {
+                            "amount": {
+                                "type": "double"
+                            },
+                            "class": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "frequency": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            }
+                        }
+                    },
+                    "reservedInstancesId": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "start": {
+                        "type": "date",
+                        "format": "dateOptionalTime"
+                    },
+                    "state": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "usagePrice": {
+                        "type": "long"
+                    }
+                }
+            },
+            "id": {
+                "type": "string",
+                "index": "not_analyzed"
+            },
+            "ltime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "mtime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "stime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "tags": {
+                "type": "object",
+                "dynamic": "true"
+            }
+        }
+    }
+}

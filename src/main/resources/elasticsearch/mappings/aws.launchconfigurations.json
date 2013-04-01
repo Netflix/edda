@@ -1,0 +1,123 @@
+{
+    "aws.launchconfigurations": {
+        "properties": {
+            "ctime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "data": {
+                "dynamic": "true",
+                "properties": {
+                    "blockDeviceMappings": {
+                        "dynamic": "true",
+                        "properties": {
+                            "class": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "deviceName": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "ebs": {
+                                "dynamic": "true",
+                                "properties": {
+                                    "class": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "volumeSize": {
+                                        "type": "long"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "class": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "createdTime": {
+                        "type": "date",
+                        "format": "dateOptionalTime"
+                    },
+                    "ebsOptimized": {
+                        "type": "boolean"
+                    },
+                    "iamInstanceProfile": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "imageId": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "instanceMonitoring": {
+                        "dynamic": "true",
+                        "properties": {
+                            "class": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "enabled": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "instanceType": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "kernelId": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "keyName": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "launchConfigurationARN": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "launchConfigurationName": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "ramdiskId": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "securityGroups": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "userData": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    }
+                }
+            },
+            "id": {
+                "type": "string",
+                "index": "not_analyzed"
+            },
+            "ltime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "mtime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "stime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "tags": {
+                "type": "object",
+                "dynamic": "true"
+            }
+        }
+    }
+}

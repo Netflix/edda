@@ -1,0 +1,341 @@
+{
+    "discovery.applications": {
+        "properties": {
+            "ctime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "data": {
+                "dynamic": "true",
+                "properties": {
+                    "class": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    },
+                    "instances": {
+                        "dynamic": "true",
+                        "properties": {
+                            "ASGName": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "IPAddr": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "SID": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "VIPAddress": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "actionType": {
+                                "dynamic": "true",
+                                "properties": {
+                                    "class": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    }
+                                }
+                            },
+                            "appName": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "class": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "countryId": {
+                                "type": "long"
+                            },
+                            "dataCenterInfo": {
+                                "dynamic": "true",
+                                "properties": {
+                                    "class": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "metadata": {
+                                        "dynamic": "true",
+                                        "properties": {
+                                            "ami_id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "ami_launch_index": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "ami_manifest_path": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "availability_zone": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "class": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "hostname": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "instance_id": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "instance_type": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "local_hostname": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "local_ipv4": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "public_hostname": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "public_ipv4": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            }
+                                        }
+                                    },
+                                    "name": {
+                                        "dynamic": "true",
+                                        "properties": {
+                                            "class": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            },
+                                            "name": {
+                                                "type": "string",
+                                                "index": "not_analyzed"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "dirty": {
+                                "type": "boolean"
+                            },
+                            "healthCheckUrls": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "homePageUrl": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "hostName": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "id": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "lastDirtyTimestamp": {
+                                "type": "long"
+                            },
+                            "lastUpdatedTimestamp": {
+                                "type": "long"
+                            },
+                            "leaseInfo": {
+                                "dynamic": "true",
+                                "properties": {
+                                    "class": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "durationInSecs": {
+                                        "type": "long"
+                                    },
+                                    "evictionTimestamp": {
+                                        "type": "long"
+                                    },
+                                    "registrationTimestamp": {
+                                        "type": "long"
+                                    },
+                                    "renewalIntervalInSecs": {
+                                        "type": "long"
+                                    },
+                                    "renewalTimestamp": {
+                                        "type": "long"
+                                    }
+                                }
+                            },
+                            "metadata": {
+                                "dynamic": "true",
+                                "properties": {
+                                    "chukwaCollectorPort": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "class": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "enableRoute53": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "engine_admin_port": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "engine_count": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "engine_env": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "engine_group": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "engine_http_port": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "engine_index": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "engine_main_port": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "engine_virtual_count": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "evcache_caches": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "evcache_port": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "evcache_replicaSetId": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "route53NamePrefix": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "route53RecordType": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "route53Type": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "vhs_layer": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "vhs_slotnum": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "vhs_slotsInLayer": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "vhs_stateless": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    }
+                                }
+                            },
+                            "overriddenStatus": {
+                                "dynamic": "true",
+                                "properties": {
+                                    "class": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    }
+                                }
+                            },
+                            "port": {
+                                "type": "long"
+                            },
+                            "securePort": {
+                                "type": "long"
+                            },
+                            "secureVipAddress": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "status": {
+                                "dynamic": "true",
+                                "properties": {
+                                    "class": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "index": "not_analyzed"
+                                    }
+                                }
+                            },
+                            "statusPageUrl": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            },
+                            "version": {
+                                "type": "string",
+                                "index": "not_analyzed"
+                            }
+                        }
+                    },
+                    "name": {
+                        "type": "string",
+                        "index": "not_analyzed"
+                    }
+                }
+            },
+            "id": {
+                "type": "string",
+                "index": "not_analyzed"
+            },
+            "mtime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "stime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "tags": {
+                "type": "object",
+                "dynamic": "true"
+            }
+        }
+    }
+}

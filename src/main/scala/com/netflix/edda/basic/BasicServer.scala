@@ -22,6 +22,7 @@ import com.netflix.edda.aws.AwsCollectionBuilder
 import com.netflix.edda.aws.AwsClient
 import com.netflix.edda.CollectionManager
 import com.netflix.edda.mongo.MongoDatastore
+import com.netflix.edda.elasticsearch.ElasticSearchDatastore
 import com.netflix.edda.mongo.MongoElector
 import com.netflix.edda.Utils
 
@@ -42,7 +43,7 @@ class BasicServer extends HttpServlet {
     Utils.initConfiguration(System.getProperty("edda.properties","edda.properties"))
 
     logger.info("Staring Server")
-    val dsFactory = (name: String) => Some(new MongoDatastore(name))
+    val dsFactory = (name: String) => Some(new ElasticSearchDatastore(name))
     val elector = new MongoElector
 
     val bm = new BasicBeanMapper with AwsBeanMapper
