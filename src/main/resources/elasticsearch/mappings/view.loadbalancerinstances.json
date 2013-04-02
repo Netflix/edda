@@ -2,6 +2,7 @@
     "view.loadbalancerinstances": {
         "properties": {
             "ctime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -12,50 +13,61 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "description": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "instanceId": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "reasonCode": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "state": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "name": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     }
                 }
             },
             "id": {
+                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "ltime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "mtime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "tags": {
+                "stored": "yes",
                 "type": "object",
                 "dynamic": "true"
             }

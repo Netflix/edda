@@ -2,6 +2,7 @@
     "aws.autoscalinggroups": {
         "properties": {
             "ctime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -9,35 +10,44 @@
                 "dynamic": "true",
                 "properties": {
                     "autoScalingGroupARN": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "autoScalingGroupName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "availabilityZones": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "class": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "createdTime": {
+                        "stored": "yes",
                         "type": "date",
                         "format": "dateOptionalTime"
                     },
                     "defaultCooldown": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "desiredCapacity": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "healthCheckGracePeriod": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "healthCheckType": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -45,46 +55,57 @@
                         "dynamic": "true",
                         "properties": {
                             "availabilityZone": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "healthStatus": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "instanceId": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "launchConfigurationName": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "lifecycleState": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "launchConfigurationName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "loadBalancerNames": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "maxSize": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "minSize": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "status": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -92,38 +113,46 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "processName": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "suspensionReason": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "terminationPolicies": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     }
                 }
             },
             "id": {
+                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "ltime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "mtime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -131,13 +160,16 @@
                 "dynamic": "true",
                 "properties": {
                     "clusterName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "clusterSlot": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "generatedFrom": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     }

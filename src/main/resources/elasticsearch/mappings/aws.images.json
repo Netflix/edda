@@ -2,6 +2,7 @@
     "aws.images": {
         "properties": {
             "ctime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -9,6 +10,7 @@
                 "dynamic": "true",
                 "properties": {
                     "architecture": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -16,10 +18,12 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "deviceName": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
@@ -27,75 +31,93 @@
                                 "dynamic": "true",
                                 "properties": {
                                     "class": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "deleteOnTermination": {
+                                        "stored": "yes",
                                         "type": "boolean"
                                     },
                                     "iops": {
+                                        "stored": "yes",
                                         "type": "long"
                                     },
                                     "snapshotId": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "volumeSize": {
+                                        "stored": "yes",
                                         "type": "long"
                                     },
                                     "volumeType": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     }
                                 }
                             },
                             "virtualName": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "class": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "description": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "hypervisor": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "imageId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "imageLocation": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "imageOwnerAlias": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "imageType": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "kernelId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "name": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "ownerId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "platform": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -103,35 +125,43 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "productCodeId": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "productCodeType": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "public": {
+                        "stored": "yes",
                         "type": "boolean"
                     },
                     "ramdiskId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "rootDeviceName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "rootDeviceType": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "state": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -139,42 +169,51 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "key": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "value": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "virtualizationType": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     }
                 }
             },
             "id": {
+                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "ltime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "mtime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "tags": {
+                "stored": "yes",
                 "type": "object",
                 "dynamic": "true"
             }

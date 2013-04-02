@@ -2,6 +2,7 @@
     "view.instances": {
         "properties": {
             "ctime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -9,9 +10,11 @@
                 "dynamic": "true",
                 "properties": {
                     "amiLaunchIndex": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "architecture": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -19,10 +22,12 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "deviceName": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
@@ -30,21 +35,26 @@
                                 "dynamic": "true",
                                 "properties": {
                                     "attachTime": {
+                                        "stored": "yes",
                                         "type": "date",
                                         "format": "dateOptionalTime"
                                     },
                                     "class": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "deleteOnTermination": {
+                                        "stored": "yes",
                                         "type": "boolean"
                                     },
                                     "status": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "volumeId": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     }
@@ -53,17 +63,21 @@
                         }
                     },
                     "class": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "clientToken": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "ebsOptimized": {
+                        "stored": "yes",
                         "type": "boolean"
                     },
                     "hypervisor": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -71,40 +85,49 @@
                         "dynamic": "true",
                         "properties": {
                             "arn": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "id": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "imageId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "instanceId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "instanceType": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "kernelId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "keyName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "launchTime": {
+                        "stored": "yes",
                         "type": "date",
                         "format": "dateOptionalTime"
                     },
@@ -112,10 +135,12 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "state": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
@@ -128,34 +153,42 @@
                                 "dynamic": "true",
                                 "properties": {
                                     "attachTime": {
+                                        "stored": "yes",
                                         "type": "date",
                                         "format": "dateOptionalTime"
                                     },
                                     "attachmentId": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "class": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "deleteOnTermination": {
+                                        "stored": "yes",
                                         "type": "boolean"
                                     },
                                     "deviceIndex": {
+                                        "stored": "yes",
                                         "type": "long"
                                     },
                                     "status": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     }
                                 }
                             },
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "description": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
@@ -163,47 +196,58 @@
                                 "dynamic": "true",
                                 "properties": {
                                     "class": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "groupId": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "groupName": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     }
                                 }
                             },
                             "networkInterfaceId": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "ownerId": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "privateDnsName": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "privateIpAddress": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "sourceDestCheck": {
+                                "stored": "yes",
                                 "type": "boolean"
                             },
                             "status": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "subnetId": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "vpcId": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
@@ -213,48 +257,59 @@
                         "dynamic": "true",
                         "properties": {
                             "availabilityZone": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "tenancy": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "platform": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "privateDnsName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "privateIpAddress": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "publicDnsName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "publicIpAddress": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "ramdiskId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "rootDeviceName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "rootDeviceType": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -262,33 +317,40 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "groupId": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "groupName": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "sourceDestCheck": {
+                        "stored": "yes",
                         "type": "boolean"
                     },
                     "state": {
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "code": {
+                                "stored": "yes",
                                 "type": "long"
                             },
                             "name": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
@@ -298,24 +360,29 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "code": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "message": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "stateTransitionReason": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "subnetId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -323,42 +390,51 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "key": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "value": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "virtualizationType": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "vpcId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     }
                 }
             },
             "id": {
+                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "ltime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "mtime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -366,46 +442,58 @@
                 "dynamic": "true",
                 "properties": {
                     "asgFrom": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "asgName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "asgSlot": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "clusterFrom": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "clusterName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "clusterSlot": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "discoAppFrom": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "discoAppName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "discoAppSlot": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "eipGroupName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "eipGroupSlot": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "migratedFrom": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     }

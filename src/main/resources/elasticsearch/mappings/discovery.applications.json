@@ -2,6 +2,7 @@
     "discovery.applications": {
         "properties": {
             "ctime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -9,6 +10,7 @@
                 "dynamic": "true",
                 "properties": {
                     "class": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -16,18 +18,22 @@
                         "dynamic": "true",
                         "properties": {
                             "ASGName": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "IPAddr": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "SID": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "VIPAddress": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
@@ -35,30 +41,36 @@
                                 "dynamic": "true",
                                 "properties": {
                                     "class": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "name": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     }
                                 }
                             },
                             "appName": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "countryId": {
+                                "stored": "yes",
                                 "type": "long"
                             },
                             "dataCenterInfo": {
                                 "dynamic": "true",
                                 "properties": {
                                     "class": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
@@ -66,50 +78,62 @@
                                         "dynamic": "true",
                                         "properties": {
                                             "ami_id": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             },
                                             "ami_launch_index": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             },
                                             "ami_manifest_path": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             },
                                             "availability_zone": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             },
                                             "class": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             },
                                             "hostname": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             },
                                             "instance_id": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             },
                                             "instance_type": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             },
                                             "local_hostname": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             },
                                             "local_ipv4": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             },
                                             "public_hostname": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             },
                                             "public_ipv4": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             }
@@ -119,10 +143,12 @@
                                         "dynamic": "true",
                                         "properties": {
                                             "class": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             },
                                             "name": {
+                                                "stored": "yes",
                                                 "type": "string",
                                                 "index": "not_analyzed"
                                             }
@@ -131,50 +157,63 @@
                                 }
                             },
                             "dirty": {
+                                "stored": "yes",
                                 "type": "boolean"
                             },
                             "healthCheckUrls": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "homePageUrl": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "hostName": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "id": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "lastDirtyTimestamp": {
+                                "stored": "yes",
                                 "type": "long"
                             },
                             "lastUpdatedTimestamp": {
+                                "stored": "yes",
                                 "type": "long"
                             },
                             "leaseInfo": {
                                 "dynamic": "true",
                                 "properties": {
                                     "class": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "durationInSecs": {
+                                        "stored": "yes",
                                         "type": "long"
                                     },
                                     "evictionTimestamp": {
+                                        "stored": "yes",
                                         "type": "long"
                                     },
                                     "registrationTimestamp": {
+                                        "stored": "yes",
                                         "type": "long"
                                     },
                                     "renewalIntervalInSecs": {
+                                        "stored": "yes",
                                         "type": "long"
                                     },
                                     "renewalTimestamp": {
+                                        "stored": "yes",
                                         "type": "long"
                                     }
                                 }
@@ -183,86 +222,107 @@
                                 "dynamic": "true",
                                 "properties": {
                                     "chukwaCollectorPort": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "class": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "enableRoute53": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "engine_admin_port": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "engine_count": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "engine_env": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "engine_group": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "engine_http_port": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "engine_index": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "engine_main_port": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "engine_virtual_count": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "evcache_caches": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "evcache_port": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "evcache_replicaSetId": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "route53NamePrefix": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "route53RecordType": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "route53Type": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "vhs_layer": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "vhs_slotnum": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "vhs_slotsInLayer": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "vhs_stateless": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     }
@@ -272,22 +332,27 @@
                                 "dynamic": "true",
                                 "properties": {
                                     "class": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "name": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     }
                                 }
                             },
                             "port": {
+                                "stored": "yes",
                                 "type": "long"
                             },
                             "securePort": {
+                                "stored": "yes",
                                 "type": "long"
                             },
                             "secureVipAddress": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
@@ -295,44 +360,53 @@
                                 "dynamic": "true",
                                 "properties": {
                                     "class": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "name": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     }
                                 }
                             },
                             "statusPageUrl": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "version": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "name": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     }
                 }
             },
             "id": {
+                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "mtime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "tags": {
+                "stored": "yes",
                 "type": "object",
                 "dynamic": "true"
             }

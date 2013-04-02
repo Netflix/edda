@@ -2,6 +2,7 @@
     "aws.launchconfigurations": {
         "properties": {
             "ctime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -12,10 +13,12 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "deviceName": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
@@ -23,10 +26,12 @@
                                 "dynamic": "true",
                                 "properties": {
                                     "class": {
+                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "volumeSize": {
+                                        "stored": "yes",
                                         "type": "long"
                                     }
                                 }
@@ -34,21 +39,26 @@
                         }
                     },
                     "class": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "createdTime": {
+                        "stored": "yes",
                         "type": "date",
                         "format": "dateOptionalTime"
                     },
                     "ebsOptimized": {
+                        "stored": "yes",
                         "type": "boolean"
                     },
                     "iamInstanceProfile": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "imageId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -56,65 +66,80 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "enabled": {
+                                "stored": "yes",
                                 "type": "boolean"
                             }
                         }
                     },
                     "instanceType": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "kernelId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "keyName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "launchConfigurationARN": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "launchConfigurationName": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "ramdiskId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "securityGroups": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "userData": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     }
                 }
             },
             "id": {
+                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "ltime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "mtime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "tags": {
+                "stored": "yes",
                 "type": "object",
                 "dynamic": "true"
             }

@@ -2,6 +2,7 @@
     "aws.volumes": {
         "properties": {
             "ctime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -12,57 +13,71 @@
                         "dynamic": "true",
                         "properties": {
                             "attachTime": {
+                                "stored": "yes",
                                 "type": "date",
                                 "format": "dateOptionalTime"
                             },
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "deleteOnTermination": {
+                                "stored": "yes",
                                 "type": "boolean"
                             },
                             "device": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "instanceId": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "state": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "volumeId": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "availabilityZone": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "class": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "createTime": {
+                        "stored": "yes",
                         "type": "date",
                         "format": "dateOptionalTime"
                     },
                     "iops": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "size": {
+                        "stored": "yes",
                         "type": "long"
                     },
                     "snapshotId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "state": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -70,46 +85,56 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "key": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "value": {
+                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "volumeId": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "volumeType": {
+                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     }
                 }
             },
             "id": {
+                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "ltime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "mtime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
+                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "tags": {
+                "stored": "yes",
                 "type": "object",
                 "dynamic": "true"
             }
