@@ -99,12 +99,13 @@ class CollectionResource {
       case (k, v) => query += prefix + k -> v
     }
 
-    if (details.metaArgs.contains("_at") || details.live) {
+    if (details.metaArgs.contains("_at")) {
       query += "stime" -> Map("$lte" -> details.at)
       query += "$or" -> List(
         Map("ltime" -> null),
         Map("ltime" -> Map("$gte" -> details.at)))
-    }
+    } else if(!details.timeTravelling)
+      query += "ltime" -> null
 
     if (details.updated) {
       val since = Map("stime" -> Map("$gte" -> details.since))
@@ -209,7 +210,7 @@ class CollectionResource {
     /** flag used to know if we are going to go to the DataStore (we only store "live" instances
       * in memory, so when time travelling we will likely need expired resources from the DataStore
       */
-    var timeTravelling = all || metaArgs.contains("_at") || metaArgs.contains("_since") || live
+    var timeTravelling = all || metaArgs.contains("_at") || metaArgs.contains("_since")
 
     /** Set of field names (object keys) extraced from the FieldSelector expression */
     val fields: Set[String] = extractFields(expr) match {
@@ -361,7 +362,7 @@ class CollectionResource {
     // unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
     var records: Seq[Record] = Seq()
     Utils.SYNC {
-      coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true) {
+      coll.query(query, details.limit, details.timeTravelling || details.live, keys, replicaOk = true) {
         case Success(results: QueryResult) => {
           records = unique(results.records, details)
         }

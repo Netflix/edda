@@ -41,13 +41,12 @@ import org.elasticsearch.index.query.FilterBuilder
 import org.elasticsearch.index.query.QueryBuilders
 import org.elasticsearch.index.query.QueryBuilder
 import org.elasticsearch.action.search.SearchRequestBuilder
+import org.elasticsearch.search.sort.SortOrder
+import org.elasticsearch.search.SearchHitField
 
 
 // /** helper object to store common Mongo related routines */
 object ElasticSearchDatastore {
-
-//   val nullLtimeQuery = mapToMongo(Map("ltime" -> null))
-//   val stimeIdSort = mapToMongo(Map("stime" -> -1, "id" -> 1))
 
   import org.joda.time.format.ISODateTimeFormat
   val basicDateTime = ISODateTimeFormat.dateTime
@@ -58,17 +57,52 @@ object ElasticSearchDatastore {
       case o: java.util.Map[_,_] =>
         Record(
           Option(o.get("id")).getOrElse(o.get("_id")).asInstanceOf[String],
-          basicDateTime.parseDateTime(o.get("ctime").asInstanceOf[String]),
-          basicDateTime.parseDateTime(Option(o.get("stime")).getOrElse(o.get("ctime")).asInstanceOf[String]),
+          Option(o.get("ctime")) match {
+            case Some(date:String) => basicDateTime.parseDateTime(date)
+            case None => null
+          },
+          Option(o.get("stime")) match {
+            case Some(date:String) => basicDateTime.parseDateTime(date)
+            case None => null
+          },
           Option(o.get("ltime")) match {
             case Some(date: String) => basicDateTime.parseDateTime(date)
             case None => null
           },
-          basicDateTime.parseDateTime(o.get("mtime").asInstanceOf[String]),
-          esToScala(o.get("data")),
-          esToScala(o.get("tags")).asInstanceOf[Map[String, Any]])
+          Option(o.get("mtime")) match {
+            case Some(date: String) => basicDateTime.parseDateTime(date)
+            case None => null
+          },
+          Option(o.get("data")) match {
+            case Some(data) => esToScala(data)
+            case None => null
+          },
+          Option(o.get("tags")) match {
+            case Some(tags) => esToScala(tags).asInstanceOf[Map[String,Any]]
+            case None => Map[String,Any]()
+          }
+        )
       case other => throw new java.lang.RuntimeException("cannot turn " + other + " into a Record")
     }
+  }
+
+  // map "data.foo" key to data -> Map(foo -> ....)
+  def esFieldsFixup(obj: java.util.Map[String,SearchHitField]): java.util.Map[String,AnyRef] = {
+    val newObj = new java.util.HashMap[String,AnyRef]()
+    import collection.JavaConverters._
+    obj.asScala.foreach(kv => {
+      if( kv._1.contains('.') ) {
+        // should only be 2 parts, parts.head and parts.tail.head
+        // we force only 2 parts when calling addFields when searching, more than
+        // 2 fields we cannot tell what data type the field should be
+        val parts = kv._1.split('.')
+        if( !newObj.containsKey(parts.head) ) {
+          newObj.put(parts.head, new java.util.HashMap[String,AnyRef])
+        }
+        newObj.get(parts.head).asInstanceOf[java.util.Map[String,AnyRef]].put(parts.tail.head, kv._2.getValue)
+      } else newObj.put(kv._1, kv._2.getValue)
+    })
+    newObj
   }
 
   private val dateTimeRx = """^\d\d\d\d\d\d\d\dT\d\d\d\d\d\d([.]\d\d?\d?)?Z$""".r
@@ -90,104 +124,6 @@ object ElasticSearchDatastore {
       case other => throw new java.lang.RuntimeException("mongoToScala: don't know how to handle: " + other)
     }
   }
-
-//   /** converts a Record to a Mongo DBObject */
-//   def recordToMongo(rec: Record, id: Option[String] = None): DBObject = {
-//     val obj = mapToMongo(rec.toMap)
-//     if (id.isDefined) {
-//       obj.put("_id", id.get)
-//     } else {
-//       obj.put("_id", rec.id + "|" + rec.stime.getMillis)
-//     }
-//     obj
-//   }
-
-//   /** converts a basic scala Map to a Mongo DBObject */
-//   def mapToMongo(map: Map[String, Any]): DBObject = {
-//     val obj = new BasicDBObject
-//     map.foreach(pair => obj.put(pair._1, scalaToMongo(pair._2)))
-//     obj
-//   }
-
-//   /** converts a Scala basic type to a corresponding Mongo data type */
-//   def scalaToMongo(obj: Any): AnyRef = {
-//     obj match {
-//       case o: Map[_, _] => mapToMongo(o.asInstanceOf[Map[String, Any]])
-//       case o: Seq[_] => {
-//         val mongo = new BasicDBList
-//         o.foreach(item => mongo.add(scalaToMongo(item)))
-//         mongo
-//       }
-//       case o: DateTime => o.toDate
-//       case o: AnyRef => o
-//       case null => null
-//       case other => throw new java.lang.RuntimeException("scalaToMongo: don't know how to handle: " + other)
-//     }
-//   }
-
-//   /** helper to fetch properties for mongo related settings */
-//   def mongoProperty(propName: String, dsName: String, dflt: String): String = {
-//     Utils.getProperty("edda", "mongo." + propName, "datastore." + dsName, dflt).get
-//   }
-
-//   var primaryMongoConnections: Map[String,Mongo] = Map()
-//   var replicaMongoConnections: Map[String,Mongo] = Map()
-
-//   /** from the collection name string return a Mongo DB Connection */
-//   def mongoConnection(name: String, replicaOk: Boolean = false): Mongo = {
-//     import collection.JavaConverters._
-//     val servers = mongoProperty("address", name, "");
-//     if( replicaOk && replicaMongoConnections.contains(servers) ) 
-//         replicaMongoConnections(servers)
-//     else if( !replicaOk && primaryMongoConnections.contains(servers) ) 
-//         primaryMongoConnections(servers)
-//     else {
-//         val serverList = util.Random.shuffle(
-//             servers.split(',').map(
-//                 hostport => {
-//                     val parts = hostport.split(':')
-//                     if (parts.length > 1) {
-//                         new ServerAddress(parts(0), parts(1).toInt)
-//                     } else {
-//                         new ServerAddress(parts(0))
-//                     }
-//                 }).toList
-//         )
-
-//         val queryTimeout = Utils.getProperty("edda.collection", "queryTimeout", name, "60000").get.toInt
-
-//         val options = new MongoOptions
-//         options.autoConnectRetry = true
-//         options.connectTimeout = 500
-//         options.connectionsPerHost = 40
-//         options.socketKeepAlive = true
-//         options.socketTimeout = queryTimeout
-//         options.threadsAllowedToBlockForConnectionMultiplier = 8
-        
-//         val primary = new Mongo(serverList.asJava, options)
-//         primaryMongoConnections += (servers -> primary)
-
-//         val replica = new Mongo(serverList.asJava, options)
-//         replica.slaveOk()
-//         replicaMongoConnections += (servers -> replica)
-
-//         if(replicaOk) replica else primary
-//     }
-//   }
-
-//   /** from the collection name string return a Mongo Collection (creates the collection
-//     * if it does not exist) */
-//   def mongoCollection(name: String, replicaOk: Boolean = false) = {
-//     val conn = mongoConnection(name, replicaOk)
-//     val db = conn.getDB(mongoProperty("database", name, "edda"))
-//     val user = mongoProperty("user", name, null)
-//     if (user != null) {
-//       db.authenticate(
-//         user,
-//         mongoProperty("password", name, "").toArray)
-//     }
-//     if (db.collectionExists(name)) db.getCollection(name) else db.createCollection(name, null)
-//   }
 
   /** dispatch the match operator to the correct matching routine. */
   protected def esFilterOp(key: String, value: Any, op: String): FilterBuilder = {
@@ -216,12 +152,12 @@ object ElasticSearchDatastore {
       }
       case "$exists" => FilterBuilders.missingFilter(key).existence(true)
       case "$in" => value.asInstanceOf[Seq[Any]].head match {
-        case _: String => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[String]].toArray)
-        case _: Long => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[Long]].toArray)
-        case _: Int => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[Int]].toArray)
-        case _: Double => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[Double]].toArray)
-        case _: Float => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[Float]].toArray)
-        case _: AnyRef => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[AnyRef]].toArray)
+        case _: String => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[String]]:_*)
+        case _: Long => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[Long]]:_*)
+        case _: Int => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[Int]]:_*)
+        case _: Double => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[Double]]:_*)
+        case _: Float => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[Float]]:_*)
+        case _: AnyRef => FilterBuilders.inFilter(key, value.asInstanceOf[Seq[AnyRef]]:_*)
       }
       case "$nin" => FilterBuilders.notFilter(esFilterOp(key, value, "$in"))
       case "$regex" => throw new java.lang.UnsupportedOperationException("$regex query not supported")
@@ -234,9 +170,7 @@ object ElasticSearchDatastore {
       // { key: { $op1: val, $op2: val } } ==>
       case (key: String, value: Map[_, _]) => {
         if( value.size > 1 ) {
-          val andFilter = FilterBuilders.andFilter()
-          value.asInstanceOf[Map[String,Any]].foreach( kv => andFilter.add(esFilter( Map(key -> (kv._1, kv._2)) )) )
-          andFilter
+          FilterBuilders.andFilter( value.asInstanceOf[Map[String,Any]].map( kv => esFilter( Map(key -> (kv._1, kv._2)) )).toSeq:_* )
         } else {
           val kv = value.asInstanceOf[Map[String,Any]].head
           esFilter( Map(key -> (kv._1, kv._2)) )
@@ -244,17 +178,13 @@ object ElasticSearchDatastore {
       }
       // { $or: [ {key: value}, {key: value} ] }
       case ("$or", value: Seq[_]) => {
-        val filters = value.asInstanceOf[Seq[Map[String,Any]]].map(esFilter(_)).toArray
-        val orFilter = FilterBuilders.orFilter()
-        filters.foreach( orFilter.add(_) )
-        orFilter
+        val filters = value.asInstanceOf[Seq[Map[String,Any]]].map(esFilter(_))
+        FilterBuilders.orFilter(filters:_*)
       }
       // { $and: [ {key: value}, {key: value} ] }
       case ("$and", value: Seq[_]) => {
-        val filters = value.asInstanceOf[Seq[Map[String,Any]]].map(esFilter(_)).toArray
-        val andFilter = FilterBuilders.andFilter()
-        filters.foreach( andFilter.add(_) )
-        andFilter
+        val filters = value.asInstanceOf[Seq[Map[String,Any]]].map(esFilter(_))
+        FilterBuilders.andFilter(filters:_*)
       }
       // { key1: { $op1: val }, key2: { $op2: val } }
       case (key: String, (op: String, value: Any)) => esFilterOp(key, value, op)
@@ -263,9 +193,7 @@ object ElasticSearchDatastore {
     } toSeq
     
     if( queryMap.size > 1 ) {
-      val andFilter = FilterBuilders.andFilter()
-      filters.foreach( andFilter.add(_) )
-      andFilter
+      FilterBuilders.andFilter(filters.toSeq:_*)
     } else filters.head
   }
 
@@ -306,9 +234,18 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
 
   /** perform query on data store, see [[com.netflix.edda.Queryable.query()]] */
   def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
-    var builder = client.prepareSearch(name.toLowerCase).setQuery(esQuery(queryMap));
-    if( !replicaOk ) builder = builder.setPreference("_primary")
-    if( limit > 0 ) fetch(builder, limit) else scan(builder)
+    // if query is for "null" ltime, then use the .live index alias
+    val builder = 
+      if( queryMap.contains("ltime") && queryMap("ltime") == null ) 
+        client.prepareSearch().setIndices(name.toLowerCase + ".live").setQuery(esQuery(queryMap - "ltime"))
+      else
+        client.prepareSearch().setIndices(name.toLowerCase).setQuery(esQuery(queryMap))
+    queryMap.get("id") match {
+      case Some(id: String) => builder.setRouting(id)
+      case _ =>
+    }
+    if( !replicaOk ) builder.setPreference("_primary")
+    if( limit > 0 ) fetch(builder, limit, keys) else scan(builder, keys)
   }
 
   /** load records from data store, used at Collection start-up to prime in-memory cache and to refresh
@@ -318,36 +255,45 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     *                  redundant systems running for high-availability.
     */
   def load(replicaOk: Boolean): Seq[Record] = {
-    var builder = client.prepareSearch(name.toLowerCase + ".live");
-    if( !replicaOk ) builder = builder.setPreference("_primary")
+    val builder = client.prepareSearch().setIndices(name.toLowerCase + ".live")
+    if( !replicaOk ) builder.setPreference("_primary")
     scan(builder)
   }
 
-  def fetch(search: SearchRequestBuilder, limit: Int): Seq[Record] = {
+  def fetch(search: SearchRequestBuilder, limit: Int, keys: Set[String]): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     import org.elasticsearch.action.search.SearchResponse
     import org.elasticsearch.action.search.SearchType
-    val searchResp = search.setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setFrom(0).setSize(limit).execute().actionGet();
+    val builder = search.setSearchType(SearchType.DFS_QUERY_THEN_FETCH).addSort("stime", SortOrder.DESC).setFrom(0).setSize(limit);
+    // add fields, but only 2 deep, beyond that we cannot infer the document structure from the response
+    if( keys.size > 0 ) builder.addFields((keys + "stime").map(s => s.split('.').take(2).mkString(".")).toSet.toSeq:_*)
+    logger.info("["+builder.request.indices.mkString(",")+"]" + " ES Fetch: " + builder.toString)
+    val searchResp = builder.execute().actionGet();
     searchResp.getHits().asScala.map(r => {
-      try esToRecord(r.getSource)    
+      try esToRecord(if(keys.size > 0) esFieldsFixup(r.getFields) else r.getSource)
       catch {
         case e: Exception => {
           logger.error(this + " failed to parse record: " + r.getSource, e)
           throw e
         }
       }
-    }) toSeq
+    }).toSeq.sortWith((a, b) => a.stime.isAfter(b.stime))
   }
 
-  def scan( search: SearchRequestBuilder): Seq[Record] = {
+  def scan( search: SearchRequestBuilder, keys: Set[String] = Set()): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     import org.elasticsearch.action.search.SearchResponse
     import org.elasticsearch.action.search.SearchType
     import org.elasticsearch.common.unit.TimeValue
-    var scrollResp: SearchResponse = search.
+    val builder = search.
       setSearchType(SearchType.SCAN).
       setScroll(new TimeValue(60000)).
-      setSize(100).execute().actionGet(); //100 hits per shard will be returned for each scroll
+      setSize(100)
+    // add fields, but only 2 deep, beyond that we cannot infer the document structure from the response
+    if( keys.size > 0 ) builder.addFields((keys + "stime").map(s => s.split('.').take(2).mkString(".")).toSet.toSeq:_*)
+    logger.info("["+builder.request.indices.mkString(",")+"]" + " ES Scan: " + builder.toString)
+
+    var scrollResp: SearchResponse = builder.execute().actionGet()
     
     //Scroll until no hits are returned
     var keepLooping = true
@@ -356,7 +302,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     while (keepLooping) {
       scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(60000)).execute().actionGet()
       seq = seq ++ scrollResp.getHits().asScala.map(r => {
-        try esToRecord(r.getSource)
+        try esToRecord(if(keys.size > 0) esFieldsFixup(r.getFields) else r.getSource)
         catch {
           case e: Exception => {
             logger.error(this + " failed to parse record: " + r.getSource, e)
@@ -370,7 +316,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
         keepLooping = false
       }
     }
-    seq
+    seq.sortWith((a, b) => a.stime.isAfter(b.stime))
   }
 
   
