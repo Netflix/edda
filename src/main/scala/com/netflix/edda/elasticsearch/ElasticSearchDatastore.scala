@@ -228,8 +228,17 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
         
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
+  private val indexName = name.toLowerCase
+  private val liveIndexName = indexName + ".live"
+  private val writeIndexName = indexName + ".write"
+  private val docType   = indexName.split('.').takeRight(2).mkString(".")
+
+  private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", name, "sys.monitor").get
+  private lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
+
   def init() {
     // TODO create index if missing (set replication and shards), add/update mapping
+    // TODO create monitorIndexName if missing
   }
 
   /** perform query on data store, see [[com.netflix.edda.Queryable.query()]] */
@@ -237,9 +246,9 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     // if query is for "null" ltime, then use the .live index alias
     val builder = 
       if( queryMap.contains("ltime") && queryMap("ltime") == null ) 
-        client.prepareSearch().setIndices(name.toLowerCase + ".live").setQuery(esQuery(queryMap - "ltime"))
+        client.prepareSearch().setIndices(liveIndexName).setQuery(esQuery(queryMap - "ltime"))
       else
-        client.prepareSearch().setIndices(name.toLowerCase).setQuery(esQuery(queryMap))
+        client.prepareSearch().setIndices(indexName).setQuery(esQuery(queryMap))
     queryMap.get("id") match {
       case Some(id: String) => builder.setRouting(id)
       case _ =>
@@ -255,7 +264,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     *                  redundant systems running for high-availability.
     */
   def load(replicaOk: Boolean): Seq[Record] = {
-    val builder = client.prepareSearch().setIndices(name.toLowerCase + ".live")
+    val builder = client.prepareSearch().setIndices(liveIndexName)
     if( !replicaOk ) builder.setPreference("_primary")
     scan(builder)
   }
@@ -267,7 +276,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     val builder = search.setSearchType(SearchType.DFS_QUERY_THEN_FETCH).addSort("stime", SortOrder.DESC).setFrom(0).setSize(limit);
     // add fields, but only 2 deep, beyond that we cannot infer the document structure from the response
     if( keys.size > 0 ) builder.addFields((keys + "stime").map(s => s.split('.').take(2).mkString(".")).toSet.toSeq:_*)
-    logger.info("["+builder.request.indices.mkString(",")+"]" + " ES Fetch: " + builder.toString)
+    logger.info("["+builder.request.indices.mkString(",")+"]" + " fetch: " + builder.toString)
     val searchResp = builder.execute().actionGet();
     searchResp.getHits().asScala.map(r => {
       try esToRecord(if(keys.size > 0) esFieldsFixup(r.getFields) else r.getSource)
@@ -291,7 +300,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
       setSize(100)
     // add fields, but only 2 deep, beyond that we cannot infer the document structure from the response
     if( keys.size > 0 ) builder.addFields((keys + "stime").map(s => s.split('.').take(2).mkString(".")).toSet.toSeq:_*)
-    logger.info("["+builder.request.indices.mkString(",")+"]" + " ES Scan: " + builder.toString)
+    logger.info("["+builder.request.indices.mkString(",")+"]" + " scan: " + builder.toString)
 
     var scrollResp: SearchResponse = builder.execute().actionGet()
     
@@ -321,180 +330,101 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
 
   
   /** make changes to the data store depending on the Collection delta found after a Crawl result */
-  def update(d: Collection.Delta) {}
-
-  /** remove records that match the query */
-  def remove(queryMap: Map[String, Any]) {}
-
-  /** when was the last time the collection was updated */
-  def collectionModified: DateTime = DateTime.now
-
-  // lazy val primary = mongoCollection(name)
-  // lazy val replica = mongoCollection(name, replicaOk=true)
-  // lazy val monitor = mongoCollection(Utils.getProperty("edda.mongo", "monitor.collectionName", "name", "sys.monitor").get)
-
-  // lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
-
-  // private[this] val logger = LoggerFactory.getLogger(getClass)
-
-  // /** query routine to fetch records from mongoDB.
-  //   *
-  //   * @param queryMap query criteria
-  //   * @param limit restrict returned record count, 0 == unlimited
-  //   * @param keys  unless empty Set return only requested keys
-  //   * @param replicaOk reading from a replica in a replSet is OK this is set to true
-  //   * @return the records that match the query
-  //   */
-  // override def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
-  //   import collection.JavaConverters.iterableAsScalaIterableConverter
-  //   val mtime = collectionModified
-  //   val mongoKeys = if (keys.isEmpty) null else mapToMongo(keys.map(_ -> 1).toMap)
-  //   val t0 = System.nanoTime()
-  //   val cursor = {
-  //     val mongo = if(replicaOk) replica else primary
-  //     val cur = mongo.find(mapToMongo(queryMap), mongoKeys)
-  //     if( limit > 0 ) cur.sort(stimeIdSort).limit(limit) else cur.sort(stimeIdSort)
-  //   }
-  //   try {
-  //     cursor.asScala.toStream.map(mongoToRecord(_)).map(r => if(r.ltime == null ) r.copy(mtime=mtime) else r)
-  //   } catch {
-  //      case e: Exception => {
-  //           logger.error(this + " query failed: " + queryMap + " limit: " + limit + " keys: " + keys + " replicaOk: " + replicaOk, e)
-  //           throw e
-  //       }
-  //   } finally {
-  //     val t1 = System.nanoTime()
-  //     val lapse = (t1 - t0) / 1000000;
-  //     logger.info(this + " query: " + queryMap + " lapse: " + lapse + "ms")
-  //     cursor.close()
-  //   }
-  // }
-
-  // /** load records from the collection MongoDB table
-  //   *
-  //   * @param replicaOk reading from a replica in a replSet is OK if this is set to true
-  //   * @return the active records (ltime == null) from the collection
-  //   */
-  // override def load(replicaOk: Boolean): Seq[Record] = {
-  //   import collection.JavaConverters.iterableAsScalaIterableConverter
-  //   val mtime = collectionModified
-  //   val cursor = {
-  //     val mongo = if(replicaOk) replica else primary
-  //     val cur = mongo.find(nullLtimeQuery)
-  //     cur.sort(stimeIdSort)
-  //   }
-  //   try {
-  //     val x = cursor.asScala.map(mongoToRecord(_)).toSeq.map(_.copy(mtime=mtime))
-  //     logger.info(this + " Loaded " + x.size + " records")
-  //     x
-  //   } catch {
-  //     case e: Exception => {
-  //       throw new java.lang.RuntimeException(this + " failed to load", e)
-  //     }
-  //   } finally {
-  //     cursor.close()
-  //   }
-  // }
-
-  // /** update records, delete removed records, insert added records */
-  // override def update(d: Collection.Delta) {
-  //   var toRemove: Seq[Record] = Seq();
-  //   val records = d.removed ++ d.added ++ d.changed.flatMap(
-  //     pair => {
-  //       // only update oldRecord if the stime is changed, this allows
-  //       // for inplace updates when we dont want to create new document
-  //       // revision, but still want the record updated
-  //       if (pair.oldRecord.stime == pair.newRecord.stime) {
-  //         Seq(pair.newRecord)
-  //       } else if (Collection.RetentionPolicy.withName(retentionPolicy.get) == LAST) {
-  //         toRemove = pair.oldRecord +: toRemove
-  //         Seq(pair.newRecord)
-  //       } else {
-  //         Seq(pair.oldRecord, pair.newRecord)
-  //       }
-  //     })
+  def update(d: Collection.Delta) {
+    var toRemove: Seq[Record] = Seq();
+    val records = d.removed ++ d.added ++ d.changed.flatMap(
+      pair => {
+        // only update oldRecord if the stime is changed, this allows
+        // for inplace updates when we dont want to create new document
+        // revision, but still want the record updated
+        if (pair.oldRecord.stime == pair.newRecord.stime) {
+          Seq(pair.newRecord)
+        } else if (Collection.RetentionPolicy.withName(retentionPolicy.get) == LAST) {
+          toRemove = pair.oldRecord +: toRemove
+          Seq(pair.newRecord)
+        } else {
+          Seq(pair.oldRecord, pair.newRecord)
+        }
+      })
     
-  //   records.foreach( r => if (Collection.RetentionPolicy.withName(retentionPolicy.get) == LIVE && r.ltime != null) remove(r) else upsert(r) )
-  //   toRemove.foreach( remove(_) )
-  //   markCollectionModified
-  // }
+    records.foreach( r => if (Collection.RetentionPolicy.withName(retentionPolicy.get) == LIVE && r.ltime != null) remove(r) else upsert(r) )
+    toRemove.foreach( remove(_) )
+    markCollectionModified
+  }
+  
+  def collectionModified: DateTime  = {
+    // if query is for "null" ltime, then use the .live index alias
+    val response = client.prepareGet(monitorIndexName, "collection.mark", name).setPreference("_primary").execute().actionGet()
+    if( response == null || !response.isExists )
+      DateTime.now
+    else {
+      esToRecord(response.getSource).mtime
+    }
+  }
+  
+  def markCollectionModified = {
+    val markRec = Record(name, Map("updated" -> DateTime.now, "id" -> name, "type" -> "collection"))
+    try {
+      val response = client.prepareIndex(monitorIndexName, "collection.mark").
+        setId(markRec.id).
+        setSource(markRec.toString).
+        execute().
+        actionGet();
+      logger.info("index response: " + response.toString)
+    } catch {
+      case e: Exception => {
+        logger.error("failed to index record: " + markRec)
+        throw e
+      }
+    }
+  }
 
-  // def collectionModified: DateTime  = {
-  //     val rec = monitor.findOne(mapToMongo(Map("_id" -> name)));
-  //     if( rec == null ) DateTime.now() else mongoToRecord(rec).mtime
-  // }
+  protected def upsert(record: Record) {
+    try {
+      val response = client.prepareIndex(writeIndexName, docType).
+        setId(record.id + "|" + record.stime.getMillis).
+        setRouting(record.id).
+        setSource(record.toString).
+        execute().
+        actionGet();
+      logger.info("index response: " + response.toString)
+    } catch {
+      case e: Exception => {
+        logger.error("failed to index record: " + record)
+        throw e
+      }
+    }
+  }
 
-  // def markCollectionModified = {
-  //   try {
-  //     val now = DateTime.now()
-  //     monitor.findAndModify(
-  //       mapToMongo(Map("_id" -> name)),
-  //       null, // fields
-  //       null, // sort
-  //       false, // remove
-  //       mapToMongo( // update
-  //         Map(
-  //         "_id" -> name,
-  //         "id" -> name,
-  //         "ctime" -> now,
-  //         "mtime" -> now,
-  //         "stime" -> now,
-  //         "ltime" -> null,
-  //         "data" -> Map("updated" -> now, "id" -> name, "type" -> "collection"))
-  //       ),
-  //       false, // returnNew
-  //       true // upsert
-  //     )
-  //   } catch {
-  //     case e: Exception => {
-  //       logger.error(this + "failed to update collection mtime", e)
-  //       throw e
-  //     }
-  //   }
-  // }
+  protected def remove(record: Record) {
+    try {
+      val response = client.prepareDelete(writeIndexName, docType, record.id + "|" + record.stime.getMillis).
+        setRouting(record.id).
+        execute().
+        actionGet();
+      logger.info("delete response: " + response.toString)
+    } catch {
+      case e: Exception => {
+        logger.error("failed to delete record: " + record)
+        throw e
+      }
+    }
+  }
 
-  // /** ensures Indes for "stime", "mtime", "ltime", and "id" */
-  // def init() {
-  //   primary.ensureIndex(mapToMongo(Map("stime" -> -1, "id" -> 1)))
-  //   primary.ensureIndex(mapToMongo(Map("stime" -> -1)))
-  //   primary.ensureIndex(mapToMongo(Map("mtime" -> -1)))
-  //   primary.ensureIndex(mapToMongo(Map("ltime" -> 1)))
-  //   primary.ensureIndex(mapToMongo(Map("id" -> 1)))
-  // }
-
-  // protected def upsert(record: Record) {
-  //   try {
-  //     primary.findAndModify(
-  //       mapToMongo(Map("_id" -> (record.id + "|" + record.stime.getMillis))), // query
-  //       null, // fields
-  //       null, // sort
-  //       false, // remove
-  //       recordToMongo(record), // update
-  //       false, // returnNew
-  //       true // upsert
-  //     )
-  //   } catch {
-  //     case e: Exception => {
-  //       logger.error("failed to upsert record: " + record)
-  //       throw e
-  //     }
-  //   }
-  // }
-
-  // protected def remove(record: Record) {
-  //   remove(Map("_id" -> (record.id + "|" + record.stime.getMillis)));
-  // }
-
-  // override def remove(queryMap: Map[String, Any]) {
-  //   try {
-  //     primary.remove(mapToMongo(queryMap))
-  //   } catch {
-  //     case e: Exception => {
-  //       logger.error("failed to remove records: " + queryMap)
-  //       throw e
-  //     }
-  //   }
-  // }
+  override def remove(queryMap: Map[String, Any]) {
+    try {
+      val response = client.prepareDeleteByQuery(writeIndexName).
+        setTypes(docType).
+        setQuery(esQuery(queryMap)).
+        execute().
+        actionGet()
+    } catch {
+      case e: Exception => {
+        logger.error("failed to delete records: " + queryMap)
+        throw e
+      }
+    }
+  }
     
   override def toString = "[ElasticSearchDatastore " + name + "]"
 }
