@@ -211,10 +211,11 @@ class MongoDatastore(val name: String) extends DataStore {
     val cursor = {
       val mongo = if(replicaOk) replica else primary
       val cur = mongo.find(mapToMongo(queryMap), mongoKeys)
-      if( limit > 0 ) cur.sort(stimeIdSort).limit(limit) else cur.sort(stimeIdSort)
+      if( limit > 0 ) cur.sort(stimeIdSort).limit(limit) else cur
     }
     try {
-      cursor.asScala.toStream.map(mongoToRecord(_)).map(r => if(r.ltime == null ) r.copy(mtime=mtime) else r)
+      val seq = cursor.asScala.toStream.map(mongoToRecord(_)).map(r => if(r.ltime == null ) r.copy(mtime=mtime) else r)
+      if( limit > 0 ) seq else seq.sortWith((a, b) => a.stime.isAfter(b.stime))
     } catch {
        case e: Exception => {
             logger.error(this + " query failed: " + queryMap + " limit: " + limit + " keys: " + keys + " replicaOk: " + replicaOk, e)
@@ -238,11 +239,10 @@ class MongoDatastore(val name: String) extends DataStore {
     val mtime = collectionModified
     val cursor = {
       val mongo = if(replicaOk) replica else primary
-      val cur = mongo.find(nullLtimeQuery)
-      cur.sort(stimeIdSort)
+      mongo.find(nullLtimeQuery)
     }
     try {
-      val x = cursor.asScala.map(mongoToRecord(_)).toSeq.map(_.copy(mtime=mtime))
+      val x = cursor.asScala.map(mongoToRecord(_)).toSeq.map(_.copy(mtime=mtime)).sortWith((a, b) => a.stime.isAfter(b.stime))
       logger.info(this + " Loaded " + x.size + " records")
       x
     } catch {
