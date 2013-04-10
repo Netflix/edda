@@ -2,7 +2,6 @@
     "aws.hostedrecords": {
         "properties": {
             "ctime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -10,36 +9,30 @@
                 "dynamic": "true",
                 "properties": {
                     "TTL": {
-                        "stored": "yes",
                         "type": "long"
                     },
                     "aliasTarget": {
                         "dynamic": "true",
                         "properties": {
                             "DNSName": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "class": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "hostedZoneId": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "class": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "name": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -47,42 +40,34 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "value": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "setIdentifier": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
-                    "stored": "yes",
                     "type": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "weight": {
-                        "stored": "yes",
                         "type": "long"
                     },
                     "zone": {
                         "dynamic": "true",
                         "properties": {
                             "id": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "name": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
@@ -91,27 +76,22 @@
                 }
             },
             "id": {
-                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "ltime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "mtime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "tags": {
-                "stored": "yes",
                 "type": "object",
                 "dynamic": "true"
             }

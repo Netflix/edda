@@ -2,7 +2,6 @@
     "aws.reservedinstances": {
         "properties": {
             "ctime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -10,49 +9,39 @@
                 "dynamic": "true",
                 "properties": {
                     "availabilityZone": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "class": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "currencyCode": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "duration": {
-                        "stored": "yes",
                         "type": "long"
                     },
                     "fixedPrice": {
-                        "stored": "yes",
                         "type": "long"
                     },
                     "instanceCount": {
-                        "stored": "yes",
                         "type": "long"
                     },
                     "instanceTenancy": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "instanceType": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "offeringType": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "productDescription": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -60,64 +49,52 @@
                         "dynamic": "true",
                         "properties": {
                             "amount": {
-                                "stored": "yes",
                                 "type": "double"
                             },
                             "class": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "frequency": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "reservedInstancesId": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "start": {
-                        "stored": "yes",
                         "type": "date",
                         "format": "dateOptionalTime"
                     },
                     "state": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "usagePrice": {
-                        "stored": "yes",
                         "type": "long"
                     }
                 }
             },
             "id": {
-                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "ltime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "mtime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "tags": {
-                "stored": "yes",
                 "type": "object",
                 "dynamic": "true"
             }

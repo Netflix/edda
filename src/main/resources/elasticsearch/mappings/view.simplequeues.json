@@ -2,7 +2,6 @@
     "view.simplequeues": {
         "properties": {
             "ctime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -13,96 +12,78 @@
                         "dynamic": "true",
                         "properties": {
                             "ApproximateNumberOfMessages": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "ApproximateNumberOfMessagesDelayed": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "ApproximateNumberOfMessagesNotVisible": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "CreatedTimestamp": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "DelaySeconds": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "LastModifiedTimestamp": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "MaximumMessageSize": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "MessageRetentionPeriod": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "QueueArn": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "ReceiveMessageWaitTimeSeconds": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "VisibilityTimeout": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "name": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "url": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     }
                 }
             },
             "id": {
-                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "ltime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "mtime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "tags": {
-                "stored": "yes",
                 "type": "object",
                 "dynamic": "true"
             }

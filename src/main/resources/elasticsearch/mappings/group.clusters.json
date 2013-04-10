@@ -2,7 +2,6 @@
     "group.clusters": {
         "properties": {
             "ctime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -13,21 +12,17 @@
                         "dynamic": "true",
                         "properties": {
                             "end": {
-                                "stored": "yes",
                                 "type": "date",
                                 "format": "dateOptionalTime"
                             },
                             "name": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "slot": {
-                                "stored": "yes",
                                 "type": "long"
                             },
                             "start": {
-                                "stored": "yes",
                                 "type": "date",
                                 "format": "dateOptionalTime"
                             }
@@ -37,100 +32,81 @@
                         "dynamic": "true",
                         "properties": {
                             "availabilityZone": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "end": {
-                                "stored": "yes",
                                 "type": "date",
                                 "format": "dateOptionalTime"
                             },
                             "imageId": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "instanceId": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "instanceType": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "launchTime": {
-                                "stored": "yes",
                                 "type": "date",
                                 "format": "dateOptionalTime"
                             },
                             "lifecycleState": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "privateIpAddress": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "publicDnsName": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "publicIpAddress": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "slot": {
-                                "stored": "yes",
                                 "type": "long"
                             },
                             "start": {
-                                "stored": "yes",
                                 "type": "date",
                                 "format": "dateOptionalTime"
                             }
                         }
                     },
                     "name": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "start": {
-                        "stored": "yes",
                         "type": "date",
                         "format": "dateOptionalTime"
                     }
                 }
             },
             "id": {
-                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "ltime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "mtime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "tags": {
-                "stored": "yes",
                 "type": "object",
                 "dynamic": "true"
             }

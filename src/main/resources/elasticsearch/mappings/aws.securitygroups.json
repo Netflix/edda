@@ -2,7 +2,6 @@
     "aws.securitygroups": {
         "properties": {
             "ctime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -10,22 +9,18 @@
                 "dynamic": "true",
                 "properties": {
                     "class": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "description": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "groupId": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "groupName": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -33,48 +28,39 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "fromPort": {
-                                "stored": "yes",
                                 "type": "long"
                             },
                             "ipProtocol": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "ipRanges": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "toPort": {
-                                "stored": "yes",
                                 "type": "long"
                             },
                             "userIdGroupPairs": {
                                 "dynamic": "true",
                                 "properties": {
                                     "class": {
-                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "groupId": {
-                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "groupName": {
-                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "userId": {
-                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     }
@@ -86,56 +72,46 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "ipProtocol": {
-                                "stored": "yes",
                                 "type": "date",
                                 "format": "dateOptionalTime"
                             },
                             "ipRanges": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "ownerId": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "vpcId": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     }
                 }
             },
             "id": {
-                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "ltime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "mtime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "tags": {
-                "stored": "yes",
                 "type": "object",
                 "dynamic": "true"
             }

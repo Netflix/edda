@@ -2,7 +2,6 @@
     "aws.loadbalancers": {
         "properties": {
             "ctime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
@@ -10,37 +9,30 @@
                 "dynamic": "true",
                 "properties": {
                     "DNSName": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "VPCId": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "availabilityZones": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "canonicalHostedZoneName": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "canonicalHostedZoneNameID": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "class": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "createdTime": {
-                        "stored": "yes",
                         "type": "date",
                         "format": "dateOptionalTime"
                     },
@@ -48,29 +40,23 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "healthyThreshold": {
-                                "stored": "yes",
                                 "type": "long"
                             },
                             "interval": {
-                                "stored": "yes",
                                 "type": "long"
                             },
                             "target": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "timeout": {
-                                "stored": "yes",
                                 "type": "long"
                             },
                             "unhealthyThreshold": {
-                                "stored": "yes",
                                 "type": "long"
                             }
                         }
@@ -79,12 +65,10 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "instanceId": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
@@ -94,7 +78,6 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
@@ -102,44 +85,36 @@
                                 "dynamic": "true",
                                 "properties": {
                                     "SSLCertificateId": {
-                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "class": {
-                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "instancePort": {
-                                        "stored": "yes",
                                         "type": "long"
                                     },
                                     "instanceProtocol": {
-                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     },
                                     "loadBalancerPort": {
-                                        "stored": "yes",
                                         "type": "long"
                                     },
                                     "protocol": {
-                                        "stored": "yes",
                                         "type": "string",
                                         "index": "not_analyzed"
                                     }
                                 }
                             },
                             "policyNames": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "loadBalancerName": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -147,24 +122,20 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "otherPolicies": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "scheme": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
                     "securityGroups": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     },
@@ -172,51 +143,42 @@
                         "dynamic": "true",
                         "properties": {
                             "class": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "groupName": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             },
                             "ownerAlias": {
-                                "stored": "yes",
                                 "type": "string",
                                 "index": "not_analyzed"
                             }
                         }
                     },
                     "subnets": {
-                        "stored": "yes",
                         "type": "string",
                         "index": "not_analyzed"
                     }
                 }
             },
             "id": {
-                "stored": "yes",
                 "type": "string",
                 "index": "not_analyzed"
             },
             "ltime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "mtime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "stime": {
-                "stored": "yes",
                 "type": "date",
                 "format": "dateOptionalTime"
             },
             "tags": {
-                "stored": "yes",
                 "type": "object",
                 "dynamic": "true"
             }
