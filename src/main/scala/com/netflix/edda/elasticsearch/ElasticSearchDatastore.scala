@@ -43,6 +43,7 @@ import org.elasticsearch.index.query.QueryBuilder
 import org.elasticsearch.action.search.SearchRequestBuilder
 import org.elasticsearch.search.sort.SortOrder
 import org.elasticsearch.search.SearchHitField
+import org.elasticsearch.common.settings.ImmutableSettings
 
 
 // /** helper object to store common Mongo related routines */
@@ -228,17 +229,68 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
         
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
-  private val indexName = name.toLowerCase
-  private val liveIndexName = indexName + ".live"
-  private val writeIndexName = indexName + ".write"
-  private val docType   = indexName.split('.').takeRight(2).mkString(".")
+  private val aliasName = name.toLowerCase
+  private val liveAliasName = aliasName + ".live"
+  private val writeAliasName = aliasName + ".write"
+  private val docType   = aliasName.split('.').takeRight(2).mkString(".")
 
   private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", name, "sys.monitor").get
   private lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
 
   def init() {
-    // TODO create index if missing (set replication and shards), add/update mapping
-    // TODO create monitorIndexName if missing
+    // we create 1 index for each account.  We version the index (.1) in case we need
+    // to add other indexes in the future (in case we run out of room with the first
+    // indexes)
+    val nameParts = aliasName.split('.')
+    val indexName = Utils.getProperty("edda", "elasticsearch.index", name, nameParts.take(nameParts.size - 2).mkString(".") + ".1").get
+
+    val ixClient = client.admin().indices()
+    if( ! ixClient.prepareExists(indexName).execute().actionGet().exists() ) {
+      val settings = ImmutableSettings.settingsBuilder().
+        put("index.number_of_shards", Utils.getProperty("edda", "elasticsearch.shards", name, "15").get.toInt).
+        put("index.number_of_replicas",Utils.getProperty("edda", "elasticsearch.replicas", name, "2").get.toInt).
+        build()
+      
+      ixClient.prepareCreate(indexName).setSettings(settings).execute().actionGet()
+    }
+
+    // put new mapping in case it has changed
+    client.admin().indices().preparePutMapping(indexName).setType(docType).setSource(
+      io.Source.fromInputStream(getClass.getResourceAsStream("/elasticsearch/mappings/" + docType + ".json")).mkString
+    )
+
+    // make sure collection alias exists
+    if( ! ixClient.prepareExists(aliasName).execute().actionGet().exists() ) {
+      ixClient.prepareAliases().addAlias(indexName, aliasName, FilterBuilders.typeFilter(docType))
+    }
+
+    // make sure live alias exists
+    if( ! ixClient.prepareExists(liveAliasName).execute().actionGet().exists() ) {
+      ixClient.prepareAliases().addAlias(
+        indexName,
+        liveAliasName,
+        FilterBuilders.andFilter(
+          FilterBuilders.typeFilter(docType),
+          FilterBuilders.missingFilter("ltime").nullValue(true).existence(true)
+        )
+      )
+    }
+    
+    // make sure the write alias exists
+    if( ! ixClient.prepareExists(writeAliasName).execute().actionGet().exists() ) {
+      ixClient.prepareAliases().addAlias(indexName, writeAliasName)
+    }
+
+    // make sure the sys.monitor index exists, there is no redundancy or sharding
+    // for the monitor collection, it is only used for leadership election
+    // and for tracking the modifiedTimes per collection
+    if( ! ixClient.prepareExists(monitorIndexName).execute().actionGet().exists() ) {
+      val settings = ImmutableSettings.settingsBuilder().
+        put("index.number_of_shards", 1).
+        put("index.number_of_replicas", 0).
+        build()
+      ixClient.prepareCreate(monitorIndexName).setSettings(settings).execute().actionGet()
+    }
   }
 
   /** perform query on data store, see [[com.netflix.edda.Queryable.query()]] */
@@ -246,9 +298,9 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     // if query is for "null" ltime, then use the .live index alias
     val builder = 
       if( queryMap.contains("ltime") && queryMap("ltime") == null ) 
-        client.prepareSearch().setIndices(liveIndexName).setQuery(esQuery(queryMap - "ltime"))
+        client.prepareSearch().setIndices(liveAliasName).setQuery(esQuery(queryMap - "ltime"))
       else
-        client.prepareSearch().setIndices(indexName).setQuery(esQuery(queryMap))
+        client.prepareSearch().setIndices(aliasName).setQuery(esQuery(queryMap))
     queryMap.get("id") match {
       case Some(id: String) => builder.setRouting(id)
       case _ =>
@@ -264,7 +316,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     *                  redundant systems running for high-availability.
     */
   def load(replicaOk: Boolean): Seq[Record] = {
-    val builder = client.prepareSearch().setIndices(liveIndexName)
+    val builder = client.prepareSearch().setIndices(liveAliasName)
     if( !replicaOk ) builder.setPreference("_primary")
     scan(builder)
   }
@@ -273,7 +325,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     import org.elasticsearch.action.search.SearchResponse
     import org.elasticsearch.action.search.SearchType
-    val builder = search.setSearchType(SearchType.DFS_QUERY_THEN_FETCH).addSort("stime", SortOrder.DESC).setFrom(0).setSize(limit);
+    val builder = search.setTypes(docType).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).addSort("stime", SortOrder.DESC).setFrom(0).setSize(limit);
     // add fields, but only 2 deep, beyond that we cannot infer the document structure from the response
     if( keys.size > 0 ) builder.addFields((keys + "stime").map(s => s.split('.').take(2).mkString(".")).toSet.toSeq:_*)
     logger.info("["+builder.request.indices.mkString(",")+"]" + " fetch: " + builder.toString)
@@ -295,6 +347,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     import org.elasticsearch.action.search.SearchType
     import org.elasticsearch.common.unit.TimeValue
     val builder = search.
+      setTypes(docType).
       setSearchType(SearchType.SCAN).
       setScroll(new TimeValue(60000)).
       setSize(100)
@@ -352,7 +405,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     markCollectionModified
   }
   
-  def collectionModified: DateTime  = {
+  override def collectionModified: DateTime  = {
     // if query is for "null" ltime, then use the .live index alias
     val response = client.prepareGet(monitorIndexName, "collection.mark", name).setPreference("_primary").execute().actionGet()
     if( response == null || !response.isExists )
@@ -381,7 +434,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
 
   protected def upsert(record: Record) {
     try {
-      val response = client.prepareIndex(writeIndexName, docType).
+      val response = client.prepareIndex(writeAliasName, docType).
         setId(record.id + "|" + record.stime.getMillis).
         setRouting(record.id).
         setSource(record.toString).
@@ -398,7 +451,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
 
   protected def remove(record: Record) {
     try {
-      val response = client.prepareDelete(writeIndexName, docType, record.id + "|" + record.stime.getMillis).
+      val response = client.prepareDelete(writeAliasName, docType, record.id + "|" + record.stime.getMillis).
         setRouting(record.id).
         execute().
         actionGet();
@@ -413,7 +466,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
 
   override def remove(queryMap: Map[String, Any]) {
     try {
-      val response = client.prepareDeleteByQuery(writeIndexName).
+      val response = client.prepareDeleteByQuery(writeAliasName).
         setTypes(docType).
         setQuery(esQuery(queryMap)).
         execute().
