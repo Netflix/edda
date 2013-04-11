@@ -223,10 +223,10 @@ object Utils {
   }
 
   /** convert an object to a json string */
-  def toJson(obj: Any): String = {
+  def toJson(obj: Any, formatter: (Any) => Any = (x: Any) => x): String = {
     val baos = new ByteArrayOutputStream()
     val gen = factory.createJsonGenerator(baos, UTF8)
-    writeJson(gen, obj)
+    writeJson(gen, obj, formatter)
     gen.close()
     baos.toString
   }
