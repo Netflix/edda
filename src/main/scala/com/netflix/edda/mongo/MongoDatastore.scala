@@ -189,7 +189,7 @@ class MongoDatastore(val name: String) extends DataStore {
 
   lazy val primary = mongoCollection(name)
   lazy val replica = mongoCollection(name, replicaOk=true)
-  lazy val monitor = mongoCollection(Utils.getProperty("edda.mongo", "monitor.collectionName", "name", "sys.monitor").get)
+  lazy val monitor = mongoCollection(Utils.getProperty("edda", "monitor.collectionName", "mongo", "sys.monitor").get)
 
   lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
 
