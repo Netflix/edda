@@ -1,5 +1,5 @@
 /**
- * Copyright 2012 Netflix, Inc.
+ * Copyright 2013 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,19 +20,8 @@ import com.netflix.edda.Collection
 import com.netflix.edda.DataStore
 import com.netflix.edda.Utils
 
-// // http://www.mongodb.org/display/DOCS/Java+Tutorial
-
-// import com.mongodb.BasicDBObject
-// import com.mongodb.DBObject
-// import com.mongodb.BasicDBList
-// import com.mongodb.Mongo
-// import com.mongodb.MongoOptions
-// import com.mongodb.ServerAddress
-// import com.mongodb.Bytes
-
 import org.joda.time.DateTime
 import java.util.Date
-// import java.util.Properties
 
 import org.slf4j.LoggerFactory
 
@@ -44,15 +33,20 @@ import org.elasticsearch.action.search.SearchRequestBuilder
 import org.elasticsearch.search.sort.SortOrder
 import org.elasticsearch.search.SearchHitField
 import org.elasticsearch.common.settings.ImmutableSettings
+import org.elasticsearch.client.Client
+import org.elasticsearch.node.NodeBuilder
+import org.elasticsearch.common.settings.Settings
+import org.elasticsearch.client.transport.TransportClient
+import org.elasticsearch.common.transport.InetSocketTransportAddress
 
 
-// /** helper object to store common Mongo related routines */
+// /** helper object to store common ElasticSearch related routines */
 object ElasticSearchDatastore {
 
   import org.joda.time.format.ISODateTimeFormat
   val basicDateTime = ISODateTimeFormat.dateTime
 
-  /** converts a mongo DBObject to a Record */
+  /** converts a ElasticSearch source object to a Record */
   def esToRecord(obj: Any): Record = {
     obj match {
       case o: java.util.Map[_,_] =>
@@ -106,9 +100,9 @@ object ElasticSearchDatastore {
     newObj
   }
 
-  private val dateTimeRx = """^\d\d\d\d\d\d\d\dT\d\d\d\d\d\d([.]\d\d?\d?)?Z$""".r
+  private val dateTimeRx = """^\d\d\d\d-?\d\d-?\d\dT\d\d:?\d\d:?\d\d([.]\d\d?\d?)?Z$""".r
 
-  /** converts a mongo object to a corresponding Scala basic object */
+  /** converts a ElasticSearch java object to a corresponding Scala basic object */
   def esToScala(obj: Any): Any = {
     import collection.JavaConverters._
     obj match {
@@ -122,8 +116,12 @@ object ElasticSearchDatastore {
       case o: Date => new DateTime(o)
       case o: AnyRef => o
       case null => null
-      case other => throw new java.lang.RuntimeException("mongoToScala: don't know how to handle: " + other)
+      case other => throw new java.lang.RuntimeException("esToScala: don't know how to handle: " + other)
     }
+  }
+
+  def esToJson(rec: Record): String = {
+    Utils.toJson(rec.toMap, Utils.dateFormatter)
   }
 
   /** dispatch the match operator to the correct matching routine. */
@@ -201,9 +199,36 @@ object ElasticSearchDatastore {
   def esQuery(queryMap: Map[String, Any]): QueryBuilder = {
     if( queryMap.isEmpty ) QueryBuilders.matchAllQuery else QueryBuilders.constantScoreQuery(esFilter(queryMap))
   }
+
+  def initClient(name: String): Client = {
+    val settings: Settings = ImmutableSettings.settingsBuilder().put("cluster.name", Utils.getProperty("edda", "elasticsearch.cluster", name, "edda").get).build()
+    Utils.getProperty("edda", "elasticsearch.address", name, "edda").get.split(',').fold(new TransportClient(settings))(
+      (client, addr) => {
+        val parts = addr.asInstanceOf[String].split(':')
+        client.asInstanceOf[TransportClient].addTransportAddress(new InetSocketTransportAddress(parts.head, parts.tail.head.toInt))
+      }
+    ).asInstanceOf[Client]
+    // NodeBuilder.nodeBuilder().node().client()
+  }
+
+  def createIndex(client: Client, name: String, shards: Int, replicas: Int) {
+    val ixClient = client.admin().indices()
+    if( ! ixClient.prepareExists(name).execute().actionGet().exists() ) {
+      val settings = ImmutableSettings.settingsBuilder().
+        put("index.number_of_shards", Utils.getProperty("edda", "elasticsearch.shards", name, "15").get.toInt).
+        put("index.number_of_replicas",Utils.getProperty("edda", "elasticsearch.replicas", name, "2").get.toInt).
+        build()
+      
+      ixClient.prepareCreate(name).
+        setSettings(settings).
+        addMapping("_default_", io.Source.fromInputStream(getClass.getResourceAsStream("/elasticsearch/mappings/_default_.json")).mkString).
+        execute.
+        actionGet
+    }
+  }
 }
 
-/** [[com.netflix.edda.DataStore]] subclass that allows MongoDB to be used
+/** [[com.netflix.edda.DataStore]] subclass that allows ElasticSearch to be used
  *
  * @param name the name of the collection the datastore is for
  */
@@ -212,20 +237,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
   import Collection.RetentionPolicy._
   import ElasticSearchDatastore._
 
-  import org.elasticsearch.common.settings.ImmutableSettings
-  import org.elasticsearch.common.settings.Settings
-  import org.elasticsearch.client.transport.TransportClient
-  import org.elasticsearch.client.Client
-  import org.elasticsearch.common.transport.InetSocketTransportAddress
-  import org.elasticsearch.action.search.SearchOperationThreading._
-
-  lazy val settings: Settings = ImmutableSettings.settingsBuilder().put("cluster.name", Utils.getProperty("edda", "elasticsearch.cluster", name, "edda").get).build()
-  lazy val client: Client = Utils.getProperty("edda", "elasticsearch.address", name, "edda").get.split(',').fold(new TransportClient(settings))(
-    (client, addr) => {
-      val parts = addr.asInstanceOf[String].split(':')
-      client.asInstanceOf[TransportClient].addTransportAddress(new InetSocketTransportAddress(parts.head, parts.tail.head.toInt))
-    }
-  ).asInstanceOf[Client]
+  lazy val client = initClient(name)
         
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
@@ -234,7 +246,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
   private val writeAliasName = aliasName + ".write"
   private val docType   = aliasName.split('.').takeRight(2).mkString(".")
 
-  private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", name, "sys.monitor").get
+  private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get
   private lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
 
   def init() {
@@ -244,24 +256,18 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     val nameParts = aliasName.split('.')
     val indexName = Utils.getProperty("edda", "elasticsearch.index", name, nameParts.take(nameParts.size - 2).mkString(".") + ".1").get
 
-    val ixClient = client.admin().indices()
-    if( ! ixClient.prepareExists(indexName).execute().actionGet().exists() ) {
-      val settings = ImmutableSettings.settingsBuilder().
-        put("index.number_of_shards", Utils.getProperty("edda", "elasticsearch.shards", name, "15").get.toInt).
-        put("index.number_of_replicas",Utils.getProperty("edda", "elasticsearch.replicas", name, "2").get.toInt).
-        build()
-      
-      ixClient.prepareCreate(indexName).setSettings(settings).execute().actionGet()
-    }
-
-    // put new mapping in case it has changed
-    client.admin().indices().preparePutMapping(indexName).setType(docType).setSource(
-      io.Source.fromInputStream(getClass.getResourceAsStream("/elasticsearch/mappings/" + docType + ".json")).mkString
+    createIndex(
+      client,
+      indexName, 
+      Utils.getProperty("edda", "elasticsearch.shards", name, "15").get.toInt,
+      Utils.getProperty("edda", "elasticsearch.replicas", name, "2").get.toInt
     )
+
+    val ixClient = client.admin().indices()
 
     // make sure collection alias exists
     if( ! ixClient.prepareExists(aliasName).execute().actionGet().exists() ) {
-      ixClient.prepareAliases().addAlias(indexName, aliasName, FilterBuilders.typeFilter(docType))
+      ixClient.prepareAliases().addAlias(indexName, aliasName, FilterBuilders.typeFilter(docType)).execute.actionGet
     }
 
     // make sure live alias exists
@@ -273,23 +279,12 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
           FilterBuilders.typeFilter(docType),
           FilterBuilders.missingFilter("ltime").nullValue(true).existence(true)
         )
-      )
+      ).execute.actionGet
     }
     
     // make sure the write alias exists
     if( ! ixClient.prepareExists(writeAliasName).execute().actionGet().exists() ) {
-      ixClient.prepareAliases().addAlias(indexName, writeAliasName)
-    }
-
-    // make sure the sys.monitor index exists, there is no redundancy or sharding
-    // for the monitor collection, it is only used for leadership election
-    // and for tracking the modifiedTimes per collection
-    if( ! ixClient.prepareExists(monitorIndexName).execute().actionGet().exists() ) {
-      val settings = ImmutableSettings.settingsBuilder().
-        put("index.number_of_shards", 1).
-        put("index.number_of_replicas", 0).
-        build()
-      ixClient.prepareCreate(monitorIndexName).setSettings(settings).execute().actionGet()
+      ixClient.prepareAliases().addAlias(indexName, writeAliasName).execute.actionGet
     }
   }
 
@@ -420,7 +415,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     try {
       val response = client.prepareIndex(monitorIndexName, "collection.mark").
         setId(markRec.id).
-        setSource(markRec.toString).
+        setSource(esToJson(markRec)).
         execute().
         actionGet();
       logger.info("index response: " + response.toString)
@@ -437,7 +432,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
       val response = client.prepareIndex(writeAliasName, docType).
         setId(record.id + "|" + record.stime.getMillis).
         setRouting(record.id).
-        setSource(record.toString).
+        setSource(esToJson(record)).
         execute().
         actionGet();
       logger.info("index response: " + response.toString)

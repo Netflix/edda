@@ -1,5 +1,5 @@
 // /**
-//  * Copyright 2012 Netflix, Inc.
+//  * Copyright 2013 Netflix, Inc.
 //  *
 //  * Licensed under the Apache License, Version 2.0 (the "License");
 //  * you may not use this file except in compliance with the License.
@@ -13,125 +13,141 @@
 //  * See the License for the specific language governing permissions and
 //  * limitations under the License.
 //  */
-// package com.netflix.edda.mongo
+package com.netflix.edda.elasticsearch
 
-// import com.netflix.edda.Elector
-// import com.netflix.edda.Utils
+import com.netflix.edda.Elector
+import com.netflix.edda.Utils
+import com.netflix.edda.Record
 
-// import org.slf4j.LoggerFactory
+import org.slf4j.LoggerFactory
 
-// import org.joda.time.DateTime
+import org.joda.time.DateTime
 
-// import com.mongodb.DBCollection
+import org.elasticsearch.common.settings.ImmutableSettings
 
-// /** [[com.netflix.edda.Elector]] subclass that uses MongoDB's atomic write operations
-//   * to organize leadership
-//   */
-// class MongoElector extends Elector {
-//   private[this] val logger = LoggerFactory.getLogger(getClass)
+/** [[com.netflix.edda.Elector]] subclass that uses ElasticSearch's versioned write operations
+  * to organize leadership
+  */
+class ElasticSearchElector extends Elector {
+private[this] val logger = LoggerFactory.getLogger(getClass)
+  import ElasticSearchDatastore._
 
-//   lazy val instance = Option(
-//     System.getenv(Utils.getProperty("edda.elector", "mongo.uniqueEnvName", "", "EC2_INSTANCE_ID").get)).getOrElse("dev")
-//   lazy val name = Utils.getProperty("edda.elector", "mongo.collectionName", "", "sys.monitor").get
-//   lazy val mongo: DBCollection = MongoDatastore.mongoCollection(name)
+  lazy val client = initClient("elector.elasticsearche")
 
-//   val leaderTimeout = Utils.getProperty("edda.elector", "mongo.leaderTimeout", "", "5000")
+  lazy val instance = Option(
+    System.getenv(Utils.getProperty("edda.elector", "uniqueEnvName", "elasticsearch", "EC2_INSTANCE_ID").get)).getOrElse("dev")
 
-//   override def init() {
-//     super.init()
-//   }
+  val leaderTimeout = Utils.getProperty("edda.elector", "leaderTimeout", "elasticsearch", "5000")
 
-//   /** select the leader record from MongoDB to determine if we are the leader */
-//   override
-//   def isLeader: Boolean = {
-//     val data = mongo.findOne("leader")
-//     if (data != null) {
-//       val rec = MongoDatastore.mongoToRecord(data)
-//       if (rec.data.asInstanceOf[Map[String, Any]]("instance").asInstanceOf[String] == instance) {
-//         true
-//       } else false
-//     } else false
-//   }
+  private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get
 
-//   /** attempt to become the leader.  If no leader is present it attempts
-//     * to insert itself as leader (if insert error happens, then someone else became
-//     * leader before us).  If we are leader then update leader record mtime so that
-//     * secondary severs see that we are still alive and don't assume leadership.  If
-//     * we are not leader, double-check the mtime of the record, if it is older than
-//     * the leaderTimeout value then attempt to update leader record as self.  The records
-//     * for mtime and new-leader are atomic conditional updates so if some other servers
-//     * updates mongo first we will "lose" will not be the leader.
-//     * @return
-//     */
-//   protected override def runElection(): Boolean = {
-//     val now = DateTime.now
-//     var leader = instance
+  private val docType = "leader"
 
-//     var isLeader = false
+  override def init() {
+    // make sure the sys.monitor index exists, there is no redundancy or sharding
+    // for the monitor collection, it is only used for leadership election
+    // and for tracking the modifiedTimes per collection
+    createIndex(client, monitorIndexName, shards=1, replicas=0)
+    super.init()
+  }
+  
+  /** select the leader record from ElasticSearch to determine if we are the leader */
+  override
+  def isLeader: Boolean = {
+    val response = client.prepareGet(monitorIndexName, docType, "leader").setPreference("_primary").execute().actionGet()
+    if( response != null && response.isExists ) {
+      esToRecord(response.getSource).data.asInstanceOf[Map[String,Any]]("instance").asInstanceOf[String] == instance
+    } else false
+  } 
 
-//     val rec = mongo.findOne("leader")
-//     if (rec == null) {
-//       // nobody is leader so try to become leader
-//       val wr = mongo.insert(
-//         MongoDatastore.mapToMongo(
-//           Map(
-//             "_id" -> "leader",
-//             "id" -> "leader",
-//             "ctime" -> now,
-//             "mtime" -> now,
-//             "stime" -> now,
-//             "ltime" -> null,
-//             "data" -> Map("instance" -> instance, "id" -> "leader", "type" -> "leader"))))
-//       // if we got an error then uniqueness failed (someone else beat us to it)
-//       isLeader = if (wr.getError == null) true else false
-//     } else {
-//       val r = MongoDatastore.mongoToRecord(rec)
-//       leader = r.data.asInstanceOf[Map[String, Any]]("instance").asInstanceOf[String]
-//       val mtime = r.mtime
-//       if (leader == instance) {
-//         // update mtime
-//         val result = mongo.findAndModify(
-//           MongoDatastore.mapToMongo(Map(
-//             "_id" -> "leader",
-//             "data.instance" -> instance)), // query
-//           null, // sort
-//           MongoDatastore.mapToMongo(Map("$set" -> Map("mtime" -> now))) // update
-//         )
-//         // maybe we were too slow and someone took leader from us
-//         isLeader = if (result == null) false else true
-//       } else {
-//         val timeout = DateTime.now().plusMillis(-1 * (pollCycle.get.toInt + leaderTimeout.get.toInt))
-//         if (mtime.isBefore(timeout)) {
-//           // assumer leader is dead, so try to become leader
-//           val result = mongo.findAndModify(
-//             MongoDatastore.mapToMongo(Map(// query
-//               "_id" -> "leader",
-//               "data.instance" -> leader,
-//               "mtime" -> mtime)),
-//             null, // sort
-//             MongoDatastore.recordToMongo(// update
-//               r.copy(
-//                 mtime = now,
-//                 stime = now,
-//                 ltime = null,
-//                 data = Map("instance" -> instance, "id" -> "leader", "type" -> "leader")),
-//               Some("leader")))
-//           // if we got the update then we are leader and attempt to 
-//           // archive the old leader record
-//           if (result == null) {
-//             isLeader = false
-//           } else {
-//             isLeader = true
-//             mongo.insert(
-//               MongoDatastore.recordToMongo(r.copy(ltime = now), Some("leader|" + r.stime.getMillis)))
-//           }
-//         } else isLeader = false
-//       }
-//     }
 
-//     logger.info("Leader [" + instance + "]: " + isLeader + " [" + leader + "]")
-//     isLeader
-//   }
+  /** attempt to become the leader.  If no leader is present it attempts
+    * to insert itself as leader (if insert error happens, then someone else became
+    * leader before us).  If we are leader then update leader record mtime so that
+    * secondary severs see that we are still alive and don't assume leadership.  If
+    * we are not leader, double-check the mtime of the record, if it is older than
+    * the leaderTimeout value then attempt to update leader record as self.  The records
+    * for mtime and new-leader are atomic conditional updates so if some other servers
+    * updates elasticsearch first we will "lose" will not be the leader.
+    * @return
+    */
+  protected override def runElection(): Boolean = {
+    val now = DateTime.now
+    var leader = instance
 
-//   override def toString = "[Elector mongo]"
-// }
+    var isLeader = false
+
+    val response = client.prepareGet(monitorIndexName, docType, "leader").setPreference("_primary").execute().actionGet()
+    if( response == null || !response.isExists ) {
+      try {
+        val leaderRec = Record("leader", Map("instance" -> instance, "id" -> "leader", "type" -> docType))
+        // FIXME what error do I get when the document already exists?
+        client.prepareIndex(monitorIndexName, docType).
+          setId("leader").
+          setSource(esToJson(leaderRec)).
+          setCreate(true).
+          execute().
+          actionGet();
+          isLeader = true
+      } catch {
+        case e: Exception => {
+          logger.error("failed to create leader record: " + e.getMessage)
+          isLeader = false
+        }
+      }
+    } else {
+      val leaderRec = esToRecord(response.getSource)
+      leader = leaderRec.data.asInstanceOf[Map[String, Any]]("instance").asInstanceOf[String]
+      val mtime = leaderRec.mtime
+      if( leader == instance ) {
+        // update mtime
+        try {
+          client.prepareIndex(monitorIndexName, docType).
+            setId("leader").
+            setSource(esToJson(leaderRec.copy(mtime=now))).
+            setVersion(response.getVersion).
+            setCreate(false).
+            execute().
+            actionGet()
+          isLeader = true
+        } catch {
+          case e: Exception => {
+            logger.error("failed to update mtime for leader record: " + e.getMessage)
+            isLeader = false
+          }
+        }
+      } else {
+        val timeout = DateTime.now().plusMillis(-1 * (pollCycle.get.toInt + leaderTimeout.get.toInt))
+        if (mtime.isBefore(timeout)) {
+          // assumer leader is dead, so try to become leader
+          try {
+            client.prepareIndex(monitorIndexName, docType).
+              setId("leader").
+              setSource(esToJson(leaderRec.copy(mtime=now, stime=now, data=leaderRec.data.asInstanceOf[Map[String,Any]] + ("leader" -> instance)))).
+              setVersion(response.getVersion).
+              setCreate(false).
+              execute().
+              actionGet()
+            isLeader = true
+            // old leader is gone, so create historical record from old leader record
+            client.prepareIndex(monitorIndexName, docType).
+              setId("leader|" + leaderRec.stime.getMillis).
+              setSource(esToJson(leaderRec.copy(ltime=now))).
+              setCreate(true).
+              execute().
+              actionGet()
+          } catch {
+            case e: Exception => {
+              logger.error("failed to update leader for leader record: " + e.getMessage)
+              isLeader = false
+            }
+          }
+        }
+      }
+    }
+    logger.info("Leader [" + instance + "]: " + isLeader + " [" + leader + "]")
+    isLeader
+  }
+
+  override def toString = "[Elector ElasticSearch]"
+}
