@@ -1,0 +1,32 @@
+{
+    "_default_" : {
+        "dynamic_templates" : [{
+            "string_template" : {
+                "match" : "*",
+                "match_mapping_type" : "string",
+                "mapping" : {
+                    "type" : "string",
+                    "index" : "not_analyzed"
+                }
+            }
+        }],
+        "properties": {
+            "ltime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "mtime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "stime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            },
+            "ctime": {
+                "type": "date",
+                "format": "dateOptionalTime"
+            }
+        }
+    }
+}
