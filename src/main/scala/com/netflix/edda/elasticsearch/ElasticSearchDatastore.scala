@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.FilterBuilder
 import org.elasticsearch.index.query.QueryBuilders
 import org.elasticsearch.index.query.QueryBuilder
 import org.elasticsearch.action.search.SearchRequestBuilder
+import org.elasticsearch.action.WriteConsistencyLevel
 import org.elasticsearch.search.sort.SortOrder
 import org.elasticsearch.search.SearchHitField
 import org.elasticsearch.common.settings.ImmutableSettings
@@ -100,8 +101,9 @@ object ElasticSearchDatastore {
     newObj
   }
 
-  private val dateTimeRx = """^\d\d\d\d-?\d\d-?\d\dT\d\d:?\d\d:?\d\d([.]\d\d?\d?)?Z$""".r
+  private val dateTimeRx = """^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(?:[.]\d\d?\d?)?Z$""".r
 
+  private[this] val logger = LoggerFactory.getLogger(getClass)
   /** converts a ElasticSearch java object to a corresponding Scala basic object */
   def esToScala(obj: Any): Any = {
     import collection.JavaConverters._
@@ -215,15 +217,19 @@ object ElasticSearchDatastore {
     val ixClient = client.admin().indices()
     if( ! ixClient.prepareExists(name).execute().actionGet().exists() ) {
       val settings = ImmutableSettings.settingsBuilder().
-        put("index.number_of_shards", Utils.getProperty("edda", "elasticsearch.shards", name, "15").get.toInt).
-        put("index.number_of_replicas",Utils.getProperty("edda", "elasticsearch.replicas", name, "2").get.toInt).
-        build()
+      put("index.number_of_shards", shards).
+      put("index.number_of_replicas",replicas).
+      build()
       
-      ixClient.prepareCreate(name).
-        setSettings(settings).
-        addMapping("_default_", io.Source.fromInputStream(getClass.getResourceAsStream("/elasticsearch/mappings/_default_.json")).mkString).
-        execute.
-        actionGet
+      try {
+        ixClient.prepareCreate(name).
+          setSettings(settings).
+          addMapping("_default_", io.Source.fromInputStream(getClass.getResourceAsStream("/elasticsearch/mappings/_default_.json")).mkString).
+          execute.
+          actionGet
+      } catch {
+        case e: org.elasticsearch.indices.IndexAlreadyExistsException => Unit // someone already beat us to it, ignore this
+      }
     }
   }
 }
@@ -249,6 +255,8 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
   private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get
   private lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
 
+  private lazy val writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticserach.writeConsistency", name, "all").get )
+
   def init() {
     // we create 1 index for each account.  We version the index (.1) in case we need
     // to add other indexes in the future (in case we run out of room with the first
@@ -265,6 +273,10 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
 
     val ixClient = client.admin().indices()
 
+    val mapping = io.Source.fromInputStream(getClass.getResourceAsStream("/elasticsearch/mappings/default.json")).mkString
+    ixClient.preparePutMapping(indexName).setType(docType).setSource("{\""+docType+"\": " + mapping + "}").setIgnoreConflicts(true).execute.actionGet
+
+    // put new mapping in case it has changed
     // make sure collection alias exists
     if( ! ixClient.prepareExists(aliasName).execute().actionGet().exists() ) {
       ixClient.prepareAliases().addAlias(indexName, aliasName, FilterBuilders.typeFilter(docType)).execute.actionGet
@@ -345,7 +357,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
       setTypes(docType).
       setSearchType(SearchType.SCAN).
       setScroll(new TimeValue(60000)).
-      setSize(100)
+      setSize(1000)
     // add fields, but only 2 deep, beyond that we cannot infer the document structure from the response
     if( keys.size > 0 ) builder.addFields((keys + "stime").map(s => s.split('.').take(2).mkString(".")).toSet.toSeq:_*)
     logger.info("["+builder.request.indices.mkString(",")+"]" + " scan: " + builder.toString)
@@ -395,8 +407,15 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
         }
       })
     
-    records.foreach( r => if (Collection.RetentionPolicy.withName(retentionPolicy.get) == LIVE && r.ltime != null) remove(r) else upsert(r) )
-    toRemove.foreach( remove(_) )
+    if( Collection.RetentionPolicy.withName(retentionPolicy.get) == LIVE ) {
+      val purge = records.filter(_.ltime != null)
+      val updating = records.filter(_.ltime == null)
+      remove(purge ++ toRemove)
+      upsert(records)
+    } else {
+      remove(toRemove)
+      upsert(records)
+    }
     markCollectionModified
   }
   
@@ -413,15 +432,14 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
   def markCollectionModified = {
     val markRec = Record(name, Map("updated" -> DateTime.now, "id" -> name, "type" -> "collection"))
     try {
-      val response = client.prepareIndex(monitorIndexName, "collection.mark").
+      client.prepareIndex(monitorIndexName, "collection.mark").
         setId(markRec.id).
         setSource(esToJson(markRec)).
         execute().
         actionGet();
-      logger.info("index response: " + response.toString)
     } catch {
       case e: Exception => {
-        logger.error("failed to index record: " + markRec)
+        logger.error("failed to index record: " + markRec, e)
         throw e
       }
     }
@@ -429,31 +447,53 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
 
   protected def upsert(record: Record) {
     try {
-      val response = client.prepareIndex(writeAliasName, docType).
+      client.prepareIndex(writeAliasName, docType).
         setId(record.id + "|" + record.stime.getMillis).
         setRouting(record.id).
         setSource(esToJson(record)).
+        setConsistencyLevel(writeConsistency).
         execute().
         actionGet();
-      logger.info("index response: " + response.toString)
     } catch {
       case e: Exception => {
-        logger.error("failed to index record: " + record)
+        logger.error("failed to index record: " + record, e)
         throw e
+      }
+    }
+  }
+
+  protected def upsert(records: Seq[Record]) {
+    try {
+      records.sliding(1000).foreach( recs => {
+        val bulk = client.prepareBulk
+        recs.foreach( rec => {
+          bulk.add(
+            client.prepareIndex(writeAliasName, docType).
+              setId(rec.id + "|" + rec.stime.getMillis).
+              setRouting(rec.id).
+              setSource(esToJson(rec)).
+              setConsistencyLevel(writeConsistency)
+          )
+        })
+        bulk.execute.actionGet
+      })
+    }
+    catch {
+      case e: Exception => {
+        logger.error("failed to bulk index records", e)
       }
     }
   }
 
   protected def remove(record: Record) {
     try {
-      val response = client.prepareDelete(writeAliasName, docType, record.id + "|" + record.stime.getMillis).
+      client.prepareDelete(writeAliasName, docType, record.id + "|" + record.stime.getMillis).
         setRouting(record.id).
         execute().
         actionGet();
-      logger.info("delete response: " + response.toString)
     } catch {
       case e: Exception => {
-        logger.error("failed to delete record: " + record)
+        logger.error("failed to delete record: " + record, e)
         throw e
       }
     }
@@ -461,15 +501,34 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
 
   override def remove(queryMap: Map[String, Any]) {
     try {
-      val response = client.prepareDeleteByQuery(writeAliasName).
+      client.prepareDeleteByQuery(writeAliasName).
         setTypes(docType).
         setQuery(esQuery(queryMap)).
         execute().
         actionGet()
     } catch {
       case e: Exception => {
-        logger.error("failed to delete records: " + queryMap)
+        logger.error("failed to delete records: " + queryMap, e)
         throw e
+      }
+    }
+  }
+
+  protected def remove(records: Seq[Record]) {
+    try {
+      records.sliding(1000).foreach( recs => {
+        val bulk = client.prepareBulk
+        recs.foreach( rec => {
+          bulk.add(
+            client.prepareDelete(writeAliasName, docType, rec.id + "|" + rec.stime.getMillis).setRouting(rec.id)
+          )
+        })
+        bulk.execute.actionGet
+      })
+    }
+    catch {
+      case e: Exception => {
+        logger.error("failed to bulk index records", e)
       }
     }
   }
