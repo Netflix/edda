@@ -247,12 +247,13 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
         
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
-  private val aliasName = name.toLowerCase
-  private val liveAliasName = aliasName + ".live"
-  private val writeAliasName = aliasName + ".write"
-  private val docType   = aliasName.split('.').takeRight(2).mkString(".")
+  private val lowerName = name.toLowerCase
+  private val aliasName = lowerName.replaceAll("[.]", "_");
+  private val liveAliasName = aliasName + "_live"
+  private val writeAliasName = aliasName + "_write"
+  private val docType   = lowerName.split('.').takeRight(2).mkString("_")
 
-  private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get
+  private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get.replaceAll("[.]","_")
   private lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
 
   private lazy val writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticserach.writeConsistency", name, "all").get )
@@ -261,8 +262,8 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
     // we create 1 index for each account.  We version the index (.1) in case we need
     // to add other indexes in the future (in case we run out of room with the first
     // indexes)
-    val nameParts = aliasName.split('.')
-    val indexName = Utils.getProperty("edda", "elasticsearch.index", name, nameParts.take(nameParts.size - 2).mkString(".") + ".1").get
+    val nameParts = lowerName.split('.')
+    val indexName = Utils.getProperty("edda", "elasticsearch.index", name, nameParts.take(nameParts.size - 2).mkString("_") + "_1").get
 
     createIndex(
       client,
@@ -421,7 +422,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
   
   override def collectionModified: DateTime  = {
     // if query is for "null" ltime, then use the .live index alias
-    val response = client.prepareGet(monitorIndexName, "collection.mark", name).setPreference("_primary").execute().actionGet()
+    val response = client.prepareGet(monitorIndexName, "collection_mark", name).setPreference("_primary").execute().actionGet()
     if( response == null || !response.isExists )
       DateTime.now
     else {
@@ -432,7 +433,7 @@ class ElasticSearchDatastore(val name: String) extends DataStore {
   def markCollectionModified = {
     val markRec = Record(name, Map("updated" -> DateTime.now, "id" -> name, "type" -> "collection"))
     try {
-      client.prepareIndex(monitorIndexName, "collection.mark").
+      client.prepareIndex(monitorIndexName, "collection_mark").
         setId(markRec.id).
         setSource(esToJson(markRec)).
         execute().

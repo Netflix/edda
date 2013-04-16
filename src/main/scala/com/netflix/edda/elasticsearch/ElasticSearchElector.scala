@@ -39,7 +39,7 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
 
   val leaderTimeout = Utils.getProperty("edda.elector", "leaderTimeout", "elasticsearch", "5000")
 
-  private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get
+  private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get.replaceAll("[.]","_")
 
   private val docType = "leader"
 
@@ -77,6 +77,10 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
     * @return
     */
   protected override def runElection(): Boolean = {
+    if( !inited ) {
+      return false
+    }
+    
     val now = DateTime.now
     var leader = instance
 
