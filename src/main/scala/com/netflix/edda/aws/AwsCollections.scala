@@ -474,7 +474,7 @@ class AwsBucketCollection(
 
 /** collection for AWS IAM Users
   *
-  * root collection name: aws.users
+  * root collection name: aws.iamUsers
   *
   * see crawler details [[com.netflix.edda.aws.AwsIamUserCrawler]]
   *
@@ -487,14 +487,14 @@ class AwsIamUserCollection(
                            dsFactory: String => Option[DataStore],
                            val accountName: String,
                            val elector: Elector,
-                           override val ctx: AwsCollection.Context) extends RootCollection("aws.users", accountName, ctx) {
+                           override val ctx: AwsCollection.Context) extends RootCollection("aws.iamUsers", accountName, ctx) {
   val dataStore: Option[DataStore] = dsFactory(name)
   val crawler = new AwsIamUserCrawler(name, ctx)
 }
 
 /** collection for AWS IAM Groups
   *
-  * root collection name: aws.groups
+  * root collection name: aws.iamGroups
   *
   * see crawler details [[com.netflix.edda.aws.AwsIamGroupCrawler]]
   *
@@ -507,14 +507,14 @@ class AwsIamGroupCollection(
                            dsFactory: String => Option[DataStore],
                            val accountName: String,
                            val elector: Elector,
-                           override val ctx: AwsCollection.Context) extends RootCollection("aws.groups", accountName, ctx) {
+                           override val ctx: AwsCollection.Context) extends RootCollection("aws.iamGroups", accountName, ctx) {
   val dataStore: Option[DataStore] = dsFactory(name)
   val crawler = new AwsIamGroupCrawler(name, ctx)
 }
 
 /** collection for AWS IAM Roles
   *
-  * root collection name: aws.roles
+  * root collection name: aws.iamRoles
   *
   * see crawler details [[com.netflix.edda.aws.AwsIamRoleCrawler]]
   *
@@ -527,14 +527,14 @@ class AwsIamRoleCollection(
                            dsFactory: String => Option[DataStore],
                            val accountName: String,
                            val elector: Elector,
-                           override val ctx: AwsCollection.Context) extends RootCollection("aws.roles", accountName, ctx) {
+                           override val ctx: AwsCollection.Context) extends RootCollection("aws.iamRoles", accountName, ctx) {
   val dataStore: Option[DataStore] = dsFactory(name)
   val crawler = new AwsIamRoleCrawler(name, ctx)
 }
 
 /** collection for AWS IAM VirtualMFADevices
   *
-  * root collection name: aws.virtualmfadevices
+  * root collection name: aws.iamVirtualMFADevices
   *
   * see crawler details [[com.netflix.edda.aws.AwsIamVirtualMFADeviceCrawler]]
   *
@@ -547,7 +547,7 @@ class AwsIamVirtualMFADeviceCollection(
                            dsFactory: String => Option[DataStore],
                            val accountName: String,
                            val elector: Elector,
-                           override val ctx: AwsCollection.Context) extends RootCollection("aws.virtualmfadevices", accountName, ctx) {
+                           override val ctx: AwsCollection.Context) extends RootCollection("aws.iamVirtualMFADevices", accountName, ctx) {
   val dataStore: Option[DataStore] = dsFactory(name)
   val crawler = new AwsIamVirtualMFADeviceCrawler(name, ctx)
 }
