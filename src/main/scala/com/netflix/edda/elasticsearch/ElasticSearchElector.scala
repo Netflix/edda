@@ -43,21 +43,26 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
 
   private val docType = "leader"
 
+  private var inited = false
   override def init() {
     // make sure the sys.monitor index exists, there is no redundancy or sharding
     // for the monitor collection, it is only used for leadership election
     // and for tracking the modifiedTimes per collection
     createIndex(client, monitorIndexName, shards=1, replicas=0)
+    inited = true
     super.init()
   }
   
   /** select the leader record from ElasticSearch to determine if we are the leader */
   override
   def isLeader: Boolean = {
-    val response = client.prepareGet(monitorIndexName, docType, "leader").setPreference("_primary").execute().actionGet()
-    if( response != null && response.isExists ) {
-      esToRecord(response.getSource).data.asInstanceOf[Map[String,Any]]("instance").asInstanceOf[String] == instance
-    } else false
+    if( inited ) {
+      val response = client.prepareGet(monitorIndexName, docType, "leader").setPreference("_primary").execute().actionGet()
+      if( response != null && response.isExists ) {
+        esToRecord(response.getSource).data.asInstanceOf[Map[String,Any]]("instance").asInstanceOf[String] == instance
+      } else false
+    }
+    else false
   } 
 
 
