@@ -23,6 +23,7 @@ import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
 import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
+import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.sqs.AmazonSQSClient
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
@@ -87,6 +88,16 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
       client.setEndpoint("s3.amazonaws.com")
     else
       client.setEndpoint("s3-" + region + ".amazonaws.com")
+    client
+  }
+
+  /** get [[com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient]] object */
+  def identitymanagement = {
+    val client = new AmazonIdentityManagementClient(provider)
+    if (region == "us-gov")
+      client.setEndpoint("iam.us-gov.amazonaws.com")
+    else
+      client.setEndpoint("iam.amazonaws.com")
     client
   }
 

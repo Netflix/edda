@@ -37,6 +37,15 @@ import com.amazonaws.services.ec2.model.DescribeSnapshotsRequest
 import com.amazonaws.services.ec2.model.DescribeTagsRequest
 import com.amazonaws.services.ec2.model.DescribeVolumesRequest
 
+import com.amazonaws.services.identitymanagement.model.ListUsersRequest
+import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest
+import com.amazonaws.services.identitymanagement.model.ListGroupsForUserRequest
+import com.amazonaws.services.identitymanagement.model.ListUserPoliciesRequest
+import com.amazonaws.services.identitymanagement.model.ListGroupsRequest
+import com.amazonaws.services.identitymanagement.model.ListGroupPoliciesRequest
+import com.amazonaws.services.identitymanagement.model.ListRolesRequest
+import com.amazonaws.services.identitymanagement.model.ListVirtualMFADevicesRequest
+
 import com.amazonaws.services.s3.model.ListBucketsRequest
 
 import com.amazonaws.services.sqs.model.ListQueuesRequest
@@ -566,6 +575,122 @@ class AwsBucketCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
 
   override def doCrawl() = ctx.awsClient.s3.listBuckets(request).asScala.map(
     item => Record(item.getName, new DateTime(item.getCreationDate), ctx.beanMapper(item))).toSeq
+}
+
+/** crawler for IAM Users
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
+class AwsIamUserCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+  val request = new ListUsersRequest
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  private[this] val threadPool = Executors.newFixedThreadPool(10)
+
+  override def doCrawl() = {
+    val users = ctx.awsClient.identitymanagement.listUsers(request).getUsers.asScala
+    val futures: Seq[java.util.concurrent.Future[Record]] = users.map(
+      user => {
+        threadPool.submit(
+          new Callable[Record] {
+            def call() = {
+              val groupsRequest = new ListGroupsForUserRequest().withUserName(user.getUserName)
+              val groups = ctx.awsClient.identitymanagement.listGroupsForUser(groupsRequest).getGroups.asScala.map( item => item.getGroupName ).toSeq
+              val accessKeysRequest = new ListAccessKeysRequest().withUserName(user.getUserName)
+              val accessKeys = Map[String, String]() ++ ctx.awsClient.identitymanagement.listAccessKeys(accessKeysRequest).getAccessKeyMetadata.asScala.map(item => ctx.beanMapper(item)).toSeq
+              val userPoliciesRequest = new ListUserPoliciesRequest().withUserName(user.getUserName)
+              val userPolicies = ctx.awsClient.identitymanagement.listUserPolicies(userPoliciesRequest).getPolicyNames.asScala
+              Record(user.getUserName, new DateTime(user.getCreateDate), Map("name" -> user.getUserName, "attributes" -> (ctx.beanMapper(user)), "groups" -> groups, "accessKeys" -> accessKeys, "userPolicies" -> userPolicies))
+            }
+          }
+        )
+      }
+    )
+    val records = futures.map(
+      f => {
+        try Some(f.get)
+        catch {
+          case e: Exception => {
+            logger.error(this + "exception from IAM user sub requests", e)
+            None
+          }
+        }
+      }
+    ).collect {
+      case Some(rec) => rec
+    }
+
+    records
+  }
+
+}
+
+/** crawler for IAM Groups
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
+class AwsIamGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+  val request = new ListGroupsRequest
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  private[this] val threadPool = Executors.newFixedThreadPool(10)
+
+  override def doCrawl() = {
+    val groups = ctx.awsClient.identitymanagement.listGroups(request).getGroups.asScala
+    val futures: Seq[java.util.concurrent.Future[Record]] = groups.map(
+      group => {
+        threadPool.submit(
+          new Callable[Record] {
+            def call() = {
+              val groupPoliciesRequest = new ListGroupPoliciesRequest().withGroupName(group.getGroupName)
+              val groupPolicies = ctx.awsClient.identitymanagement.listGroupPolicies(groupPoliciesRequest).getPolicyNames.asScala.toSeq
+              Record(group.getGroupName, new DateTime(group.getCreateDate), Map("name" -> group.getGroupName, "attributes" -> (ctx.beanMapper(group)), "policies" -> groupPolicies))
+            }
+          }
+        )
+      }
+    )
+    val records = futures.map(
+      f => {
+        try Some(f.get)
+        catch {
+          case e: Exception => {
+            logger.error(this + "exception from IAM listGroupPolicies", e)
+            None
+          }
+        }
+      }
+    ).collect {
+      case Some(rec) => rec
+    }
+
+    records
+  }
+
+}
+
+/** crawler for IAM Roles
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
+class AwsIamRoleCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+  val request = new ListRolesRequest
+
+  override def doCrawl() = ctx.awsClient.identitymanagement.listRoles(request).getRoles.asScala.map(
+    item => Record(item.getRoleName, new DateTime(item.getCreateDate), ctx.beanMapper(item))).toSeq
+}
+
+/** crawler for IAM Virtual MFA Devices
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
+class AwsIamVirtualMFADeviceCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+  val request = new ListVirtualMFADevicesRequest
+
+  override def doCrawl() = ctx.awsClient.identitymanagement.listVirtualMFADevices(request).getVirtualMFADevices.asScala.map(
+    item => Record(item.getSerialNumber.split('/').last, new DateTime(item.getEnableDate), ctx.beanMapper(item))).toSeq
 }
 
 /** crawler for SQS Queues
