@@ -1,5 +1,6 @@
 {
     "_default_" : {
+        "dynamic_date_formats" : ["yyyy-MM-dd'T'HH:mm:ss.SSSZ", "yyyyMMdd'T'HHmmss.SSSZ"],
         "dynamic_templates" : [{
             "string_template" : {
                 "match" : "*",
@@ -9,24 +10,6 @@
                     "index" : "not_analyzed"
                 }
             }
-        }],
-        "properties": {
-            "ltime": {
-                "type": "date",
-                "format": "dateOptionalTime"
-            },
-            "mtime": {
-                "type": "date",
-                "format": "dateOptionalTime"
-            },
-            "stime": {
-                "type": "date",
-                "format": "dateOptionalTime"
-            },
-            "ctime": {
-                "type": "date",
-                "format": "dateOptionalTime"
-            }
-        }
+        }]
     }
 }
