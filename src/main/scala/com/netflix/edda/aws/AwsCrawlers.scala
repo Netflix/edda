@@ -582,7 +582,7 @@ class AwsBucketCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
   * @param name name of collection we are crawling for
   * @param ctx context to provide beanMapper and configuration
   */
-class AwsIamUserCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsIamUserCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new ListUsersRequest
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(10)
@@ -630,7 +630,7 @@ class AwsIamUserCrawler(val name: String, val ctx: AwsCrawler.Context) extends C
   * @param name name of collection we are crawling for
   * @param ctx context to provide beanMapper and configuration
   */
-class AwsIamGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsIamGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new ListGroupsRequest
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(10)
@@ -674,7 +674,7 @@ class AwsIamGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
   * @param name name of collection we are crawling for
   * @param ctx context to provide beanMapper and configuration
   */
-class AwsIamRoleCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsIamRoleCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new ListRolesRequest
 
   override def doCrawl() = ctx.awsClient.identitymanagement.listRoles(request).getRoles.asScala.map(
@@ -686,7 +686,7 @@ class AwsIamRoleCrawler(val name: String, val ctx: AwsCrawler.Context) extends C
   * @param name name of collection we are crawling for
   * @param ctx context to provide beanMapper and configuration
   */
-class AwsIamVirtualMFADeviceCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler(ctx) {
+class AwsIamVirtualMFADeviceCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new ListVirtualMFADevicesRequest
 
   override def doCrawl() = ctx.awsClient.identitymanagement.listVirtualMFADevices(request).getVirtualMFADevices.asScala.map(
