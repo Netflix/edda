@@ -478,17 +478,17 @@ class AwsBucketCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsIamUserCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamUserCollection(
-                           dsFactory: String => Option[DataStore],
+                           dsFactory: String => Option[Datastore],
                            val accountName: String,
                            val elector: Elector,
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.iamUsers", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsIamUserCrawler(name, ctx)
 }
 
@@ -498,17 +498,17 @@ class AwsIamUserCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsIamGroupCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamGroupCollection(
-                           dsFactory: String => Option[DataStore],
+                           dsFactory: String => Option[Datastore],
                            val accountName: String,
                            val elector: Elector,
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.iamGroups", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsIamGroupCrawler(name, ctx)
 }
 
@@ -518,17 +518,17 @@ class AwsIamGroupCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsIamRoleCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamRoleCollection(
-                           dsFactory: String => Option[DataStore],
+                           dsFactory: String => Option[Datastore],
                            val accountName: String,
                            val elector: Elector,
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.iamRoles", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsIamRoleCrawler(name, ctx)
 }
 
@@ -538,17 +538,17 @@ class AwsIamRoleCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsIamVirtualMFADeviceCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamVirtualMFADeviceCollection(
-                           dsFactory: String => Option[DataStore],
+                           dsFactory: String => Option[Datastore],
                            val accountName: String,
                            val elector: Elector,
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.iamVirtualMFADevices", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsIamVirtualMFADeviceCrawler(name, ctx)
 }
 
