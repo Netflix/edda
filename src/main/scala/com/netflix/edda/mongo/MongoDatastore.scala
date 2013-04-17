@@ -17,7 +17,7 @@ package com.netflix.edda.mongo
 
 import com.netflix.edda.Record
 import com.netflix.edda.Collection
-import com.netflix.edda.DataStore
+import com.netflix.edda.Datastore
 import com.netflix.edda.Utils
 
 // http://www.mongodb.org/display/DOCS/Java+Tutorial
@@ -178,18 +178,18 @@ object MongoDatastore {
 
 }
 
-/** [[com.netflix.edda.DataStore]] subclass that allows MongoDB to be used
+/** [[com.netflix.edda.Datastore]] subclass that allows MongoDB to be used
  *
  * @param name the name of the collection the datastore is for
  */
-class MongoDatastore(val name: String) extends DataStore {
+class MongoDatastore(val name: String) extends Datastore {
 
   import MongoDatastore._
   import Collection.RetentionPolicy._
 
   lazy val primary = mongoCollection(name)
   lazy val replica = mongoCollection(name, replicaOk=true)
-  lazy val monitor = mongoCollection(Utils.getProperty("edda.mongo", "monitor.collectionName", "name", "sys.monitor").get)
+  lazy val monitor = mongoCollection(Utils.getProperty("edda", "monitor.collectionName", "mongo", "sys.monitor").get)
 
   lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
 

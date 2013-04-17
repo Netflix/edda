@@ -18,7 +18,7 @@ package com.netflix.edda
 import com.netflix.edda.basic.BasicContext
 import org.joda.time.DateTime
 
-class TestDataStore extends DataStore {
+class TestDatastore extends Datastore {
   var records = Seq[Record]()
 
   def init() {
@@ -61,7 +61,7 @@ class TestElector extends Elector {
 
 class TestCollection(val name: String = "test.collection") extends Collection(BasicContext) {
   val crawler = new TestCrawler(name + " Crawler")
-  val dataStore = Some(new TestDataStore)
+  val dataStore = Some(new TestDatastore)
   val elector = new TestElector
 }
 
