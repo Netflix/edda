@@ -1,0 +1,24 @@
+{
+    "properties": {
+        "ltime": {
+            "type": "date",
+            "format": "dateOptionalTime"
+        },
+        "mtime": {
+            "type": "date",
+            "format": "dateOptionalTime"
+        },
+        "stime": {
+            "type": "date",
+            "format": "dateOptionalTime"
+        },
+        "ctime": {
+            "type": "date",
+            "format": "dateOptionalTime"
+        },
+        "data": {
+            "type": "object",
+            "dynamic": "true"
+        }
+    }
+}
