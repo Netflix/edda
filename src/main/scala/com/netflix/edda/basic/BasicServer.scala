@@ -21,9 +21,8 @@ import com.netflix.edda.aws.AwsBeanMapper
 import com.netflix.edda.aws.AwsCollectionBuilder
 import com.netflix.edda.aws.AwsClient
 import com.netflix.edda.CollectionManager
-import com.netflix.edda.mongo.MongoDatastore
-import com.netflix.edda.elasticsearch.ElasticSearchDatastore
-import com.netflix.edda.elasticsearch.ElasticSearchElector
+import com.netflix.edda.Datastore
+import com.netflix.edda.Elector
 import com.netflix.edda.Utils
 
 import javax.servlet.http.HttpServlet
@@ -43,8 +42,17 @@ class BasicServer extends HttpServlet {
     Utils.initConfiguration(System.getProperty("edda.properties","edda.properties"))
 
     logger.info("Staring Server")
-    val dsFactory = (name: String) => Some(new ElasticSearchDatastore(name))
-    val elector = new ElasticSearchElector
+    
+    val datastoreClassName = Utils.getProperty("edda", "datastore.class", "", "com.netflix.edda.mongo.MongoDatastore").get
+    val datastoreClass = this.getClass.getClassLoader.loadClass(datastoreClassName)
+    val datastoreCtor = datastoreClass.getConstructor(classOf[String])
+
+    val dsFactory = (name: String) => Some(datastoreCtor.newInstance(name).asInstanceOf[Datastore])
+
+    val electorClassName = Utils.getProperty("edda", "elector.class", "", "com.netflix.edda.mongo.MongoElector").get
+    val electorClass = this.getClass.getClassLoader.loadClass(electorClassName)
+
+    val elector = electorClass.newInstance.asInstanceOf[Elector]
 
     val bm = new BasicBeanMapper with AwsBeanMapper
 
