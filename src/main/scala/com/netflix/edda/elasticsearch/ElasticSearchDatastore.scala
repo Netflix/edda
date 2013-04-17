@@ -17,7 +17,7 @@ package com.netflix.edda.elasticsearch
 
 import com.netflix.edda.Record
 import com.netflix.edda.Collection
-import com.netflix.edda.DataStore
+import com.netflix.edda.Datastore
 import com.netflix.edda.Utils
 
 import org.joda.time.DateTime
@@ -234,11 +234,11 @@ object ElasticSearchDatastore {
   }
 }
 
-/** [[com.netflix.edda.DataStore]] subclass that allows ElasticSearch to be used
+/** [[com.netflix.edda.Datastore]] subclass that allows ElasticSearch to be used
  *
  * @param name the name of the collection the datastore is for
  */
-class ElasticSearchDatastore(val name: String) extends DataStore {
+class ElasticSearchDatastore(val name: String) extends Datastore {
 
   import Collection.RetentionPolicy._
   import ElasticSearchDatastore._

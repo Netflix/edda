@@ -207,8 +207,8 @@ class CollectionResource {
     // use the pass-through formatter
     val formatter = if (pp) Utils.dateFormatter(_) else (x: Any) => x
 
-    /** flag used to know if we are going to go to the DataStore (we only store "live" instances
-      * in memory, so when time travelling we will likely need expired resources from the DataStore
+    /** flag used to know if we are going to go to the Datastore (we only store "live" instances
+      * in memory, so when time travelling we will likely need expired resources from the Datastore
       */
     var timeTravelling = all || metaArgs.contains("_at") || metaArgs.contains("_since")
 

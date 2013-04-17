@@ -56,7 +56,7 @@ abstract class Queryable extends Observable {
    *
    * @param queryMap query criteria to select records.  See [[com.netflix.edda.basic.BasicRecordMatcher]]
    * @param limit maximum number of records to return
-   * @param live boolean flag to specify if the query should go straight to the DataStore or if the in-memory cache is ok.  live=true means use the DataStore.
+   * @param live boolean flag to specify if the query should go straight to the Datastore or if the in-memory cache is ok.  live=true means use the Datastore.
    * @param keys set of keynames to restrict the data fetched from the datastore.  Useful when operation on very large Records but small segment of document desired.
    * @param replicaOk boolean flag to specify if is ok for the query to be sent to a data replica in the case of a primary/secondary datastore set.
    * @return the records that match the query criteria
@@ -88,7 +88,7 @@ abstract class Queryable extends Observable {
     }
   }
 
-  /** abstract routine to perform the raw query operation for whatever DataStore used. */
+  /** abstract routine to perform the raw query operation for whatever Datastore used. */
   protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record]
 
   /** helper routine to truncate records to the specified limit if more than request records are available */
