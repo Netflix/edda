@@ -25,7 +25,7 @@ import com.netflix.edda.Elector
 import com.netflix.edda.Record
 import com.netflix.edda.Utils
 
-import com.netflix.edda.DataStore
+import com.netflix.edda.Datastore
 import com.netflix.edda.BeanMapper
 
 
@@ -44,7 +44,7 @@ object AwsCollectionBuilder {
     * @param elector elector to be used for leadership selection
     * @param dsFactory function to return a dataStore for each collection
     */
-  def buildAll(ctx: Collection.Context, clientFactory: (String) => AwsClient, bm: BeanMapper, elector: Elector, dsFactory: String => Option[DataStore]) {
+  def buildAll(ctx: Collection.Context, clientFactory: (String) => AwsClient, bm: BeanMapper, elector: Elector, dsFactory: String => Option[Datastore]) {
     val collMap = Utils.getProperty("edda","accounts","","").get match {
       case "" => {
         val context = new AwsCollection.Context {
@@ -89,7 +89,7 @@ object AwsCollectionBuilder {
   /** called by *buildAll* for each account listed in the config to
     * generate the Collection objects
     */
-  def mkCollections(ctx: AwsCollection.Context, accountName: String, elector: Elector, dsFactory: String => Option[DataStore]): Seq[RootCollection] = {
+  def mkCollections(ctx: AwsCollection.Context, accountName: String, elector: Elector, dsFactory: String => Option[Datastore]): Seq[RootCollection] = {
     val res = new AwsReservationCollection(dsFactory, accountName, elector, ctx)
     val elb = new AwsLoadBalancerCollection(dsFactory, accountName, elector, ctx)
     val asg = new AwsAutoScalingGroupCollection(dsFactory, accountName, elector, ctx)
@@ -176,17 +176,17 @@ object AwsCollection {
   *
   * see crawler details [[com.netflix.edda.aws.AwsAddressCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsAddressCollection(
-                            dsFactory: String => Option[DataStore],
+                            dsFactory: String => Option[Datastore],
                             val accountName: String,
                             val elector: Elector,
                             override val ctx: AwsCollection.Context) extends RootCollection("aws.addresses", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsAddressCrawler(name, ctx)
 }
 
@@ -196,17 +196,17 @@ class AwsAddressCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsAutoScalingGroupCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsAutoScalingGroupCollection(
-                                     dsFactory: String => Option[DataStore],
+                                     dsFactory: String => Option[Datastore],
                                      val accountName: String,
                                      val elector: Elector,
                                      override val ctx: AwsCollection.Context) extends RootCollection("aws.autoScalingGroups", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsAutoScalingGroupCrawler(name, ctx)
 }
 
@@ -216,17 +216,17 @@ class AwsAutoScalingGroupCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsScalingPolicyCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsScalingPolicyCollection(
-                                     dsFactory: String => Option[DataStore],
+                                     dsFactory: String => Option[Datastore],
                                      val accountName: String,
                                      val elector: Elector,
                                      override val ctx: AwsCollection.Context) extends RootCollection("aws.scalingPolicies", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsScalingPolicyCrawler(name, ctx)
 }
 
@@ -236,17 +236,17 @@ class AwsScalingPolicyCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsAlarmCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsAlarmCollection(
-                                     dsFactory: String => Option[DataStore],
+                                     dsFactory: String => Option[Datastore],
                                      val accountName: String,
                                      val elector: Elector,
                                      override val ctx: AwsCollection.Context) extends RootCollection("aws.alarms", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsAlarmCrawler(name, ctx)
 }
 
@@ -256,17 +256,17 @@ class AwsAlarmCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsImageCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsImageCollection(
-                          dsFactory: String => Option[DataStore],
+                          dsFactory: String => Option[Datastore],
                           val accountName: String,
                           val elector: Elector,
                           override val ctx: AwsCollection.Context) extends RootCollection("aws.images", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsImageCrawler(name, ctx)
 }
 
@@ -276,17 +276,17 @@ class AwsImageCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsLoadBalancerCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsLoadBalancerCollection(
-                                 dsFactory: String => Option[DataStore],
+                                 dsFactory: String => Option[Datastore],
                                  val accountName: String,
                                  val elector: Elector,
                                  override val ctx: AwsCollection.Context) extends RootCollection("aws.loadBalancers", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsLoadBalancerCrawler(name, ctx)
 }
 
@@ -296,18 +296,18 @@ class AwsLoadBalancerCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsInstanceHealthCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsInstanceHealthCollection(
                                    val elbCrawler: AwsLoadBalancerCrawler,
-                                   dsFactory: String => Option[DataStore],
+                                   dsFactory: String => Option[Datastore],
                                    val accountName: String,
                                    val elector: Elector,
                                    override val ctx: AwsCollection.Context) extends RootCollection("view.loadBalancerInstances", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsInstanceHealthCrawler(name, ctx, elbCrawler)
 }
 
@@ -317,17 +317,17 @@ class AwsInstanceHealthCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsLaunchConfigurationCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsLaunchConfigurationCollection(
-                                        dsFactory: String => Option[DataStore],
+                                        dsFactory: String => Option[Datastore],
                                         val accountName: String,
                                         val elector: Elector,
                                         override val ctx: AwsCollection.Context) extends RootCollection("aws.launchConfigurations", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsLaunchConfigurationCrawler(name, ctx)
 }
 
@@ -337,17 +337,17 @@ class AwsLaunchConfigurationCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsReservationCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsReservationCollection(
-                                dsFactory: String => Option[DataStore],
+                                dsFactory: String => Option[Datastore],
                                 val accountName: String,
                                 val elector: Elector,
                                 override val ctx: AwsCollection.Context) extends RootCollection("aws.instances", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsReservationCrawler(name, ctx)
 }
 
@@ -357,18 +357,18 @@ class AwsReservationCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsInstanceCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsInstanceCollection(
                              val resCrawler: AwsReservationCrawler,
-                             dsFactory: String => Option[DataStore],
+                             dsFactory: String => Option[Datastore],
                              val accountName: String,
                              val elector: Elector,
                              override val ctx: AwsCollection.Context) extends RootCollection("view.instances", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsInstanceCrawler(name, ctx, resCrawler)
 }
 
@@ -378,17 +378,17 @@ class AwsInstanceCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsSecurityGroupCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsSecurityGroupCollection(
-                                  dsFactory: String => Option[DataStore],
+                                  dsFactory: String => Option[Datastore],
                                   val accountName: String,
                                   val elector: Elector,
                                   override val ctx: AwsCollection.Context) extends RootCollection("aws.securityGroups", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsSecurityGroupCrawler(name, ctx)
 }
 
@@ -398,17 +398,17 @@ class AwsSecurityGroupCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsSnapshotCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsSnapshotCollection(
-                             dsFactory: String => Option[DataStore],
+                             dsFactory: String => Option[Datastore],
                              val accountName: String,
                              val elector: Elector,
                              override val ctx: AwsCollection.Context) extends RootCollection("aws.snapshots", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsSnapshotCrawler(name, ctx)
 }
 
@@ -418,17 +418,17 @@ class AwsSnapshotCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsTagCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsTagCollection(
-                        dsFactory: String => Option[DataStore],
+                        dsFactory: String => Option[Datastore],
                         val accountName: String,
                         val elector: Elector,
                         override val ctx: AwsCollection.Context) extends RootCollection("aws.tags", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsTagCrawler(name, ctx)
 }
 
@@ -438,17 +438,17 @@ class AwsTagCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsVolumeCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsVolumeCollection(
-                           dsFactory: String => Option[DataStore],
+                           dsFactory: String => Option[Datastore],
                            val accountName: String,
                            val elector: Elector,
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.volumes", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsVolumeCrawler(name, ctx)
 }
 
@@ -458,17 +458,17 @@ class AwsVolumeCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsBucketCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsBucketCollection(
-                           dsFactory: String => Option[DataStore],
+                           dsFactory: String => Option[Datastore],
                            val accountName: String,
                            val elector: Elector,
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.buckets", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsBucketCrawler(name, ctx)
 }
 
@@ -478,17 +478,17 @@ class AwsBucketCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsIamUserCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamUserCollection(
-                           dsFactory: String => Option[DataStore],
+                           dsFactory: String => Option[Datastore],
                            val accountName: String,
                            val elector: Elector,
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.iamUsers", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsIamUserCrawler(name, ctx)
 }
 
@@ -498,17 +498,17 @@ class AwsIamUserCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsIamGroupCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamGroupCollection(
-                           dsFactory: String => Option[DataStore],
+                           dsFactory: String => Option[Datastore],
                            val accountName: String,
                            val elector: Elector,
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.iamGroups", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsIamGroupCrawler(name, ctx)
 }
 
@@ -518,17 +518,17 @@ class AwsIamGroupCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsIamRoleCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamRoleCollection(
-                           dsFactory: String => Option[DataStore],
+                           dsFactory: String => Option[Datastore],
                            val accountName: String,
                            val elector: Elector,
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.iamRoles", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsIamRoleCrawler(name, ctx)
 }
 
@@ -538,17 +538,17 @@ class AwsIamRoleCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsIamVirtualMFADeviceCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamVirtualMFADeviceCollection(
-                           dsFactory: String => Option[DataStore],
+                           dsFactory: String => Option[Datastore],
                            val accountName: String,
                            val elector: Elector,
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.iamVirtualMFADevices", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsIamVirtualMFADeviceCrawler(name, ctx)
 }
 
@@ -558,17 +558,17 @@ class AwsIamVirtualMFADeviceCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsSimpleQueueCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsSimpleQueueCollection(
-                                dsFactory: String => Option[DataStore],
+                                dsFactory: String => Option[Datastore],
                                 val accountName: String,
                                 val elector: Elector,
                                 override val ctx: AwsCollection.Context) extends RootCollection("view.simpleQueues", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsSimpleQueueCrawler(name, ctx)
 
   /** this is overriden from [[com.netflix.edda.aws.Collection]] because there are several
@@ -592,17 +592,17 @@ class AwsSimpleQueueCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsReservedInstanceCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsReservedInstanceCollection(
-                                 dsFactory: String => Option[DataStore],
+                                 dsFactory: String => Option[Datastore],
                                  val accountName: String,
                                  val elector: Elector,
                                  override val ctx: AwsCollection.Context) extends RootCollection("aws.reservedInstances", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsReservedInstanceCrawler(name, ctx)
 }
 
@@ -615,20 +615,20 @@ class AwsReservedInstanceCollection(
   *
   * @param asgCollection ASG collection where the crawler used comes from
   * @param instanceCollection Instance Collection so we can query for instance details
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class GroupAutoScalingGroups(
                               val asgCollection: AwsAutoScalingGroupCollection,
                               val instanceCollection: AwsInstanceCollection,
-                              dsFactory: String => Option[DataStore],
+                              dsFactory: String => Option[Datastore],
                               val elector: Elector,
                               override val ctx: AwsCollection.Context) extends RootCollection("group.autoScalingGroups", asgCollection.accountName, ctx) with GroupCollection {
   import Utils._
   import Queryable._
   val crawler = asgCollection.crawler
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
 
   // used in GroupCollection
   val mergeKeys = Map("instances" -> "instanceId")
@@ -695,17 +695,17 @@ class GroupAutoScalingGroups(
   *
   * see crawler details [[com.netflix.edda.aws.AwsHostedZoneCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsHostedZoneCollection(
-                           dsFactory: String => Option[DataStore],
+                           dsFactory: String => Option[Datastore],
                            val accountName: String,
                            val elector: Elector,
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.hostedZones", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsHostedZoneCrawler(name, ctx)
 }
 
@@ -715,17 +715,17 @@ class AwsHostedZoneCollection(
   *
   * see crawler details [[com.netflix.edda.aws.AwsHostedRecordCrawler]]
   *
-  * @param dsFactory function that creates new DataStore object from collection name
+  * @param dsFactory function that creates new Datastore object from collection name
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
 class AwsHostedRecordCollection(
                            val zoneCrawler: AwsHostedZoneCrawler,
-                           dsFactory: String => Option[DataStore],
+                           dsFactory: String => Option[Datastore],
                            val accountName: String,
                            val elector: Elector,
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.hostedRecords", accountName, ctx) {
-  val dataStore: Option[DataStore] = dsFactory(name)
+  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsHostedRecordCrawler(name, ctx, zoneCrawler)
 }
