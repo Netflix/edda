@@ -169,9 +169,12 @@ object MongoDatastore {
     val db = conn.getDB(mongoProperty("database", name, "edda"))
     val user = mongoProperty("user", name, null)
     if (user != null) {
-      db.authenticate(
-        user,
-        mongoProperty("password", name, "").toArray)
+      // Fix to avoid "java.lang.IllegalStateException: can't call authenticate twice on the same DBObject"
+      if (!db.isAuthenticated()) {
+        db.authenticate(
+          user,
+          mongoProperty("password", name, "").toArray)
+      }
     }
     if (db.collectionExists(name)) db.getCollection(name) else db.createCollection(name, null)
   }
