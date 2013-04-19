@@ -32,11 +32,11 @@ class FieldSelectorExprTest extends FunSuite {
 
     val expr = FlattenExpr(FixedExpr(matches = true))
 
-    expect(output) {
+    expectResult(output) {
       expr.flattenValue(None, input)
     }
 
-    expect(Some(output)) {
+    expectResult(Some(output)) {
       expr.select(input)
     }
   }
@@ -50,117 +50,117 @@ class FieldSelectorExprTest extends FunSuite {
 
     val base = Map("b" -> 42, "c" -> "def")
 
-    expect(Some(base)) {
+    expectResult(Some(base)) {
       expr1.select(base)
     }
 
-    expect(Some(base)) {
+    expectResult(Some(base)) {
       expr1.select(base + ("d" -> 65))
     }
 
-    expect(Some(base + ("a" -> 65))) {
+    expectResult(Some(base + ("a" -> 65))) {
       expr1.select(base + ("a" -> 65))
     }
 
-    expect(None) {
+    expectResult(None) {
       expr1.select(base + ("b" -> 65))
     }
 
-    expect(None) {
+    expectResult(None) {
       expr1.select(base + ("b" -> "def"))
     }
 
-    expect(Some(List(base))) {
+    expectResult(Some(List(base))) {
       expr1.select(List(base, base + ("b" -> "def")))
     }
 
-    expect(Some(base + ("a" -> null))) {
+    expectResult(Some(base + ("a" -> null))) {
       expr1.select(base + ("a" -> null))
     }
 
-    expect(Some(base + ("a" -> List(1, 2, 3)))) {
+    expectResult(Some(base + ("a" -> List(1, 2, 3)))) {
       expr1.select(base + ("a" -> List(1, 2, 3)))
     }
 
     // FixedExpr(true) matches empty list
-    expect(Some(base + ("a" -> List()))) {
+    expectResult(Some(base + ("a" -> List()))) {
       expr1.select(base + ("a" -> List()))
     }
 
     // EqualExpr on list returns empty List if there are not matches
-    expect(Some(base + ("b" -> List()))) {
+    expectResult(Some(base + ("b" -> List()))) {
       expr1.select(base + ("b" -> List(1, 2, 3)))
     }
 
     // EqualExpr on list returns just matching items
-    expect(Some(base + ("b" -> List(42)))) {
+    expectResult(Some(base + ("b" -> List(42)))) {
       expr1.select(base + ("b" -> List(1, 2, 42)))
     }
 
     // EqualExpr on empty list return empty list
-    expect(Some(base + ("b" -> List()))) {
+    expectResult(Some(base + ("b" -> List()))) {
       expr1.select(base + ("b" -> List()))
     }
   }
 
   test("EqualExpr") {
-    expect(Some(42)) {
+    expectResult(Some(42)) {
       EqualExpr(42).select(42)
     }
-    expect(None) {
+    expectResult(None) {
       EqualExpr(42).select(41)
     }
-    expect(Some(42)) {
+    expectResult(Some(42)) {
       EqualExpr(42).select(int2Integer(42))
     }
-    expect(Some(List(42))) {
+    expectResult(Some(List(42))) {
       EqualExpr(42).select(List(42, 41, 40))
     }
-    expect(None) {
+    expectResult(None) {
       EqualExpr(42).select(Map("a" -> 42, "b" -> 0))
     }
   }
 
   test("NotEqualExpr") {
-    expect(None) {
+    expectResult(None) {
       NotEqualExpr(42).select(42)
     }
-    expect(Some(41)) {
+    expectResult(Some(41)) {
       NotEqualExpr(42).select(41)
     }
-    expect(None) {
+    expectResult(None) {
       NotEqualExpr(42).select(int2Integer(42))
     }
-    expect(Some(List(41, 40))) {
+    expectResult(Some(List(41, 40))) {
       NotEqualExpr(42).select(List(42, 41, 40))
     }
-    expect(Some(Map("a" -> 42, "b" -> 0))) {
+    expectResult(Some(Map("a" -> 42, "b" -> 0))) {
       NotEqualExpr(42).select(Map("a" -> 42, "b" -> 0))
     }
   }
 
   test("RegexExpr") {
-    expect(Some(42)) {
+    expectResult(Some(42)) {
       RegexExpr("42", invert = false).select(42)
     }
-    expect(None) {
+    expectResult(None) {
       RegexExpr("42", invert = true).select(42)
     }
-    expect(Some(42)) {
+    expectResult(Some(42)) {
       RegexExpr("[0-9]+", invert = false).select(42)
     }
 
     val expr1 = KeySelectExpr(Map(
       "a" -> RegexExpr("^[24]+$", invert = false)
     ))
-    expect(Some(Map("a" -> 42))) {
+    expectResult(Some(Map("a" -> 42))) {
       expr1.select(Map("a" -> 42, "b" -> 0))
     }
 
     val expr2 = KeySelectExpr(Map(
       "a" -> RegexExpr("^[abc]+$", invert = false)
     ))
-    expect(None) {
+    expectResult(None) {
       expr2.select(Map("a" -> 42, "b" -> 0))
     }
   }

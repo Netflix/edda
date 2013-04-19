@@ -48,7 +48,7 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     SYNC {
       coll.query(Map("id" -> "b")) {
         case Success(results: QueryResult) => {
-          expect(Nil) { results.records }
+          expectResult(Nil) { results.records }
         }
       }
     }
@@ -62,13 +62,13 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     SYNC {
       coll.query(Map("id" -> "b")) {
         case Success(results: QueryResult) => {
-          expect(1) {
+          expectResult(1) {
             results.records.size
           }
-          expect(2) {
+          expectResult(2) {
             results.records.head.data
           }
-          expect("b") {
+          expectResult("b") {
             results.records.head.id
           }
           coll.stop()
@@ -86,7 +86,7 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     SYNC {
       coll.query() {
         case Success(results: QueryResult) => {
-          expect(3) { results.records.size }
+          expectResult(3) { results.records.size }
         }
       }
     }
@@ -99,7 +99,7 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     SYNC {
       coll.query(Map("data" -> Map("$gte" -> 3))) {
         case Success(results: QueryResult) => {
-          expect(3) { results.records.size }
+          expectResult(3) { results.records.size }
         }
       }
     }
@@ -127,7 +127,7 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
       // expect data loaded form dataStore
       coll.query() {
         case Success(results: QueryResult) => {
-          expect(3) { results.records.size }
+          expectResult(3) { results.records.size }
         }
       }
     }
@@ -140,7 +140,7 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
       // we should get 4 records now
       coll.query() {
         case Success(results: QueryResult) => {
-          expect(4) { results.records.size }
+          expectResult(4) { results.records.size }
         }
       }
     }
@@ -156,7 +156,7 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     SYNC {
       coll.query() {
         case Success(results: QueryResult) => {
-          expect(3) { results.records.size }
+          expectResult(3) { results.records.size }
         }
       }
     }
@@ -164,7 +164,7 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     SYNC {
       coll.query(Map("id" -> "a")) {
         case Success(results: QueryResult) => {
-          expect(0) { results.records.size }
+          expectResult(0) { results.records.size }
         }
       }
     }

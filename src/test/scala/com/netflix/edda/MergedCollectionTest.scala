@@ -38,7 +38,7 @@ class MergedCollectionTest extends FunSuite {
     SYNC {
       merged.query(Map("data" -> 1)) {
         case Success(results: QueryResult) => {
-          expect(2) { results.records.size }
+          expectResult(2) { results.records.size }
         }
       }
     }
@@ -46,7 +46,7 @@ class MergedCollectionTest extends FunSuite {
     SYNC {
       merged.query(Map("data" -> Map("$gte" -> 2))) {
         case Success(results: QueryResult) => {
-          expect(4) { results.records.size }
+          expectResult(4) { results.records.size }
         }
       }
     }
@@ -54,7 +54,7 @@ class MergedCollectionTest extends FunSuite {
     SYNC {
       merged.query(Map("id" -> Map("$in" -> Seq("A", "a")))) {
         case Success(results: QueryResult) => {
-          expect(2) { results.records.size }
+          expectResult(2) { results.records.size }
         }
       }
     }
