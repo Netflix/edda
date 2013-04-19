@@ -46,7 +46,7 @@ dependencies {
     
     testCompile 'org.testng:testng:6.1.1'
     testCompile 'org.mockito:mockito-core:1.8.5'
-    testCompile 'org.scalatest:scalatest_2.9.1:1.8'
+    testCompile 'org.scalatest:scalatest_2.10:1.9.1'
 
     runtime 'org.slf4j:slf4j-log4j12:1.6.1'
     // needed for findbug Missing Class: org.slf4j.impl.StaticLoggerBinder
@@ -55,11 +55,11 @@ dependencies {
     providedCompile 'javax.servlet:servlet-api:2.5'
 
     // Libraries needed to run the scala tools
-    scalaTools 'org.scala-lang:scala-compiler:2.9.1'
-    scalaTools 'org.scala-lang:scala-library:2.9.1'
+    scalaTools 'org.scala-lang:scala-compiler:2.10.1'
+    scalaTools 'org.scala-lang:scala-library:2.10.1'
 
     // Libraries needed for scala api
-    compile 'org.scala-lang:scala-library:2.9.1'
+    compile 'org.scala-lang:scala-library:2.10.1'
 }
 
 test << {
@@ -77,3 +77,4 @@ tasks.withType(License).each { licenseTask ->
     licenseTask.exclude '**/*.json'
     licenseTask.exclude '**/*.properties'
 }
+
