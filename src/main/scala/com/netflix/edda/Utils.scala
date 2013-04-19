@@ -46,7 +46,11 @@ import com.netflix.config.DynamicConfiguration
 /** singleton object for various helper functions */
 object Utils {
   private lazy val factory = new MappingJsonFactory
-  private lazy val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
+  private lazy val dateFormat = {
+    val formatter =  new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+    formatter.setTimeZone(java.util.TimeZone.getTimeZone("UTC"))
+    formatter
+  }
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
   class EventStatus() {}
@@ -223,10 +227,10 @@ object Utils {
   }
 
   /** convert an object to a json string */
-  def toJson(obj: Any): String = {
+  def toJson(obj: Any, formatter: (Any) => Any = (x: Any) => x): String = {
     val baos = new ByteArrayOutputStream()
     val gen = factory.createJsonGenerator(baos, UTF8)
-    writeJson(gen, obj)
+    writeJson(gen, obj, formatter)
     gen.close()
     baos.toString
   }
@@ -297,7 +301,7 @@ object Utils {
   def dateFormatter(arg: Any): Any = {
     arg match {
       case v: Date => dateFormat.format(v)
-      case v: DateTime => v.toString("yyyy-MM-dd'T'HH:mm:ss.S'Z'")
+      case v: DateTime => v.toDateTime(org.joda.time.DateTimeZone.UTC).toString("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
       case v => v
     }
   }

@@ -45,7 +45,7 @@ object Collection extends StateMachine.LocalState[CollectionState] {
     def recordMatcher: RecordMatcher
   }
 
-  /** class to represent a record that has changed, used for the DataStore to update records */
+  /** class to represent a record that has changed, used for the Datastore to update records */
   case class RecordUpdate(oldRecord: Record, newRecord: Record)
 
   /** class to represent a complete delta between old record set and new record set (new from Crawler)
@@ -62,13 +62,13 @@ object Collection extends StateMachine.LocalState[CollectionState] {
   /** Message sent to observers after a collection has been updated */
   case class DeltaResult(from: Actor, delta: Delta) extends StateMachine.Message
 
-  /** Message to Load the record set from the DataStore */
+  /** Message to Load the record set from the Datastore */
   case class Load(from: Actor, full: Boolean = false) extends StateMachine.Message
 
-  /** Messsage to *Synchronously* Load the record set from the DataStore */
+  /** Messsage to *Synchronously* Load the record set from the Datastore */
   case class SyncLoad(from: Actor) extends StateMachine.Message
 
-  /** Message to Purge the record set from the DataStore */
+  /** Message to Purge the record set from the Datastore */
   case class Purge(from: Actor) extends StateMachine.Message
 
   /** Response from the SyncLoad request */
@@ -86,7 +86,7 @@ object Collection extends StateMachine.LocalState[CollectionState] {
 }
 
 /** general Collection logic.  It is abstract to specify the collection name,
-  * responsible Crawler, and optional DataStore and the Elector to determine leadership.
+  * responsible Crawler, and optional Datastore and the Elector to determine leadership.
   *
   * @param ctx context to get recordMatcher
   */
@@ -113,11 +113,11 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     */
   def crawler: Crawler
 
-  /** the optional abstracted DataStore.  MongoDB is currently the only available DataStore
+  /** the optional abstracted Datastore.  MongoDB is currently the only available Datastore
     * but more could be added.  It is optional so you can run without a datastore, although many
     * features will be limited (only current state is available, so no history queries possible)
     */
-  def dataStore: Option[DataStore]
+  def dataStore: Option[Datastore]
 
   /** The elector to determine leadership. This is typically a singleton so all Collections share
     * the same Election results, but it could be customized if we need to have multiple leaders handling
@@ -178,7 +178,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       if (dataStore.isDefined) {
         return dataStore.get.query(queryMap, limit, keys, replicaOk)
       } else {
-        logger.warn("DataStore is not available, applying query to cached records")
+        logger.warn("Datastore is not available, applying query to cached records")
       }
     }
     val recs = if (queryMap.isEmpty) {
@@ -204,7 +204,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       lastFullLoad = now
       records
     } else {
-      logger.warn("DataStore is not available for load()")
+      logger.warn("Datastore is not available for load()")
       Seq()
     }
   }
@@ -213,7 +213,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     if (dataStore.isDefined) {
       dataStore.get.update(d)
     } else {
-      logger.warn("DataStore is not available, skipping update")
+      logger.warn("Datastore is not available, skipping update")
     }
   }
 
@@ -291,10 +291,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
   }
 
-  /** setup CollectionState, initialize the records to be loaded from the DataStore before the Actor starts accepting message */
+  /** setup CollectionState, initialize the records to be loaded from the Datastore before the Actor starts accepting message */
   protected override def initState = addInitialState(super.initState, newLocalState(CollectionState(records = load(replicaOk = true))))
 
-  /** initialize servo metrics for Collection.  Delay start based on random jitter to prevent DataStore from being
+  /** initialize servo metrics for Collection.  Delay start based on random jitter to prevent Datastore from being
     * overloaded by all Collection loading all at once.
     */
   protected override def init() {
@@ -477,7 +477,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   // eliminate used-only-once warnings from IntelliJ
   if(false) crawlGauge
 
-  /** load records from DataStore and update monitoring metrics */
+  /** load records from Datastore and update monitoring metrics */
   private def doLoad(replicaOk: Boolean): Seq[Record] = {
     val stopwatch = loadTimer.start()
     val records = try {
@@ -500,7 +500,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (SyncLoad(from), state) => {
       // SyncLoad allows us to make sure we have a current cache in memory of "live" records
-      // before we take over as "Leader" and start writing to the DataStore
+      // before we take over as "Leader" and start writing to the Datastore
       flushMessages {
         case SyncLoad(from) => true
       }
