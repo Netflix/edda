@@ -60,6 +60,7 @@ dependencies {
 
     // Libraries needed for scala api
     compile 'org.scala-lang:scala-library:2.10.1'
+    compile 'org.scala-lang:scala-actors:2.10.1'
 }
 
 test << {

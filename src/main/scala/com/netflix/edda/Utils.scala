@@ -173,18 +173,18 @@ object Utils {
     * @param prefix root prefix, generally "edda.something"
     * @param propName property name (ie "enabled")
     * @param nameContext set property names to search though
-    * @param default the default value to return if no matching properties are found
+    * @param defaultProperty the default value to return if no matching properties are found
     * @return the best matching property value
     */
-  def getProperty(prefix: String, propName: String, nameContext: String, default: String): DynamicStringProperty = {
+  def getProperty(prefix: String, propName: String, nameContext: String, defaultProperty: String): DynamicStringProperty = {
     val parts = nameContext.split('.')
     Range(1, parts.size + 1).reverse.map(
       ix => parts.sliding(ix).map( prefix + "." + _.mkString(".") + "." + propName )
     ).flatten collectFirst {
-      case prop: String if Option(DynamicProperty.getInstance(prop).getString()).isDefined => DynamicPropertyFactory.getInstance().getStringProperty(prop, default)
+      case prop: String if Option(DynamicProperty.getInstance(prop).getString()).isDefined => DynamicPropertyFactory.getInstance().getStringProperty(prop, defaultProperty)
     } match {
       case Some(v) => v
-      case None => DynamicPropertyFactory.getInstance().getStringProperty(prefix + "." + propName, default)
+      case None => DynamicPropertyFactory.getInstance().getStringProperty(prefix + "." + propName, defaultProperty)
     }
   }
 
