@@ -109,7 +109,7 @@ class BasicBeanMapperTest extends FunSuite {
       "launchConfigurationName" -> "launchConfigName"
     )
 
-    expect(expected) {
+    expectResult(expected) {
       mapper.fromBean(asg)
     }
 
@@ -118,7 +118,7 @@ class BasicBeanMapperTest extends FunSuite {
     }
     mapper.addKeyMapper(pf1)
 
-    expect(expected + ("tags" -> List(expected("tags").asInstanceOf[List[Map[String, Any]]].head - "value"))) {
+    expectResult(expected + ("tags" -> List(expected("tags").asInstanceOf[List[Map[String, Any]]].head - "value"))) {
       mapper.fromBean(asg)
     }
 
@@ -127,7 +127,7 @@ class BasicBeanMapperTest extends FunSuite {
     }
     mapper.addKeyMapper(pf2)
 
-    expect(expected + ("tags" -> List(expected("tags").asInstanceOf[List[Map[String, Any]]].head + ("value" -> "newValue")))) {
+    expectResult(expected + ("tags" -> List(expected("tags").asInstanceOf[List[Map[String, Any]]].head + ("value" -> "newValue")))) {
       mapper.fromBean(asg)
     }
 
@@ -143,7 +143,7 @@ class BasicBeanMapperTest extends FunSuite {
     }
     mapper.addKeyMapper(objMapper1)
 
-    expect(expected - "instances") {
+    expectResult(expected - "instances") {
       mapper.fromBean(asg)
     }
 
@@ -153,7 +153,7 @@ class BasicBeanMapperTest extends FunSuite {
     }
     mapper.addKeyMapper(objMapper2)
 
-    expect(expected + ("instances" -> List[Instance]())) {
+    expectResult(expected + ("instances" -> List[Instance]())) {
       mapper.fromBean(asg)
     }
   }

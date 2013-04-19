@@ -21,14 +21,14 @@ class FieldSelectorParserTest extends FunSuite {
 
   test("ParseSingleKey") {
     val expr = ":(a)"
-    expect(KeySelectExpr(Map("a" -> FixedExpr(matches = true)))) {
+    expectResult(KeySelectExpr(Map("a" -> FixedExpr(matches = true)))) {
       FieldSelectorParser.parse(expr)
     }
   }
 
   test("ParseManyKeys") {
     val expr = ":(a,b,c)"
-    expect(KeySelectExpr(Map(
+    expectResult(KeySelectExpr(Map(
       "a" -> FixedExpr(matches = true),
       "b" -> FixedExpr(matches = true),
       "c" -> FixedExpr(matches = true)
@@ -39,7 +39,7 @@ class FieldSelectorParserTest extends FunSuite {
 
   test("ParseFlatten") {
     val expr = "::(a,b,c)"
-    expect(FlattenExpr(KeySelectExpr(Map(
+    expectResult(FlattenExpr(KeySelectExpr(Map(
       "a" -> FixedExpr(matches = true),
       "b" -> FixedExpr(matches = true),
       "c" -> FixedExpr(matches = true)
@@ -50,7 +50,7 @@ class FieldSelectorParserTest extends FunSuite {
 
   test("ParseSubExpr") {
     val expr = ":(a,b:(d,e),c::(f,g,h))"
-    expect(KeySelectExpr(Map(
+    expectResult(KeySelectExpr(Map(
       "a" -> FixedExpr(matches = true),
       "b" -> KeySelectExpr(Map(
         "d" -> FixedExpr(matches = true),
@@ -68,35 +68,35 @@ class FieldSelectorParserTest extends FunSuite {
 
   test("ParseEqualExpr") {
     val expr = ":(a=42)"
-    expect(KeySelectExpr(Map("a" -> EqualExpr(42)))) {
+    expectResult(KeySelectExpr(Map("a" -> EqualExpr(42)))) {
       FieldSelectorParser.parse(expr)
     }
   }
 
   test("ParseNotEqualExpr") {
     val expr = ":(a!=42)"
-    expect(KeySelectExpr(Map("a" -> NotEqualExpr(42)))) {
+    expectResult(KeySelectExpr(Map("a" -> NotEqualExpr(42)))) {
       FieldSelectorParser.parse(expr)
     }
   }
 
   test("ParseRegexExpr") {
     val expr = ":(a~/^.*Id$/)"
-    expect(KeySelectExpr(Map("a" -> RegexExpr("^.*Id$", invert = false)))) {
+    expectResult(KeySelectExpr(Map("a" -> RegexExpr("^.*Id$", invert = false)))) {
       FieldSelectorParser.parse(expr)
     }
   }
 
   test("ParseInvRegexExpr") {
     val expr = ":(a!~/^.*Id$/)"
-    expect(KeySelectExpr(Map("a" -> RegexExpr("^.*Id$", invert = true)))) {
+    expectResult(KeySelectExpr(Map("a" -> RegexExpr("^.*Id$", invert = true)))) {
       FieldSelectorParser.parse(expr)
     }
   }
 
   test("ParseStringLiteral") {
     val expr = ":(a=\"42\")"
-    expect(KeySelectExpr(Map("a" -> EqualExpr("42")))) {
+    expectResult(KeySelectExpr(Map("a" -> EqualExpr("42")))) {
       FieldSelectorParser.parse(expr)
     }
   }
