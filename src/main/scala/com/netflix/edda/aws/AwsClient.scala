@@ -28,6 +28,7 @@ import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.sqs.AmazonSQSClient
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
 import com.amazonaws.services.route53.AmazonRoute53Client
+import com.amazonaws.services.rds.AmazonRDSClient
 
 /** provides access to AWS service client objects
   *
@@ -120,5 +121,11 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
       val client = new AmazonRoute53Client(provider)
       client.setEndpoint("route53.amazonaws.com")
       client
+   }
+
+   def rds = {
+     val client = new AmazonRDSClient(provider)
+     client.setEndpoint("rds.amazonaws.com")
+     client
    }
 }

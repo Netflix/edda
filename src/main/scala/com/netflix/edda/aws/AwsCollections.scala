@@ -120,7 +120,8 @@ object AwsCollectionBuilder {
       new AwsReservedInstanceCollection(dsFactory, accountName, elector, ctx),
       new GroupAutoScalingGroups(asg, inst, dsFactory, elector, ctx),
       hostedZones,
-      hostedRecords
+      hostedRecords,
+      new AwsDatabaseCollection(dsFactory, accountName, elector, ctx)
     )
   }
 }
@@ -728,4 +729,24 @@ class AwsHostedRecordCollection(
                            override val ctx: AwsCollection.Context) extends RootCollection("aws.hostedRecords", accountName, ctx) {
   val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsHostedRecordCrawler(name, ctx, zoneCrawler)
+}
+
+/** collection for AWS RDS database instances
+  *
+  * root collection name: aws.databases
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsDatabaseCrawler]]
+  *
+  * @param dsFactory function that creates new Datastore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+class AwsDatabaseCollection(
+                               dsFactory: String => Option[Datastore],
+                               val accountName: String,
+                               val elector: Elector,
+                               override val ctx: AwsCollection.Context) extends RootCollection("aws.databases", accountName, ctx) {
+  val dataStore: Option[Datastore] = dsFactory(name)
+  val crawler = new AwsDatabaseCrawler(name, ctx)
 }

@@ -70,6 +70,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Callable
 
 import org.slf4j.LoggerFactory
+import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
 
 /** static namespace for out Context trait */
 object AwsCrawler {
@@ -874,4 +875,16 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
   }
 
   override protected def transitions = localTransitions orElse super.transitions
+}
+
+/** crawler for RDS Databases
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsDatabaseCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeDBInstancesRequest
+
+  override def doCrawl() =  ctx.awsClient.rds.describeDBInstances(request).getDBInstances.asScala.map(
+    item => Record(item.getDBInstanceIdentifier, ctx.beanMapper(item))).toSeq
 }
