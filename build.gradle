@@ -1,14 +1,19 @@
 // Establish version and status
-ext.githubProjectName = name
+ext.githubProjectName = rootProject.name // Change if github project name is not the same as the root project's name
 group = "com.netflix.${githubProjectName}"
 
 buildscript {
-    repositories { mavenCentral() }
+    repositories {
+        mavenLocal()
+        mavenCentral() // maven { url 'http://jcenter.bintray.com' }
+    }
     apply from: file('gradle/buildscript.gradle'), to: buildscript 
 }
 
 allprojects {
-    repositories { mavenCentral() }
+    repositories { 
+        mavenCentral() // maven { url: 'http://jcenter.bintray.com' }
+    }
 }
 
 apply from: file('gradle/convention.gradle')
@@ -43,10 +48,12 @@ dependencies {
     compile 'com.netflix.archaius:archaius-core:0.5.6'
 
     compile 'org.mongodb:mongo-java-driver:2.6.5'
+    compile 'org.elasticsearch:elasticsearch:0.20.4'
+    compile 'com.spatial4j:spatial4j:0.3'
     
     testCompile 'org.testng:testng:6.1.1'
     testCompile 'org.mockito:mockito-core:1.8.5'
-    testCompile 'org.scalatest:scalatest_2.9.1:1.8'
+    testCompile 'org.scalatest:scalatest_2.10:1.9.1'
 
     runtime 'org.slf4j:slf4j-log4j12:1.6.1'
     // needed for findbug Missing Class: org.slf4j.impl.StaticLoggerBinder
@@ -55,11 +62,12 @@ dependencies {
     providedCompile 'javax.servlet:servlet-api:2.5'
 
     // Libraries needed to run the scala tools
-    scalaTools 'org.scala-lang:scala-compiler:2.9.1'
-    scalaTools 'org.scala-lang:scala-library:2.9.1'
+    scalaTools 'org.scala-lang:scala-compiler:2.10.1'
+    scalaTools 'org.scala-lang:scala-library:2.10.1'
 
     // Libraries needed for scala api
-    compile 'org.scala-lang:scala-library:2.9.1'
+    compile 'org.scala-lang:scala-library:2.10.1'
+    compile 'org.scala-lang:scala-actors:2.10.1'
 }
 
 test << {
@@ -77,3 +85,4 @@ tasks.withType(License).each { licenseTask ->
     licenseTask.exclude '**/*.json'
     licenseTask.exclude '**/*.properties'
 }
+

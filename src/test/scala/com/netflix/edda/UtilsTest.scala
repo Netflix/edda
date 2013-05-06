@@ -33,27 +33,27 @@ class UtilsTest extends FunSuite {
     composite.addConfigurationAtFront(config, "testConfig")
 
     config.addProperty("edda.other.context.setting", "value1")
-    expect("default") {
+    expectResult("default") {
       Utils.getProperty("edda", "setting", "my.context", "default").get
     }
 
     config.addProperty("edda.setting", "value2")
-    expect("value2") {
+    expectResult("value2") {
       Utils.getProperty("edda", "setting", "my.context", "default").get
     }
 
     config.addProperty("edda.context.setting", "value3")
-    expect("value3") {
+    expectResult("value3") {
       Utils.getProperty("edda", "setting", "my.context", "default").get
     }
 
     config.addProperty("edda.my.setting", "value4")
-    expect("value4") {
+    expectResult("value4") {
       Utils.getProperty("edda", "setting", "my.context", "default").get
     }
 
     config.addProperty("edda.my.context.setting", "value5")
-    expect("value5") {
+    expectResult("value5") {
       Utils.getProperty("edda", "setting", "my.context", "default").get
     }
 
@@ -62,7 +62,7 @@ class UtilsTest extends FunSuite {
   test("toPrettyJson") {
     val date = new DateTime(0, UTC)
     val expected = """{
-  "date" : "1970-01-01T00:00:00.0Z",
+  "date" : "1970-01-01T00:00:00.000Z",
   "foo" : "bar",
   "list" : [
     1,
@@ -71,7 +71,7 @@ class UtilsTest extends FunSuite {
     4
   ]
 }"""
-    expect(expected) {
+    expectResult(expected) {
       Utils.toPrettyJson(Map("foo" -> "bar", "list" -> List(1, 2, 3, 4), "date" -> date))
     }
   }
@@ -79,13 +79,13 @@ class UtilsTest extends FunSuite {
   test("writeJson") {
     val date = new DateTime(0, UTC)
     val expected = """{"date":0,"foo":"bar","list":[1,2,3,4]}"""
-    expect(expected) {
+    expectResult(expected) {
       Utils.toJson(Map("foo" -> "bar", "list" -> List(1, 2, 3, 4), "date" -> date))
     }
-    expect(expected) {
+    expectResult(expected) {
       Utils.toJson(Map("foo" -> "bar", "list" -> Seq(1, 2, 3, 4), "date" -> date))
     }
-    expect(expected) {
+    expectResult(expected) {
       Utils.toJson(Map("foo" -> "bar", "list" -> Range(1, 5), "date" -> date))
     }
   }
@@ -100,7 +100,7 @@ class UtilsTest extends FunSuite {
 -1
 +2
 """
-    expect(expected) {
+    expectResult(expected) {
       Utils.diffRecords(Seq(r2, r1), None, "collection/path")
     }
 
@@ -133,7 +133,7 @@ class UtilsTest extends FunSuite {
    "test"
  ]
 """
-    expect(expected) {
+    expectResult(expected) {
       Utils.diffRecords(Seq(r5, r4, r3), None, "collection/path")
     }
 
@@ -151,7 +151,7 @@ class UtilsTest extends FunSuite {
 @@ -5,0 +5,1 @@
 +  "great",
 """
-    expect(expected) {
+    expectResult(expected) {
       Utils.diffRecords(Seq(r5, r4, r3), Some(0), "collection/path")
     }
   }

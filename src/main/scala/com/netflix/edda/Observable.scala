@@ -41,7 +41,7 @@ object Observable extends StateMachine.LocalState[ObservableState] {
   * one StateMachine needs to receive events (state changes) from another StateMachine.  For
   * example a Collection is registered as an observer of a Crawler so
   * that the Collection gets updates when the Crawler state changes (so that the Collection
-  * can persist the changes to the DataStore).
+  * can persist the changes to the Datastore).
   */
 abstract class Observable extends StateMachine {
 

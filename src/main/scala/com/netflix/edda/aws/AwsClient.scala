@@ -23,10 +23,12 @@ import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
 import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
+import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.sqs.AmazonSQSClient
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
 import com.amazonaws.services.route53.AmazonRoute53Client
+import com.amazonaws.services.rds.AmazonRDSClient
 
 /** provides access to AWS service client objects
   *
@@ -90,6 +92,16 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
     client
   }
 
+  /** get [[com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient]] object */
+  def identitymanagement = {
+    val client = new AmazonIdentityManagementClient(provider)
+    if (region == "us-gov")
+      client.setEndpoint("iam.us-gov.amazonaws.com")
+    else
+      client.setEndpoint("iam.amazonaws.com")
+    client
+  }
+
   /** get [[com.amazonaws.services.sqs.AmazonSQSClient]] object */
   def sqs = {
     val client = new AmazonSQSClient(provider)
@@ -109,5 +121,11 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
       val client = new AmazonRoute53Client(provider)
       client.setEndpoint("route53.amazonaws.com")
       client
+   }
+
+   def rds = {
+     val client = new AmazonRDSClient(provider)
+     client.setEndpoint("rds.amazonaws.com")
+     client
    }
 }
