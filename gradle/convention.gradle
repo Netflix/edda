@@ -54,6 +54,7 @@ status = project.hasProperty('preferredStatus')?project.preferredStatus:(version
         scaladoc(scaladocJar) {
             type 'scaladoc'
         }
+        archives jar
     }
 
     configurations {
