@@ -46,6 +46,7 @@ object ElasticSearchDatastore {
 
   import org.joda.time.format.ISODateTimeFormat
   val basicDateTime = ISODateTimeFormat.dateTime
+  val basicDateTimeNoMillis = ISODateTimeFormat.dateTimeNoMillis
 
   /** converts a ElasticSearch source object to a Record */
   def esToRecord(obj: Any): Record = {
@@ -101,7 +102,8 @@ object ElasticSearchDatastore {
     newObj
   }
 
-  private val dateTimeRx = """^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(?:[.]\d\d?\d?)?Z$""".r
+  private val dateTimeNoMillisRx       = """^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ$""".r
+  private val dateTimeRx = """^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(?:[.]\d\d?\d?)Z$""".r
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
   /** converts a ElasticSearch java object to a corresponding Scala basic object */
@@ -114,6 +116,7 @@ object ElasticSearchDatastore {
       case o: java.util.Collection[_] => {
         List.empty[Any] ++ o.asScala.map(esToScala(_))
       }
+      case dateTimeNoMillisRx() => basicDateTimeNoMillis.parseDateTime(obj.asInstanceOf[String])
       case dateTimeRx() => basicDateTime.parseDateTime(obj.asInstanceOf[String])
       case o: Date => new DateTime(o)
       case o: AnyRef => o
