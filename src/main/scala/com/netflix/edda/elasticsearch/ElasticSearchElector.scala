@@ -24,6 +24,8 @@ import org.slf4j.LoggerFactory
 import org.joda.time.DateTime
 
 import org.elasticsearch.common.settings.ImmutableSettings
+import org.elasticsearch.action.WriteConsistencyLevel
+import org.elasticsearch.action.support.replication.ReplicationType
 
 /** [[com.netflix.edda.Elector]] subclass that uses ElasticSearch's versioned write operations
   * to organize leadership
@@ -40,6 +42,8 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
   val leaderTimeout = Utils.getProperty("edda.elector", "leaderTimeout", "elasticsearch", "5000")
 
   private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get.replaceAll("[.]","_")
+  private lazy val writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticsearch.writeConsistency", monitorIndexName, "quorum").get )
+  private lazy val replicationType  = ReplicationType.fromString( Utils.getProperty("edda", "elasticsearch.replicationType", monitorIndexName, "async").get )
 
   private val docType = "leader"
 
@@ -48,7 +52,12 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
     // make sure the sys.monitor index exists, there is no redundancy or sharding
     // for the monitor collection, it is only used for leadership election
     // and for tracking the modifiedTimes per collection
-    createIndex(client, monitorIndexName, shards=1, replicas=0)
+    createIndex(
+      client,
+      monitorIndexName,
+      shards=1,
+      Utils.getProperty("edda", "elasticsearch.replicas", monitorIndexName, "2").get.toInt
+    )
     inited = true
     super.init()
   }
@@ -94,6 +103,8 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
         client.prepareIndex(monitorIndexName, docType).
           setId("leader").
           setSource(esToJson(leaderRec)).
+          setConsistencyLevel(writeConsistency).
+          setReplicationType(replicationType).
           setCreate(true).
           execute().
           actionGet();
@@ -114,6 +125,8 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
           client.prepareIndex(monitorIndexName, docType).
             setId("leader").
             setSource(esToJson(leaderRec.copy(mtime=now))).
+            setConsistencyLevel(writeConsistency).
+            setReplicationType(replicationType).
             setVersion(response.getVersion).
             setCreate(false).
             execute().
@@ -133,6 +146,8 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
             client.prepareIndex(monitorIndexName, docType).
               setId("leader").
               setSource(esToJson(leaderRec.copy(mtime=now, stime=now, data=leaderRec.data.asInstanceOf[Map[String,Any]] + ("leader" -> instance)))).
+              setConsistencyLevel(writeConsistency).
+              setReplicationType(replicationType).
               setVersion(response.getVersion).
               setCreate(false).
               execute().
@@ -142,6 +157,8 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
             client.prepareIndex(monitorIndexName, docType).
               setId("leader|" + leaderRec.stime.getMillis).
               setSource(esToJson(leaderRec.copy(ltime=now))).
+              setConsistencyLevel(writeConsistency).
+              setReplicationType(replicationType).
               setCreate(true).
               execute().
               actionGet()
