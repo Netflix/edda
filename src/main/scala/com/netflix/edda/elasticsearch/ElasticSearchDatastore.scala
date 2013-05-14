@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.QueryBuilders
 import org.elasticsearch.index.query.QueryBuilder
 import org.elasticsearch.action.search.SearchRequestBuilder
 import org.elasticsearch.action.WriteConsistencyLevel
+import org.elasticsearch.action.support.replication.ReplicationType
 import org.elasticsearch.search.sort.SortOrder
 import org.elasticsearch.search.SearchHitField
 import org.elasticsearch.common.settings.ImmutableSettings
@@ -259,7 +260,8 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
   private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get.replaceAll("[.]","_")
   private lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
 
-  private lazy val writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticserach.writeConsistency", name, "all").get )
+  private lazy val writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticsearch.writeConsistency", name, "quorum").get )
+  private lazy val replicationType  = ReplicationType.fromString( Utils.getProperty("edda", "elasticsearch.replicationType", name, "async").get )
 
   def init() {
     // we create 1 index for each account.  We version the index (.1) in case we need
@@ -439,6 +441,8 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       client.prepareIndex(monitorIndexName, "collection_mark").
         setId(markRec.id).
         setSource(esToJson(markRec)).
+        setConsistencyLevel(writeConsistency).
+        setReplicationType(replicationType).
         execute().
         actionGet();
     } catch {
@@ -456,6 +460,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         setRouting(record.id).
         setSource(esToJson(record)).
         setConsistencyLevel(writeConsistency).
+        setReplicationType(replicationType).
         execute().
         actionGet();
     } catch {
@@ -476,7 +481,8 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
               setId(rec.id + "|" + rec.stime.getMillis).
               setRouting(rec.id).
               setSource(esToJson(rec)).
-              setConsistencyLevel(writeConsistency)
+              setConsistencyLevel(writeConsistency).
+              setReplicationType(replicationType)
           )
         })
         bulk.execute.actionGet
