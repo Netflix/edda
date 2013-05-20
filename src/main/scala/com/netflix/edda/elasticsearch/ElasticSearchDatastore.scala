@@ -40,7 +40,7 @@ import org.elasticsearch.node.NodeBuilder
 import org.elasticsearch.common.settings.Settings
 import org.elasticsearch.client.transport.TransportClient
 import org.elasticsearch.common.transport.InetSocketTransportAddress
-
+import org.elasticsearch.rest.RestStatus
 
 // /** helper object to store common ElasticSearch related routines */
 object ElasticSearchDatastore {
@@ -485,7 +485,12 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
               setReplicationType(replicationType)
           )
         })
-        bulk.execute.actionGet
+        val response = bulk.execute.actionGet
+        if( response.hasFailures() ) {
+          val err = this + " failed to bulk index: " + response.buildFailureMessage()
+          logger.error(err)
+          throw new java.lang.RuntimeException(err)
+        }
       })
     }
     catch {
@@ -497,10 +502,13 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
 
   protected def remove(record: Record) {
     try {
-      client.prepareDelete(writeAliasName, docType, record.id + "|" + record.stime.getMillis).
+      val response = client.prepareDelete(writeAliasName, docType, record.id + "|" + record.stime.getMillis).
         setRouting(record.id).
         execute().
         actionGet();
+      if( response.isNotFound() ) {
+        logger.error(this + " failed to delete \"" + record.id + "|" + record.stime.getMillis + "\": Not Found")
+      }
     } catch {
       case e: Exception => {
         logger.error("failed to delete record: " + record, e)
@@ -511,11 +519,17 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
 
   override def remove(queryMap: Map[String, Any]) {
     try {
-      client.prepareDeleteByQuery(writeAliasName).
+      val response = client.prepareDeleteByQuery(writeAliasName).
         setTypes(docType).
         setQuery(esQuery(queryMap)).
         execute().
         actionGet()
+      // FIXME need to upgrade elasticsearch so that DeleteByQueryResponse has status() member
+      // if( response.status() != RestStatus.OK ) {
+      //   val err = this + " failed to delete with query " + queryMap.toString
+      //   logger.error(err)
+      //   throw new java.lang.RuntimeException(err)
+      // }
     } catch {
       case e: Exception => {
         logger.error("failed to delete records: " + queryMap, e)
@@ -533,7 +547,10 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
             client.prepareDelete(writeAliasName, docType, rec.id + "|" + rec.stime.getMillis).setRouting(rec.id)
           )
         })
-        bulk.execute.actionGet
+        val response = bulk.execute.actionGet
+        if( response.hasFailures() ) {
+          logger.error(this + " failed to bulk delete: " + response.buildFailureMessage())
+        }
       })
     }
     catch {
