@@ -488,8 +488,8 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         val response = bulk.execute.actionGet
         if( response.hasFailures() ) {
           val err = this + " failed to bulk index: " + response.buildFailureMessage()
-          logger..error(err)
-          throw java.lang.RuntimeException(err)
+          logger.error(err)
+          throw new java.lang.RuntimeException(err)
         }
       })
     }
@@ -524,11 +524,12 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         setQuery(esQuery(queryMap)).
         execute().
         actionGet()
-      if( response.status != RestStatus.OK ) {
-        val err = this + " failed to delete with query " + queryMap.toString
-        logger.error(err)
-        throw java.lang.RuntimeException(err)
-      }
+      // FIXME need to upgrade elasticsearch so that DeleteByQueryResponse has status() member
+      // if( response.status() != RestStatus.OK ) {
+      //   val err = this + " failed to delete with query " + queryMap.toString
+      //   logger.error(err)
+      //   throw new java.lang.RuntimeException(err)
+      // }
     } catch {
       case e: Exception => {
         logger.error("failed to delete records: " + queryMap, e)
