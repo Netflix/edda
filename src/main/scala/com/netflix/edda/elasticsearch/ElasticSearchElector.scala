@@ -141,11 +141,11 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
       } else {
         val timeout = DateTime.now().plusMillis(-1 * (pollCycle.get.toInt + leaderTimeout.get.toInt))
         if (mtime.isBefore(timeout)) {
-          // assumer leader is dead, so try to become leader
+          // assume leader is dead, so try to become leader
           try {
             client.prepareIndex(monitorIndexName, docType).
               setId("leader").
-              setSource(esToJson(leaderRec.copy(mtime=now, stime=now, data=leaderRec.data.asInstanceOf[Map[String,Any]] + ("leader" -> instance)))).
+              setSource(esToJson(leaderRec.copy(mtime=now, stime=now, data=leaderRec.data.asInstanceOf[Map[String,Any]] + ("instance" -> instance)))).
               setConsistencyLevel(writeConsistency).
               setReplicationType(replicationType).
               setVersion(response.getVersion).
@@ -153,6 +153,7 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
               execute().
               actionGet()
             isLeader = true
+            leader = instance;
             // old leader is gone, so create historical record from old leader record
             client.prepareIndex(monitorIndexName, docType).
               setId("leader|" + leaderRec.stime.getMillis).
