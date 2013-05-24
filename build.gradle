@@ -48,7 +48,7 @@ dependencies {
     compile 'com.netflix.archaius:archaius-core:0.5.6'
 
     compile 'org.mongodb:mongo-java-driver:2.6.5'
-    compile 'org.elasticsearch:elasticsearch:0.20.4'
+    compile 'org.elasticsearch:elasticsearch:0.90.0'
     compile 'com.spatial4j:spatial4j:0.3'
     
     testCompile 'org.testng:testng:6.1.1'

@@ -219,7 +219,7 @@ object ElasticSearchDatastore {
 
   def createIndex(client: Client, name: String, shards: Int, replicas: Int) {
     val ixClient = client.admin().indices()
-    if( ! ixClient.prepareExists(name).execute().actionGet().exists() ) {
+    if( ! ixClient.prepareExists(name).execute().actionGet().isExists() ) {
       val settings = ImmutableSettings.settingsBuilder().
       put("index.number_of_shards", shards).
       put("index.number_of_replicas",replicas).
@@ -284,12 +284,12 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
 
     // put new mapping in case it has changed
     // make sure collection alias exists
-    if( ! ixClient.prepareExists(aliasName).execute().actionGet().exists() ) {
+    if( ! ixClient.prepareExists(aliasName).execute().actionGet().isExists() ) {
       ixClient.prepareAliases().addAlias(indexName, aliasName, FilterBuilders.typeFilter(docType)).execute.actionGet
     }
 
     // make sure live alias exists
-    if( ! ixClient.prepareExists(liveAliasName).execute().actionGet().exists() ) {
+    if( ! ixClient.prepareExists(liveAliasName).execute().actionGet().isExists() ) {
       ixClient.prepareAliases().addAlias(
         indexName,
         liveAliasName,
@@ -301,7 +301,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     }
     
     // make sure the write alias exists
-    if( ! ixClient.prepareExists(writeAliasName).execute().actionGet().exists() ) {
+    if( ! ixClient.prepareExists(writeAliasName).execute().actionGet().isExists() ) {
       ixClient.prepareAliases().addAlias(indexName, writeAliasName).execute.actionGet
     }
   }
@@ -387,7 +387,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       })
       
       //Break condition: No hits are returned
-      if (scrollResp.hits().hits().length == 0) {
+      if (scrollResp.getHits().hits().length == 0) {
         keepLooping = false
       }
     }
