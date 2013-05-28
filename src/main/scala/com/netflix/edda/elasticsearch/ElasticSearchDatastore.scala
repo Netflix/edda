@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.QueryBuilders
 import org.elasticsearch.index.query.QueryBuilder
 import org.elasticsearch.action.search.SearchRequestBuilder
 import org.elasticsearch.action.WriteConsistencyLevel
+import org.elasticsearch.action.support.replication.ReplicationType
 import org.elasticsearch.search.sort.SortOrder
 import org.elasticsearch.search.SearchHitField
 import org.elasticsearch.common.settings.ImmutableSettings
@@ -39,13 +40,14 @@ import org.elasticsearch.node.NodeBuilder
 import org.elasticsearch.common.settings.Settings
 import org.elasticsearch.client.transport.TransportClient
 import org.elasticsearch.common.transport.InetSocketTransportAddress
-
+import org.elasticsearch.rest.RestStatus
 
 // /** helper object to store common ElasticSearch related routines */
 object ElasticSearchDatastore {
 
   import org.joda.time.format.ISODateTimeFormat
   val basicDateTime = ISODateTimeFormat.dateTime
+  val basicDateTimeNoMillis = ISODateTimeFormat.dateTimeNoMillis
 
   /** converts a ElasticSearch source object to a Record */
   def esToRecord(obj: Any): Record = {
@@ -101,7 +103,8 @@ object ElasticSearchDatastore {
     newObj
   }
 
-  private val dateTimeRx = """^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(?:[.]\d\d?\d?)?Z$""".r
+  private val dateTimeNoMillisRx       = """^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ$""".r
+  private val dateTimeRx = """^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(?:[.]\d\d?\d?)Z$""".r
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
   /** converts a ElasticSearch java object to a corresponding Scala basic object */
@@ -114,6 +117,7 @@ object ElasticSearchDatastore {
       case o: java.util.Collection[_] => {
         List.empty[Any] ++ o.asScala.map(esToScala(_))
       }
+      case dateTimeNoMillisRx() => basicDateTimeNoMillis.parseDateTime(obj.asInstanceOf[String])
       case dateTimeRx() => basicDateTime.parseDateTime(obj.asInstanceOf[String])
       case o: Date => new DateTime(o)
       case o: AnyRef => o
@@ -215,7 +219,7 @@ object ElasticSearchDatastore {
 
   def createIndex(client: Client, name: String, shards: Int, replicas: Int) {
     val ixClient = client.admin().indices()
-    if( ! ixClient.prepareExists(name).execute().actionGet().exists() ) {
+    if( ! ixClient.prepareExists(name).execute().actionGet().isExists() ) {
       val settings = ImmutableSettings.settingsBuilder().
       put("index.number_of_shards", shards).
       put("index.number_of_replicas",replicas).
@@ -256,7 +260,8 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
   private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get.replaceAll("[.]","_")
   private lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
 
-  private lazy val writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticserach.writeConsistency", name, "all").get )
+  private lazy val writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticsearch.writeConsistency", name, "quorum").get )
+  private lazy val replicationType  = ReplicationType.fromString( Utils.getProperty("edda", "elasticsearch.replicationType", name, "async").get )
 
   def init() {
     // we create 1 index for each account.  We version the index (.1) in case we need
@@ -279,12 +284,12 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
 
     // put new mapping in case it has changed
     // make sure collection alias exists
-    if( ! ixClient.prepareExists(aliasName).execute().actionGet().exists() ) {
+    if( ! ixClient.prepareExists(aliasName).execute().actionGet().isExists() ) {
       ixClient.prepareAliases().addAlias(indexName, aliasName, FilterBuilders.typeFilter(docType)).execute.actionGet
     }
 
     // make sure live alias exists
-    if( ! ixClient.prepareExists(liveAliasName).execute().actionGet().exists() ) {
+    if( ! ixClient.prepareExists(liveAliasName).execute().actionGet().isExists() ) {
       ixClient.prepareAliases().addAlias(
         indexName,
         liveAliasName,
@@ -296,7 +301,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     }
     
     // make sure the write alias exists
-    if( ! ixClient.prepareExists(writeAliasName).execute().actionGet().exists() ) {
+    if( ! ixClient.prepareExists(writeAliasName).execute().actionGet().isExists() ) {
       ixClient.prepareAliases().addAlias(indexName, writeAliasName).execute.actionGet
     }
   }
@@ -382,7 +387,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       })
       
       //Break condition: No hits are returned
-      if (scrollResp.hits().hits().length == 0) {
+      if (scrollResp.getHits().hits().length == 0) {
         keepLooping = false
       }
     }
@@ -436,6 +441,8 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       client.prepareIndex(monitorIndexName, "collection_mark").
         setId(markRec.id).
         setSource(esToJson(markRec)).
+        setConsistencyLevel(writeConsistency).
+        setReplicationType(replicationType).
         execute().
         actionGet();
     } catch {
@@ -453,6 +460,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         setRouting(record.id).
         setSource(esToJson(record)).
         setConsistencyLevel(writeConsistency).
+        setReplicationType(replicationType).
         execute().
         actionGet();
     } catch {
@@ -473,10 +481,16 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
               setId(rec.id + "|" + rec.stime.getMillis).
               setRouting(rec.id).
               setSource(esToJson(rec)).
-              setConsistencyLevel(writeConsistency)
+              setConsistencyLevel(writeConsistency).
+              setReplicationType(replicationType)
           )
         })
-        bulk.execute.actionGet
+        val response = bulk.execute.actionGet
+        if( response.hasFailures() ) {
+          val err = this + " failed to bulk index: " + response.buildFailureMessage()
+          logger.error(err)
+          throw new java.lang.RuntimeException(err)
+        }
       })
     }
     catch {
@@ -488,10 +502,13 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
 
   protected def remove(record: Record) {
     try {
-      client.prepareDelete(writeAliasName, docType, record.id + "|" + record.stime.getMillis).
+      val response = client.prepareDelete(writeAliasName, docType, record.id + "|" + record.stime.getMillis).
         setRouting(record.id).
         execute().
         actionGet();
+      if( response.isNotFound() ) {
+        logger.error(this + " failed to delete \"" + record.id + "|" + record.stime.getMillis + "\": Not Found")
+      }
     } catch {
       case e: Exception => {
         logger.error("failed to delete record: " + record, e)
@@ -502,11 +519,17 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
 
   override def remove(queryMap: Map[String, Any]) {
     try {
-      client.prepareDeleteByQuery(writeAliasName).
+      val response = client.prepareDeleteByQuery(writeAliasName).
         setTypes(docType).
         setQuery(esQuery(queryMap)).
         execute().
         actionGet()
+      // FIXME need to upgrade elasticsearch so that DeleteByQueryResponse has status() member
+      // if( response.status() != RestStatus.OK ) {
+      //   val err = this + " failed to delete with query " + queryMap.toString
+      //   logger.error(err)
+      //   throw new java.lang.RuntimeException(err)
+      // }
     } catch {
       case e: Exception => {
         logger.error("failed to delete records: " + queryMap, e)
@@ -524,7 +547,10 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
             client.prepareDelete(writeAliasName, docType, rec.id + "|" + rec.stime.getMillis).setRouting(rec.id)
           )
         })
-        bulk.execute.actionGet
+        val response = bulk.execute.actionGet
+        if( response.hasFailures() ) {
+          logger.error(this + " failed to bulk delete: " + response.buildFailureMessage())
+        }
       })
     }
     catch {
