@@ -508,9 +508,10 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
 
 
  protected def upsert(records: Seq[Record]) {
+    if( records.size <= 0 ) return
     val t0 = System.nanoTime()
     try {
-      val iter: Iterator[Seq[Record]] = if(bulkBatchSize.get.toInt > 0 ) records.sliding(bulkBatchSize.get.toInt) else List(records).iterator
+      val iter: Iterator[Seq[Record]] = if(bulkBatchSize.get.toInt > 0) records.sliding(bulkBatchSize.get.toInt) else List(records).iterator
       iter.foreach( recs => {
         val bulk = client.prepareBulk
         recs.foreach( rec => {
@@ -591,9 +592,10 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
   }
 
   protected def remove(records: Seq[Record]) {
+    if( records.size <= 0 ) return
     val t0 = System.nanoTime()
     try {
-      val iter: Iterator[Seq[Record]] = if(bulkBatchSize.get.toInt > 0 ) records.sliding(bulkBatchSize.get.toInt) else List(records).iterator
+      val iter: Iterator[Seq[Record]] = if(bulkBatchSize.get.toInt > 0) records.sliding(bulkBatchSize.get.toInt) else List(records).iterator
       iter.foreach( recs => {
         val bulk = client.prepareBulk
         recs.foreach( rec => {
