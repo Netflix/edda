@@ -95,8 +95,16 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
 
     var isLeader = false
 
-    val response = client.prepareGet(monitorIndexName, docType, "leader").setPreference("_primary").execute().actionGet()
+    val t0 = System.nanoTime()
+    val response = try {
+      client.prepareGet(monitorIndexName, docType, "leader").setPreference("_primary").execute().actionGet()
+    } finally {
+      val t1 = System.nanoTime()
+      val lapse = (t1 - t0) / 1000000;
+      logger.info(this + " get leader lapse: " + lapse + "ms")
+    }
     if( response == null || !response.isExists ) {
+      val t0 = System.nanoTime()
       try {
         val leaderRec = Record("leader", Map("instance" -> instance, "id" -> "leader", "type" -> docType))
         // FIXME what error do I get when the document already exists?
@@ -114,6 +122,10 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
           logger.error("failed to create leader record: " + e.getMessage)
           isLeader = false
         }
+      } finally {
+        val t1 = System.nanoTime()
+        val lapse = (t1 - t0) / 1000000;
+        logger.info(this + " create leader lapse: " + lapse + "ms")
       }
     } else {
       val leaderRec = esToRecord(response.getSource)
@@ -121,6 +133,7 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
       val mtime = leaderRec.mtime
       if( leader == instance ) {
         // update mtime
+        val t0 = System.nanoTime()
         try {
           client.prepareIndex(monitorIndexName, docType).
             setId("leader").
@@ -137,11 +150,16 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
             logger.error("failed to update mtime for leader record: " + e.getMessage)
             isLeader = false
           }
+        } finally {
+          val t1 = System.nanoTime()
+          val lapse = (t1 - t0) / 1000000;
+          logger.info(this + " index leader (update mtime) lapse: " + lapse + "ms")
         }
       } else {
         val timeout = DateTime.now().plusMillis(-1 * (pollCycle.get.toInt + leaderTimeout.get.toInt))
         if (mtime.isBefore(timeout)) {
           // assume leader is dead, so try to become leader
+          val t0 = System.nanoTime()
           try {
             client.prepareIndex(monitorIndexName, docType).
               setId("leader").
@@ -168,6 +186,10 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
               logger.error("failed to update leader for leader record: " + e.getMessage)
               isLeader = false
             }
+          } finally {
+            val t1 = System.nanoTime()
+            val lapse = (t1 - t0) / 1000000;
+            logger.info(this + " index leader + archive old leader lapse: " + lapse + "ms")
           }
         }
       }
