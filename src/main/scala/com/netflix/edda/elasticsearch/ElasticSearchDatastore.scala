@@ -55,6 +55,13 @@ object ElasticSearchDatastore {
       case o: java.util.Map[_,_] =>
         Record(
           Option(o.get("id")).getOrElse(o.get("_id")).asInstanceOf[String],
+          Option(o.get("ftime")) match {
+            case Some(date:String) => basicDateTime.parseDateTime(date)
+            case None => Option(o.get("ctime")) match {
+              case Some(date:String) => basicDateTime.parseDateTime(date)
+              case None => null
+            }
+          },
           Option(o.get("ctime")) match {
             case Some(date:String) => basicDateTime.parseDateTime(date)
             case None => null
@@ -434,11 +441,11 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     if( Collection.RetentionPolicy.withName(retentionPolicy.get) == LIVE ) {
       val purge = records.filter(_.ltime != null)
       val updating = records.filter(_.ltime == null)
+      upsert(updating)
       remove(purge ++ toRemove)
-      upsert(records)
     } else {
-      remove(toRemove)
       upsert(records)
+      remove(toRemove)
     }
     markCollectionModified
   }

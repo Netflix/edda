@@ -23,6 +23,7 @@ class RecordTest extends FunSuite {
   test("Apply") {
 
     val date = new DateTime(1)
+    val ftime = date
     val ctime = date
     val stime = date
     val ltime = null
@@ -30,38 +31,38 @@ class RecordTest extends FunSuite {
     val data = 1
     val tags = Map[String, Any]()
 
-    val expected = new Record("id", ctime, stime, ltime, mtime, data, tags)
+    val expected = new Record("id", ftime, ctime, stime, ltime, mtime, data, tags)
     val expectedJson = expected.toString
 
     expectResult(expectedJson) {
-      Record("id", 1).copy(ctime = date, stime = date, mtime = date).toString
+      Record("id", 1).copy(ftime = date, ctime = date, stime = date, mtime = date).toString
     }
 
     expectResult(true) {
-      expected.sameData(Record("id", 1).copy(ctime = date, stime = date, mtime = date))
+      expected.sameData(Record("id", 1).copy(ftime = date, ctime = date, stime = date, mtime = date))
     }
 
     expectResult(expectedJson) {
-      Record("id", date, 1).copy(stime = date, mtime = date).toString
+      Record("id", date, 1).copy(ftime = date, stime = date, mtime = date).toString
     }
 
     expectResult(true) {
-      expected.sameData(Record("id", date, 1).copy(stime = date, mtime = date))
+      expected.sameData(Record("id", date, 1).copy(ftime = date, stime = date, mtime = date))
     }
 
     expectResult(expectedJson) {
-      Record("id", date, date, null, date, 1, Map()).toString
+      Record("id", date, date, date, null, date, 1, Map()).toString
     }
 
     expectResult(true) {
-      expected.sameData(Record("id", date, date, null, date, 1, Map()))
+      expected.sameData(Record("id", date, date, date, null, date, 1, Map()))
     }
   }
 
   test("toMap") {
     val date = new DateTime(1)
-    val rec = Record("id", date, date, null, date, 1, Map())
-    val map = Map("id" -> "id", "ctime" -> date, "stime" -> date, "ltime" -> null, "mtime" -> date, "data" -> 1, "tags" -> Map())
+    val rec = Record("id", date, date, date, null, date, 1, Map())
+    val map = Map("id" -> "id", "ftime" -> date, "ctime" -> date, "stime" -> date, "ltime" -> null, "mtime" -> date, "data" -> 1, "tags" -> Map())
     expectResult(map) {
       rec.toMap
     }

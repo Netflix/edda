@@ -24,6 +24,7 @@ object Record {
     val now = DateTime.now
     new Record(
       id = id,
+      ftime = now,
       ctime = now,
       stime = now,
       ltime = null,
@@ -37,6 +38,7 @@ object Record {
     val now = DateTime.now
     new Record(
       id = id,
+      ftime = now,
       ctime = ctime,
       stime = now,
       ltime = null,
@@ -48,12 +50,13 @@ object Record {
   /** allows Record to be constructed like a case class */
   def apply(
              id: String,
+             ftime: DateTime,
              ctime: DateTime,
              stime: DateTime,
              ltime: DateTime,
              mtime: DateTime,
              data: Any,
-             tags: Map[String, Any]) = new Record(id, ctime, stime, ltime, mtime, data, tags)
+             tags: Map[String, Any]) = new Record(id, ftime, ctime, stime, ltime, mtime, data, tags)
 }
 
 /** simple record object that can be treated like a case class.
@@ -68,6 +71,7 @@ object Record {
   */
 class Record(
               val id: String,
+              val ftime: DateTime,
               val ctime: DateTime,
               val stime: DateTime,
               val ltime: DateTime,
@@ -78,17 +82,19 @@ class Record(
   /** copy to behave similar to case class */
   def copy(
             id: String = id,
+            ftime: DateTime = ftime,
             ctime: DateTime = ctime,
             stime: DateTime = stime,
             ltime: DateTime = ltime,
             mtime: DateTime = mtime,
             data: Any = data,
-            tags: Map[String, Any] = tags) = new Record(id, ctime, stime, ltime, mtime, data, tags)
+            tags: Map[String, Any] = tags) = new Record(id, ftime, ctime, stime, ltime, mtime, data, tags)
 
   /** flatten object into basic scala map */
   def toMap = {
     Map(
       "id" -> id,
+      "ftime" -> ftime,
       "ctime" -> ctime,
       "stime" -> stime,
       "ltime" -> ltime,

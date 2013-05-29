@@ -48,6 +48,7 @@ object MongoDatastore {
       case o: BasicDBObject =>
         Record(
           Option(o.get("id")).getOrElse(o.get("_id")).asInstanceOf[String],
+          new DateTime(Option(o.get("ftime")).getOrElse(o.get("ctime")).asInstanceOf[Date]),
           new DateTime(o.get("ctime").asInstanceOf[Date]),
           new DateTime(Option(o.get("stime")).getOrElse(o.get("ctime")).asInstanceOf[Date]),
           Option(o.get("ltime")) match {
@@ -297,6 +298,7 @@ class MongoDatastore(val name: String) extends Datastore {
           Map(
           "_id" -> name,
           "id" -> name,
+          "ftime" -> now,
           "ctime" -> now,
           "mtime" -> now,
           "stime" -> now,

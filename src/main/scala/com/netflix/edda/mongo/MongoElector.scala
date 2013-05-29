@@ -77,6 +77,7 @@ class MongoElector extends Elector {
           Map(
             "_id" -> "leader",
             "id" -> "leader",
+            "ftime" -> now,
             "ctime" -> now,
             "mtime" -> now,
             "stime" -> now,
