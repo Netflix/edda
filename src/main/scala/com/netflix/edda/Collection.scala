@@ -153,7 +153,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Collection is not enabled */
   override def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    if (enabled.get.toBoolean) super.addObserver(actor)(events) else Actor.self.reactWithin(0) { 
+    if (enabled.get.toBoolean) super.addObserver(actor)(events) else Actor.self.reactWithin(0) {
       case msg @ TIMEOUT => {
         logger.debug(Actor.self + " received: " + msg + " for disabled collection")
         events(Success(Observable.OK(Actor.self)))
@@ -239,7 +239,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
     // sometimes there are duplicates in oldRecords (upon first-load when we load all records
     // with null ltime) when we have a rogue writer (sometimes there are gaps between leadership
-    // changes). 
+    // changes).
     val oldSeen = scala.collection.mutable.Map[String,Record]()
     val oldMap = oldRecords.filter(r => {
       val in = oldSeen.contains(r.id)
@@ -306,7 +306,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         if (dataStore.isDefined) {
           dataStore.get.init()
         }
-        
+
         // routine to run on success of crawler addObserver call
         // or to run immediately if crawler is disabled
         def postObserver = {
@@ -317,7 +317,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           // listen to our own DeltaResult events
           def retry: Nothing = {
             this.addObserver(this) {
-              case Success(msg) => 
+              case Success(msg) =>
               case Failure(msg) => {
                 logger.error(Actor.self + " failed to add observer " + this + " to " + this + " with error: " + msg + ", retrying")
                 retry
@@ -326,7 +326,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           }
           retry
         }
-        
+
         if( Option(crawler).isDefined ) {
           crawler.addObserver(this) {
             case Success(msg) => postObserver
@@ -338,7 +338,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         }
         else postObserver
       }
-      
+
       if (Utils.getProperty("edda.collection", "jitter.enabled", name, "true").get.toBoolean) {
         val cacheRefresh = Utils.getProperty("edda.collection", "cache.refresh", name, "10000").get.toLong
         // adding in random jitter on start so we dont crush the datastore immediately if multiple
@@ -362,7 +362,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
    * just post-processes crawl results from another collection.
    */
   protected def allowCrawl = true
-  
+
   /** helper routine to calculate timeLeft before a Crawl request shoudl be made */
   def timeLeft(lastRun: DateTime, millis: Long): Long = {
     val timeLeft = millis - (DateTime.now.getMillis - lastRun.getMillis)
@@ -392,7 +392,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           var amLeader = false
           // crawl immediately the first time
           if (amLeader && allowCrawl) crawler.crawl()
-          
+
           var lastRun = DateTime.now
           Actor.self.loop {
             val timeout = if (amLeader) refresh.get.toLong else cacheRefresh.get.toLong
@@ -400,13 +400,13 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
               case msg @ TIMEOUT => {
                 logger.debug(Actor.self + " received: " + msg)
                 val full = if( timeLeft(lastFullLoad, cacheFullRefresh.get.toLong) > 0 ) false else true
-                if (amLeader) { 
+                if (amLeader) {
                   val purge = if( timeLeft(lastPurge, purgeFrequency.get.toLong) > 0 ) false else true
                   if( purge ) {
                     val msg = Purge(Actor.self)
                     logger.debug(Actor.self + " sending: " + msg + " -> " + this)
                     this ! msg
-                  }         
+                  }
                   if( allowCrawl ) crawler.crawl()
                 }
                 else {
@@ -539,10 +539,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                           if( !in ) seen += r.id
                           !in
                       })
-                      
+
                       val addRecs = uniqRecs.filter( rec => rec.ltime == null )
                       val delRecs = uniqRecs.filter( rec => rec.ltime != null )
-                      
+
                       val oldMap = localState(state).records.map(rec => rec.id -> rec).toMap
                       val addMap = addRecs.map( rec => rec.id -> rec).toMap
                       ((oldMap ++ addMap) -- delRecs.map(_.id)).values.toSeq.sortWith((a, b) => a.stime.isAfter(b.stime))
@@ -621,7 +621,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                 lazy val diff: String = Utils.diffRecords(Array(update.newRecord, update.oldRecord), Some(1), path)
                 logger.info("\n{}", diff)
               })
-            
+
             val msg = DeltaResult(this, d)
             Observable.localState(state).observers.foreach(o => {
               logger.debug(this + " sending: " + msg + " -> " + o)
@@ -633,7 +633,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             // this is from a Load so no need to calculate Delta
             processDelta(Delta(newRecords, Seq(), Seq(), Seq()))
           } else {
-            delta(newRecords, localState(state).records) { 
+            delta(newRecords, localState(state).records) {
               case Failure(error) => {
                 logger.error(this + " delta failed: " + error)
                 throw new java.lang.RuntimeException(this + " delta failed: " + error)

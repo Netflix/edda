@@ -115,7 +115,7 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
     client.setEndpoint("monitoring." + region + ".amazonaws.com")
     client
   }
- 
+
    /** get [[com.amazonaws.services.route53.AmazonRoute53Client]] object */
    def route53 = {
       val client = new AmazonRoute53Client(provider)

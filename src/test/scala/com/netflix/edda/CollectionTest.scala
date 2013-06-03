@@ -76,7 +76,7 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
       }
     }
   }
-  
+
   test("update") {
     val coll = new TestCollection
     coll.dataStore.get.records = Seq(Record("a", 1), Record("b", 2), Record("c", 3))

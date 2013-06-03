@@ -51,7 +51,7 @@ object StateMachine {
 
   /** sent in the case there are no matching case clauses for the the incoming message */
   case class UnknownMessageError(from: Actor, reason: String, message: Any) extends ErrorMessage
-  
+
   /** keep track of a local state for each subclass of the StateMachine. For the inheritance of
     * Collection->Queryable->Observable->StateMachine we could have separate states
     * for Collection, Queryable, and Observable. (in this case Queryable has no internal state)
@@ -163,7 +163,7 @@ class StateMachine extends Actor {
     * and react'ing to messages until it gets a Stop message. */
   final def act() {
     init()
-    Actor.self.react { 
+    Actor.self.react {
       case msg @ 'INIT => {
         var state = Utils.RETRY {
           initState
@@ -179,7 +179,7 @@ class StateMachine extends Actor {
             case message: Message => {
               if (!transitions.isDefinedAt(message, state)) {
                 logger.error("Unknown Message " + message + " sent from " + sender)
-                val msg = UnknownMessageError(this, "Unknown Message " + message, message) 
+                val msg = UnknownMessageError(this, "Unknown Message " + message, message)
                 logger.debug(this + " sending: " + msg + " -> " + sender)
                 sender ! msg
               }
@@ -194,7 +194,7 @@ class StateMachine extends Actor {
             }
             case message => {
               logger.error("Invalid Message " + message + " sent from " + sender)
-              val msg = InvalidMessageError(this, "Invalid Message " + message, message) 
+              val msg = InvalidMessageError(this, "Invalid Message " + message, message)
               logger.debug(this + " sending: " + msg + " -> " + sender)
               sender ! msg
             }
@@ -207,13 +207,13 @@ class StateMachine extends Actor {
   var handlers: PartialFunction[Exception,Unit] = {
     case e: Exception => logger.error(this + " caught exception", e)
   }
-    
+
   /** add a partial function to allow for specific exception
     * handling when needed
     * @param pf PartialFunction to handle exception types
     */
   def addExceptionHandler(pf: PartialFunction[Exception,Unit]) {
-    handlers = pf orElse handlers 
+    handlers = pf orElse handlers
   }
 
   /** setup exceptionHandler to use the custom handlers modified
