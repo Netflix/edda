@@ -326,7 +326,7 @@ class MongoDatastore(val name: String) extends Datastore {
   protected def upsert(record: Record) {
     try {
       primary.findAndModify(
-        mapToMongo(Map("_id" -> (record.id + "|" + record.stime.getMillis))), // query
+        mapToMongo(Map("_id" -> (record.toId()))), // query
         null, // fields
         null, // sort
         false, // remove
@@ -343,7 +343,7 @@ class MongoDatastore(val name: String) extends Datastore {
   }
 
   protected def remove(record: Record) {
-    remove(Map("_id" -> (record.id + "|" + record.stime.getMillis)));
+    remove(Map("_id" -> (record.toId())));
   }
 
   override def remove(queryMap: Map[String, Any]) {

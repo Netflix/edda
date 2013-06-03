@@ -456,7 +456,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
   protected def upsert(record: Record) {
     try {
       client.prepareIndex(writeAliasName, docType).
-        setId(record.id + "|" + record.stime.getMillis).
+        setId(record.toId()).
         setRouting(record.id).
         setSource(esToJson(record)).
         setConsistencyLevel(writeConsistency).
@@ -502,12 +502,12 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
 
   protected def remove(record: Record) {
     try {
-      val response = client.prepareDelete(writeAliasName, docType, record.id + "|" + record.stime.getMillis).
+      val response = client.prepareDelete(writeAliasName, docType, record.toId()).
         setRouting(record.id).
         execute().
         actionGet();
       if( response.isNotFound() ) {
-        logger.error(this + " failed to delete \"" + record.id + "|" + record.stime.getMillis + "\": Not Found")
+        logger.error(this + " failed to delete \"" + record.toId() + "\": Not Found")
       }
     } catch {
       case e: Exception => {
