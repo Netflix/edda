@@ -656,9 +656,9 @@ class GroupAutoScalingGroups(
       }
       case Success(results: QueryResult) => {
         val instanceMap = results.records.map(rec => rec.id -> rec).toMap
-        
+
         val oldMap = oldRecords.map(rec => rec.id -> rec).toMap
-        
+
         val modNewRecords = newRecords.map(
           asgRec => {
             val newInstances = assignSlots(
@@ -666,12 +666,12 @@ class GroupAutoScalingGroups(
               "instanceId",
               slotMap("instances"))
             val asgData = asgRec.data.asInstanceOf[Map[String, Any]]
-            
+
             val ctime = oldMap.get(asgRec.id) match {
               case Some(rec) => rec.ctime
               case None => asgRec.ctime
             }
-            
+
             val data = Map(
               "desiredCapacity" -> asgData.get("desiredCapacity").getOrElse(null),
               "instances" -> newInstances,
@@ -681,7 +681,7 @@ class GroupAutoScalingGroups(
               "minSize" -> asgData.get("minSize").getOrElse(null),
               "name" -> asgRec.id,
               "start" -> ctime)
-            
+
             asgRec.copy(data = data)
           })
         super.delta(modNewRecords, oldRecords)(events)

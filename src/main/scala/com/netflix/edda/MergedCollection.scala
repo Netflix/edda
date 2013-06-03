@@ -42,7 +42,7 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
           replyTo ! results
         }
         case Failure(error) => {
-          logger.error("query on " + coll + " failed: " + query + " with error: " + error) 
+          logger.error("query on " + coll + " failed: " + query + " with error: " + error)
           val msg = QueryError(this, error)
           logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
           replyTo ! msg
