@@ -196,7 +196,7 @@ object ElasticSearchDatastore {
       case (key: String, value: Any) => esFilterOp(key,value,"$eq")
       case (key: String, null) => esFilterOp(key,null,"$eq")
     } toSeq
-    
+
     if( queryMap.size > 1 ) {
       FilterBuilders.andFilter(filters.toSeq:_*)
     } else filters.head
@@ -224,7 +224,7 @@ object ElasticSearchDatastore {
       put("index.number_of_shards", shards).
       put("index.number_of_replicas",replicas).
       build()
-      
+
       try {
         ixClient.prepareCreate(name).
           setSettings(settings).
@@ -248,7 +248,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
   import ElasticSearchDatastore._
 
   lazy val client = initClient(name)
-        
+
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
   private val lowerName = name.toLowerCase
@@ -272,7 +272,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
 
     createIndex(
       client,
-      indexName, 
+      indexName,
       Utils.getProperty("edda", "elasticsearch.shards", name, "15").get.toInt,
       Utils.getProperty("edda", "elasticsearch.replicas", name, "2").get.toInt
     )
@@ -299,7 +299,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         )
       ).execute.actionGet
     }
-    
+
     // make sure the write alias exists
     if( ! ixClient.prepareExists(writeAliasName).execute().actionGet().isExists() ) {
       ixClient.prepareAliases().addAlias(indexName, writeAliasName).execute.actionGet
@@ -309,8 +309,8 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
   /** perform query on data store, see [[com.netflix.edda.Queryable.query()]] */
   def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
     // if query is for "null" ltime, then use the .live index alias
-    val builder = 
-      if( queryMap.contains("ltime") && queryMap("ltime") == null ) 
+    val builder =
+      if( queryMap.contains("ltime") && queryMap("ltime") == null )
         client.prepareSearch().setIndices(liveAliasName).setQuery(esQuery(queryMap - "ltime"))
       else
         client.prepareSearch().setIndices(aliasName).setQuery(esQuery(queryMap))
@@ -369,7 +369,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     logger.info("["+builder.request.indices.mkString(",")+"]" + " scan: " + builder.toString)
 
     var scrollResp: SearchResponse = builder.execute().actionGet()
-    
+
     //Scroll until no hits are returned
     var keepLooping = true
     var seq: Seq[Record] = Seq()
@@ -385,7 +385,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
           }
         }
       })
-      
+
       //Break condition: No hits are returned
       if (scrollResp.getHits().hits().length == 0) {
         keepLooping = false
@@ -394,7 +394,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     seq.sortWith((a, b) => a.stime.isAfter(b.stime))
   }
 
-  
+
   /** make changes to the data store depending on the Collection delta found after a Crawl result */
   def update(d: Collection.Delta) {
     var toRemove: Seq[Record] = Seq();
@@ -412,7 +412,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
           Seq(pair.oldRecord, pair.newRecord)
         }
       })
-    
+
     if( Collection.RetentionPolicy.withName(retentionPolicy.get) == LIVE ) {
       val purge = records.filter(_.ltime != null)
       val updating = records.filter(_.ltime == null)
@@ -424,7 +424,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     }
     markCollectionModified
   }
-  
+
   override def collectionModified: DateTime  = {
     // if query is for "null" ltime, then use the .live index alias
     val response = client.prepareGet(monitorIndexName, "collection_mark", name).setPreference("_primary").execute().actionGet()
@@ -434,7 +434,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       esToRecord(response.getSource).mtime
     }
   }
-  
+
   def markCollectionModified = {
     val markRec = Record(name, Map("updated" -> DateTime.now, "id" -> name, "type" -> "collection"))
     try {
@@ -456,7 +456,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
   protected def upsert(record: Record) {
     try {
       client.prepareIndex(writeAliasName, docType).
-        setId(record.id + "|" + record.stime.getMillis).
+        setId(record.toId()).
         setRouting(record.id).
         setSource(esToJson(record)).
         setConsistencyLevel(writeConsistency).
@@ -502,12 +502,12 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
 
   protected def remove(record: Record) {
     try {
-      val response = client.prepareDelete(writeAliasName, docType, record.id + "|" + record.stime.getMillis).
+      val response = client.prepareDelete(writeAliasName, docType, record.toId()).
         setRouting(record.id).
         execute().
         actionGet();
       if( response.isNotFound() ) {
-        logger.error(this + " failed to delete \"" + record.id + "|" + record.stime.getMillis + "\": Not Found")
+        logger.error(this + " failed to delete \"" + record.toId() + "\": Not Found")
       }
     } catch {
       case e: Exception => {
@@ -559,6 +559,6 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       }
     }
   }
-    
+
   override def toString = "[ElasticSearchDatastore " + name + "]"
 }

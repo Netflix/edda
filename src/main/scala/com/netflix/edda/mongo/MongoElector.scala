@@ -116,7 +116,7 @@ class MongoElector extends Elector {
                 ltime = null,
                 data = Map("instance" -> instance, "id" -> "leader", "type" -> "leader")),
               Some("leader")))
-          // if we got the update then we are leader and attempt to 
+          // if we got the update then we are leader and attempt to
           // archive the old leader record
           if (result == null) {
             isLeader = false

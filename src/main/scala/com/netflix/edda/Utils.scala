@@ -54,14 +54,14 @@ object Utils {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
   class EventStatus() {}
-  
+
   type EventHandlers = PartialFunction[EventStatus,Unit]
-  
+
   case class Success(event: Any) extends EventStatus
   case class Failure(event: Any) extends EventStatus
-  
+
   val DefaultEventHandlers: EventHandlers = {
-    case Success(event) => 
+    case Success(event) =>
     case Failure(event) => throw new java.lang.RuntimeException(event.toString)
   }
 
@@ -74,7 +74,7 @@ object Utils {
     *     case Success(results: QueryResult) => queryResults = results.records
     *   }
     * }
-    * }}}  
+    * }}}
     * @param action closure to run and wait for completion
     */
   object SYNC {
@@ -143,7 +143,7 @@ object Utils {
       * @param pf PartialFunction to handle exception types
       */
     def addExceptionHandler(pf: PartialFunction[Exception,Unit]) {
-        handlers = pf orElse handlers 
+        handlers = pf orElse handlers
     }
 
     /** setup exceptionHandler to use the custom handlers modified
@@ -379,7 +379,7 @@ object Utils {
       // the edda.config to the configuration composite
       val scheduler = new FixedDelayPollingScheduler
       val source = new URLConfigurationSource(
-        Thread.currentThread().getContextClassLoader().getResource(name) 
+        Thread.currentThread().getContextClassLoader().getResource(name)
       )
       val eddaConfig = new DynamicConfiguration(source, scheduler)
       composite.addConfiguration(eddaConfig, "eddaConfig")
