@@ -42,8 +42,8 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
   val leaderTimeout = Utils.getProperty("edda.elector", "leaderTimeout", "elasticsearch", "5000")
 
   private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get.replaceAll("[.]","_")
-  private lazy val writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticsearch.writeConsistency", monitorIndexName, "quorum").get )
-  private lazy val replicationType  = ReplicationType.fromString( Utils.getProperty("edda", "elasticsearch.replicationType", monitorIndexName, "async").get )
+  private def writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticsearch.writeConsistency", monitorIndexName, "quorum").get )
+  private def replicationType  = ReplicationType.fromString( Utils.getProperty("edda", "elasticsearch.replicationType", monitorIndexName, "async").get )
 
   private val docType = "leader"
 

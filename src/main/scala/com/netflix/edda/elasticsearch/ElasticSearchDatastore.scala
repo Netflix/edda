@@ -213,15 +213,22 @@ object ElasticSearchDatastore {
     if( queryMap.isEmpty ) QueryBuilders.matchAllQuery else QueryBuilders.constantScoreQuery(esFilter(queryMap))
   }
 
+  var clients: Map[String,Client] = Map();
   def initClient(name: String): Client = {
-    val settings: Settings = ImmutableSettings.settingsBuilder().put("cluster.name", Utils.getProperty("edda", "elasticsearch.cluster", name, "edda").get).build()
-    Utils.getProperty("edda", "elasticsearch.address", name, "edda").get.split(',').fold(new TransportClient(settings))(
-      (client, addr) => {
-        val parts = addr.asInstanceOf[String].split(':')
-        client.asInstanceOf[TransportClient].addTransportAddress(new InetSocketTransportAddress(parts.head, parts.tail.head.toInt))
+    this.synchronized {
+      val cluster = Utils.getProperty("edda", "elasticsearch.cluster", name, "elasticsearch").get;
+      val addresses = Utils.getProperty("edda", "elasticsearch.address", name, "127.0.0.1:9300").get;
+      if( ! clients.contains(cluster + "-" + addresses) ) {
+        val settings: Settings = ImmutableSettings.settingsBuilder().put("cluster.name", cluster).build()
+        clients += cluster + "-" + addresses -> addresses.split(',').fold(new TransportClient(settings))(
+          (client, addr) => {
+            val parts = addr.asInstanceOf[String].split(':')
+            client.asInstanceOf[TransportClient].addTransportAddress(new InetSocketTransportAddress(parts.head, parts.tail.head.toInt))
+          }
+        ).asInstanceOf[Client]
       }
-    ).asInstanceOf[Client]
-    // NodeBuilder.nodeBuilder().node().client()
+      clients(cluster + "-" + addresses)
+    }
   }
 
   def createIndex(client: Client, name: String, shards: Int, replicas: Int) {
@@ -267,8 +274,8 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
   private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get.replaceAll("[.]","_")
   private lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
 
-  private lazy val writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticsearch.writeConsistency", name, "quorum").get )
-  private lazy val replicationType  = ReplicationType.fromString( Utils.getProperty("edda", "elasticsearch.replicationType", name, "async").get )
+  private def writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticsearch.writeConsistency", name, "quorum").get )
+  private def replicationType  = ReplicationType.fromString( Utils.getProperty("edda", "elasticsearch.replicationType", name, "async").get )
 
   private lazy val scanBatchSize  = Utils.getProperty("edda", "elasticsearch.scanBatchSize", name, "1000");
   private lazy val scanCursorDuration  = Utils.getProperty("edda", "elasticsearch.scanCursorDuration", name, "60000");
@@ -279,7 +286,9 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     // to add other indexes in the future (in case we run out of room with the first
     // indexes)
     val nameParts = lowerName.split('.')
-    val indexName = Utils.getProperty("edda", "elasticsearch.index", name, nameParts.take(nameParts.size - 2).mkString("_") + "_1").get
+    val indexName = if( nameParts.size == 2 ) "edda_1" else {
+      Utils.getProperty("edda", "elasticsearch.index", name, nameParts.take(nameParts.size - 2).mkString("_") + "_1").get
+    }
 
     createIndex(
       client,
