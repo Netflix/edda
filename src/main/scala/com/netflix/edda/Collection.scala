@@ -170,9 +170,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       }
     }
   }
-
-  lazy val lastMtimeUpdated: DateTime = new DateTime(0);
-  lazy val lastMtime: DateTime = new DateTime(0);
+  
+  var lastMtimeUpdated: DateTime = new DateTime(0);
+  var lastMtime: DateTime = new DateTime(0);
 
   /** query datastore or in memory collection. */
   protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
