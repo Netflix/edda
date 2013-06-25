@@ -363,13 +363,13 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       val builder = search.setTypes(docType).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).addSort("stime", SortOrder.DESC).setFrom(0).setSize(limit);
       // add fields, but only 2 deep, beyond that we cannot infer the document structure from the response
       if( keys.size > 0 ) builder.addFields((keys + "stime").map(s => s.split('.').take(2).mkString(".")).toSet.toSeq:_*)
-      logger.info("["+builder.request.indices.mkString(",")+"]" + " fetch: " + builder.toString)
+      if (logger.isDebugEnabled) logger.debug("["+builder.request.indices.mkString(",")+"]" + " fetch: " + builder.toString)
       val searchResp = builder.execute().actionGet();
       searchResp.getHits().asScala.map(r => {
         try esToRecord(if(keys.size > 0) esFieldsFixup(r.getFields) else r.getSource)
         catch {
           case e: Exception => {
-            logger.error(this + " failed to parse record: " + r.getSource, e)
+            if (logger.isErrorEnabled) logger.error(this + " failed to parse record: " + r.getSource, e)
             throw e
           }
         }
@@ -377,7 +377,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      logger.info(this + " fetch lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(this + " fetch lapse: " + lapse + "ms")
     }
   }
 
@@ -394,7 +394,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       setSize(scanBatchSize.get.toInt)
     // add fields, but only 2 deep, beyond that we cannot infer the document structure from the response
     if( keys.size > 0 ) builder.addFields((keys + "stime").map(s => s.split('.').take(2).mkString(".")).toSet.toSeq:_*)
-    logger.info("["+builder.request.indices.mkString(",")+"]" + " scan: " + builder.toString)
+    if (logger.isDebugEnabled) logger.debug("["+builder.request.indices.mkString(",")+"]" + " scan: " + builder.toString)
 
     var scrollResp: SearchResponse = builder.execute().actionGet()
     
@@ -409,7 +409,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
           try esToRecord(if(keys.size > 0) esFieldsFixup(r.getFields) else r.getSource)
           catch {
             case e: Exception => {
-              logger.error(this + " failed to parse record: " + r.getSource, e)
+              if (logger.isErrorEnabled) logger.error(this + " failed to parse record: " + r.getSource, e)
               throw e
             }
           }
@@ -424,7 +424,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      logger.info(this + " scan lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(this + " scan lapse: " + lapse + "ms")
     }
   }
 
@@ -463,7 +463,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     // if query is for "null" ltime, then use the .live index alias
     val t0 = System.nanoTime()
     try {
-      val response = client.prepareGet(monitorIndexName, "collection_mark", name).setPreference("_primary").execute().actionGet()
+      val response = client.prepareGet(monitorIndexName, "collection_mark", name).execute().actionGet()
       if( response == null || !response.isExists )
         DateTime.now
       else {
@@ -472,7 +472,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      logger.info(this + " get collection_mark: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(this + " get collection_mark: " + lapse + "ms")
     }
   }
   
@@ -489,13 +489,13 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         actionGet();
     } catch {
       case e: Exception => {
-        logger.error("failed to index record: " + markRec, e)
+        if (logger.isErrorEnabled) logger.error("failed to index record: " + markRec, e)
         throw e
       }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      logger.info(this + " update collection_mark: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(this + " update collection_mark: " + lapse + "ms")
     }
   }
 
@@ -512,13 +512,13 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         actionGet();
     } catch {
       case e: Exception => {
-        logger.error("failed to index record: " + record, e)
+        if (logger.isErrorEnabled) logger.error("failed to index record: " + record, e)
         throw e
       }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      logger.info(this + " upsert: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(this + " upsert: " + lapse + "ms")
     }
   }
 
@@ -543,19 +543,19 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         val response = bulk.execute.actionGet
         if( response.hasFailures() ) {
           val err = this + " failed to bulk index: " + response.buildFailureMessage()
-          logger.error(err)
+          if (logger.isErrorEnabled) logger.error(err)
           throw new java.lang.RuntimeException(err)
         }
       })
     }
     catch {
       case e: Exception => {
-        logger.error("failed to bulk index records", e)
+        if (logger.isErrorEnabled) logger.error("failed to bulk index records", e)
       }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      logger.info(this + " bulk upsert lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(this + " bulk upsert lapse: " + lapse + "ms")
     }
   }
 
@@ -567,17 +567,17 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         execute().
         actionGet();
       if( response.isNotFound() ) {
-        logger.error(this + " failed to delete \"" + record.id + "|" + record.stime.getMillis + "\": Not Found")
+        if (logger.isErrorEnabled) logger.error(this + " failed to delete \"" + record.id + "|" + record.stime.getMillis + "\": Not Found")
       }
     } catch {
       case e: Exception => {
-        logger.error("failed to delete record: " + record, e)
+        if (logger.isErrorEnabled) logger.error("failed to delete record: " + record, e)
         throw e
       }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      logger.info(this + " remove lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(this + " remove lapse: " + lapse + "ms")
     }
   }
 
@@ -592,18 +592,18 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       // FIXME need to upgrade elasticsearch so that DeleteByQueryResponse has status() member
       // if( response.status() != RestStatus.OK ) {
       //   val err = this + " failed to delete with query " + queryMap.toString
-      //   logger.error(err)
+      //   if (logger.isErrorEnabled) logger.error(err)
       //   throw new java.lang.RuntimeException(err)
       // }
     } catch {
       case e: Exception => {
-        logger.error("failed to delete records: " + queryMap, e)
+        if (logger.isErrorEnabled) logger.error("failed to delete records: " + queryMap, e)
         throw e
       }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      logger.info(this + " remove by query lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(this + " remove by query lapse: " + lapse + "ms")
     }
   }
 
@@ -621,18 +621,18 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         })
         val response = bulk.execute.actionGet
         if( response.hasFailures() ) {
-          logger.error(this + " failed to bulk delete: " + response.buildFailureMessage())
+          if (logger.isErrorEnabled) logger.error(this + " failed to bulk delete: " + response.buildFailureMessage())
         }
       })
     }
     catch {
       case e: Exception => {
-        logger.error("failed to bulk index records", e)
+        if (logger.isErrorEnabled) logger.error("failed to bulk index records", e)
       }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      logger.info(this + " bulk remove lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(this + " bulk remove lapse: " + lapse + "ms")
     }
   }
     

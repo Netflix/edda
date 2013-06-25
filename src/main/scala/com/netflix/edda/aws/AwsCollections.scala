@@ -146,7 +146,7 @@ object AwsCollection {
         val id = inst("instanceId").asInstanceOf[String]
         val bool = instanceMap.contains(id)
         if (!bool) {
-          logger.warn("asg: " + asgRec.id + " contains unknown instance: " + id)
+          if (logger.isWarnEnabled) logger.warn("asg: " + asgRec.id + " contains unknown instance: " + id)
         }
         bool
       }).map(asgInst => {
@@ -651,7 +651,7 @@ class GroupAutoScalingGroups(
     val slotMap = groupSlots(oldRecords)
     instanceCollection.query(instanceQuery) {
       case Failure(error) => {
-        logger.error("Failed to query " + instanceCollection + ": " + error)
+        if (logger.isErrorEnabled) logger.error("Failed to query " + instanceCollection + ": " + error)
         throw new java.lang.RuntimeException("Failed to query " + instanceCollection + ": " + error)
       }
       case Success(results: QueryResult) => {

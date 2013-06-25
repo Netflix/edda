@@ -130,7 +130,7 @@ class MongoElector extends Elector {
       }
     }
 
-    logger.info("Leader [" + instance + "]: " + isLeader + " [" + leader + "]")
+    if (logger.isInfoEnabled) logger.info("Leader [" + instance + "]: " + isLeader + " [" + leader + "]")
     isLeader
   }
 

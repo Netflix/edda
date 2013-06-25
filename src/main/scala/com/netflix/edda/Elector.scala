@@ -52,7 +52,7 @@ abstract class Elector extends Observable {
   /** synchronous call to the StateMachine to fetch the leadership status */
   def isLeader: Boolean = {
     val msg = IsLeader(Actor.self)
-    logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 10000ms timeout")
+    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 10000ms timeout")
     this !?(10000, msg) match {
       case Some(ElectionResult(from, result)) => result
       case Some(message) => throw new java.lang.UnsupportedOperationException("Failed to determine leadership: " + message)
@@ -73,7 +73,7 @@ abstract class Elector extends Observable {
   protected override def init() {
     Utils.NamedActor(this + " init") {
       val msg = RunElection(Actor.self)
-      logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+      if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
       this ! msg
       electionPoller()
       super.init
@@ -81,7 +81,7 @@ abstract class Elector extends Observable {
       def retry: Nothing = {
         this.addObserver(this) {
           case Failure(msg) => {
-            logger.error(Actor.self + "failed to add observer " + this + " to " + this + ", retrying")
+            if (logger.isErrorEnabled) logger.error(Actor.self + "failed to add observer " + this + " to " + this + ", retrying")
             retry
           }
           case Success(msg) =>
@@ -97,15 +97,15 @@ abstract class Elector extends Observable {
       Actor.self.loop {
         Actor.self.reactWithin(pollCycle.get.toInt) {
           case got @ TIMEOUT => {
-            logger.debug(Actor.self + " received: " + got)
+            if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + got)
             val msg = RunElection(Actor.self)
-            logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+            if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
             this ! msg
           }
         }
       }
     }.addExceptionHandler({
-      case e: Exception => logger.error(this + " failed to refresh", e)
+      case e: Exception => if (logger.isErrorEnabled) logger.error(this + " failed to refresh", e)
     })
   }
 
@@ -119,7 +119,7 @@ abstract class Elector extends Observable {
         val result = runElection()
         val msg = ElectionResult(this, result)
         Observable.localState(state).observers.foreach(o => {
-            logger.debug(this + " sending: " + msg + " -> " + o)
+            if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + o)
             o ! msg
         })
       }
@@ -130,7 +130,7 @@ abstract class Elector extends Observable {
     }
     case (IsLeader(from), state) => {
       val msg = ElectionResult(this, localState(state).isLeader)
-      logger.debug(this + " sending: " + msg + " -> " + sender)
+      if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + sender)
       sender ! msg
       state
     }

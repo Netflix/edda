@@ -145,7 +145,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     if (enabled.get.toBoolean) super.query(queryMap, limit, live || liveOverride.get.toBoolean, keys, replicaOk)(events) else Actor.self.reactWithin(0) {
       case msg @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + msg + " for disabled collection")
+        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " for disabled collection")
         events(Success(QueryResult(Actor.self,Seq.empty)))
       }
     }
@@ -155,7 +155,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   override def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     if (enabled.get.toBoolean) super.addObserver(actor)(events) else Actor.self.reactWithin(0) { 
       case msg @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + msg + " for disabled collection")
+        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " for disabled collection")
         events(Success(Observable.OK(Actor.self)))
       }
     }
@@ -165,11 +165,14 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   override def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     if (enabled.get.toBoolean) super.delObserver(actor)(events) else Actor.self.reactWithin(0) {
       case msg @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + msg + " for disabled collection")
+        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " for disabled collection")
         events(Success(Observable.OK(Actor.self)))
       }
     }
   }
+
+  lazy val lastMtimeUpdated: DateTime = new DateTime(0);
+  lazy val lastMtime: DateTime = new DateTime(0);
 
   /** query datastore or in memory collection. */
   protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
@@ -178,7 +181,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       if (dataStore.isDefined) {
         return dataStore.get.query(queryMap, limit, keys, replicaOk)
       } else {
-        logger.warn("Datastore is not available, applying query to cached records")
+        if (logger.isWarnEnabled) logger.warn("Datastore is not available, applying query to cached records")
       }
     }
     val recs = if (queryMap.isEmpty) {
@@ -187,8 +190,12 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       firstOf(limit, localState(state).records.filter(record => ctx.recordMatcher.doesMatch(queryMap, record.toMap)))
     }
     if( dataStore.isDefined ) {
-        val mtime = dataStore.get.collectionModified
-        recs.map(_.copy(mtime=mtime))
+      val now = DateTime.now;
+      if( now.getMillis - lastMtimeUpdated.getMillis > 10000 ) {
+        lastMtime = dataStore.get.collectionModified
+        lastMtimeUpdated = now
+      }
+      recs.map(_.copy(mtime=lastMtime))
     } else recs
   }
 
@@ -204,7 +211,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       lastFullLoad = now
       records
     } else {
-      logger.warn("Datastore is not available for load()")
+      if (logger.isWarnEnabled) logger.warn("Datastore is not available for load()")
       Seq()
     }
   }
@@ -213,7 +220,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     if (dataStore.isDefined) {
       dataStore.get.update(d)
     } else {
-      logger.warn("Datastore is not available, skipping update")
+      if (logger.isWarnEnabled) logger.warn("Datastore is not available, skipping update")
     }
   }
 
@@ -283,7 +290,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       case rec: Record => rec
     }
 
-    logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + remove.size)
+    if (logger.isInfoEnabled) logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + remove.size)
     Actor.self.reactWithin(0) {
       case TIMEOUT => {
         events(Success(Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = remove)))
@@ -319,7 +326,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             this.addObserver(this) {
               case Success(msg) => 
               case Failure(msg) => {
-                logger.error(Actor.self + " failed to add observer " + this + " to " + this + " with error: " + msg + ", retrying")
+                if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + this + " with error: " + msg + ", retrying")
                 retry
               }
             }
@@ -331,7 +338,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           crawler.addObserver(this) {
             case Success(msg) => postObserver
             case Failure(msg) => {
-              logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + " with error: " + msg + ", retrying")
+              if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + " with error: " + msg + ", retrying")
               postJitter
             }
           }
@@ -345,10 +352,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         // systems are coming up at the same time
         val rand = new Random
         val jitter = (cacheRefresh * rand.nextDouble).toLong
-        logger.info(this + " start delayed by " + jitter + "ms")
+        if (logger.isInfoEnabled) logger.info(this + " start delayed by " + jitter + "ms")
         Actor.self.reactWithin(jitter) {
           case msg @ TIMEOUT => {
-            logger.debug(Actor.self + " received: " + msg + " for jitter timeout")
+            if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " for jitter timeout")
             postJitter
           }
         }
@@ -385,7 +392,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     NamedActor(this + " refresher") {
       elector.addObserver(Actor.self) {
         case Failure(msg) => {
-          logger.error(Actor.self + " failed to addObserver: " + msg)
+          if (logger.isErrorEnabled) logger.error(Actor.self + " failed to addObserver: " + msg)
           refresher
         }
         case Success(msg) => {
@@ -398,26 +405,26 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             val timeout = if (amLeader) refresh.get.toLong else cacheRefresh.get.toLong
             Actor.self.reactWithin(timeLeft(lastRun, timeout)) {
               case msg @ TIMEOUT => {
-                logger.debug(Actor.self + " received: " + msg)
+                if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
                 val full = if( timeLeft(lastFullLoad, cacheFullRefresh.get.toLong) > 0 ) false else true
                 if (amLeader) { 
                   val purge = if( timeLeft(lastPurge, purgeFrequency.get.toLong) > 0 ) false else true
                   if( purge ) {
                     val msg = Purge(Actor.self)
-                    logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+                    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
                     this ! msg
                   }         
                   if( allowCrawl ) crawler.crawl()
                 }
                 else {
                   val msg = Load(Actor.self,full)
-                  logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+                  if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
                   this ! msg
                 }
                 lastRun = DateTime.now
               }
               case msg @ Elector.ElectionResult(from, result) => {
-                logger.debug(Actor.self + " received: " + msg + " from " + sender)
+                if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
                 // if we just became leader, then start a crawl
                 if (!amLeader && result) {
                   val rand = new Random
@@ -425,7 +432,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                   val purgeJitter = (purgeFrequency.get.toLong * .2 * rand.nextDouble).toLong * (if( rand.nextBoolean ) 1 else -1);
                   val lastPurge = new DateTime( DateTime.now().getMillis + purgeJitter)
                   val msg = SyncLoad(Actor.self)
-                  logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+                  if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
                   this ! msg
                   Actor.self.reactWithin(300000) {
                     case msg @ OK(frm) => {
@@ -434,7 +441,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                       amLeader = result
                     }
                     case msg @ TIMEOUT => {
-                      logger.error(this + " failed to reload data in 5m as we became leader")
+                      if (logger.isErrorEnabled) logger.error(this + " failed to reload data in 5m as we became leader")
                       throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data in 5m as we became leader")
                     }
                   }
@@ -446,7 +453,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         }
       }
     }.addExceptionHandler({
-      case e: Exception => logger.error(this + " failed to refresh", e)
+      case e: Exception => if (logger.isErrorEnabled) logger.error(this + " failed to refresh", e)
     })
   }
 
@@ -491,7 +498,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       stopwatch.stop()
     }
     loadCounter.increment()
-    logger.info("{} Loaded {} records in {} sec", toObjects(
+    if (logger.isInfoEnabled) logger.info("{} Loaded {} records in {} sec", toObjects(
       this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
     records
   }
@@ -508,10 +515,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       NamedActor(this + " SyncLoad processor") {
         val records = doLoad(replicaOk = false)
         val msg = Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
-        logger.debug(this + " sending: " + msg + " -> " + this)
+        if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + this)
         this ! msg
         val msg2 = OK(this)
-        logger.debug(this + " sending: " + msg2 + " -> " + replyTo)
+        if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg2 + " -> " + replyTo)
         replyTo ! msg2
       }
       state
@@ -524,7 +531,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           val stopwatch = loadTimer.start()
           val records = try {
               if( full ) {
-                  logger.info(this + " doing full reload of collection");
+                  if (logger.isInfoEnabled) logger.info(this + " doing full reload of collection");
                   doLoad(replicaOk = true)
               }
               else {
@@ -557,11 +564,11 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                   stopwatch.stop()
           }
           loadCounter.increment()
-          logger.info("{} Loaded {} records in {} sec", toObjects(
+          if (logger.isInfoEnabled) logger.info("{} Loaded {} records in {} sec", toObjects(
               this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
 
           val msg = Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
-          logger.debug(this + " sending: " + msg + " -> " + this)
+          if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + this)
           this ! msg
       }
       state
@@ -584,7 +591,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
               dataStore.get.remove(Map("ltime" -> Map("$ne" -> null)))
             }
             case PurgePolicy.LAST => {
-              logger.warn(this + " LAST PurgePolicy is not yet implelemented")
+              if (logger.isWarnEnabled) logger.warn(this + " LAST PurgePolicy is not yet implelemented")
             }
             case PurgePolicy.AGE => {
               val options = purgePolicyOptions.asInstanceOf[Map[String,String]]
@@ -593,7 +600,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                 dataStore.get.remove(Map("ltime" -> Map("$lt" -> new DateTime( DateTime.now.getMillis - expiry ))))
               }
               else {
-                logger.error(this + " AGE PurgePolicy requires expiry option to be specified, such as AGE;expiry=2678400000")
+                if (logger.isErrorEnabled) logger.error(this + " AGE PurgePolicy requires expiry option to be specified, such as AGE;expiry=2678400000")
               }
             }
           }
@@ -610,21 +617,21 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             lazy val path = name.replace('.', '/')
             d.added.foreach(
               rec => {
-                logger.info("Added {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
+                if (logger.isInfoEnabled) logger.info("Added {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
               })
             d.removed.foreach(
               rec => {
-                logger.info("Removing {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
+                if (logger.isInfoEnabled) logger.info("Removing {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
               })
             d.changed.foreach(
               update => {
                 lazy val diff: String = Utils.diffRecords(Array(update.newRecord, update.oldRecord), Some(1), path)
-                logger.info("\n{}", diff)
+                if (logger.isInfoEnabled) logger.info("\n{}", diff)
               })
             
             val msg = DeltaResult(this, d)
             Observable.localState(state).observers.foreach(o => {
-              logger.debug(this + " sending: " + msg + " -> " + o)
+              if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + o)
               o ! msg
             })
           }
@@ -635,7 +642,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           } else {
             delta(newRecords, localState(state).records) { 
               case Failure(error) => {
-                logger.error(this + " delta failed: " + error)
+                if (logger.isErrorEnabled) logger.error(this + " delta failed: " + error)
                 throw new java.lang.RuntimeException(this + " delta failed: " + error)
               }
               case Success(delta: Delta) => processDelta(delta)
@@ -662,7 +669,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             } finally {
               stopwatch.stop()
             }
-            logger.info("{} Updated {} records(Changed: {}, Added: {}, Removed: {}) in {} sec", toObjects(
+            if (logger.isInfoEnabled) logger.info("{} Updated {} records(Changed: {}, Added: {}, Removed: {}) in {} sec", toObjects(
               this, d.records.size, d.changed.size, d.added.size, d.removed.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
           }
         }
@@ -678,19 +685,19 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   /** if collection is enabled start elector, start crawler first */
   override def start(): Actor = {
     if (enabled.get.toBoolean) {
-      logger.info("Starting " + this)
+      if (logger.isInfoEnabled) logger.info("Starting " + this)
       Option(elector).foreach(_.start())
       Option(crawler).foreach(_.start())
       super.start()
     } else {
-      logger.info("Collection " + name + " is disabled, not starting")
+      if (logger.isInfoEnabled) logger.info("Collection " + name + " is disabled, not starting")
       this
     }
   }
 
   /** stop elector, crawler and shutdown ForkJoin special scheduler */
   override def stop() {
-    logger.info("Stopping " + this)
+    if (logger.isInfoEnabled) logger.info("Stopping " + this)
     Option(elector).foreach(_.stop())
     Option(crawler).foreach(_.stop())
     // fjScheduler.shutdown()

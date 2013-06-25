@@ -38,13 +38,13 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
     Actor.actor {
       coll.query(query.query, query.limit, query.live, query.keys, query.replicaOk) {
         case Success(results: QueryResult) => {
-          logger.debug(Actor.self + " sending: " + results + " -> " + replyTo)
+          if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + results + " -> " + replyTo)
           replyTo ! results
         }
         case Failure(error) => {
-          logger.error("query on " + coll + " failed: " + query + " with error: " + error) 
+          if (logger.isErrorEnabled) logger.error("query on " + coll + " failed: " + query + " with error: " + error) 
           val msg = QueryError(this, error)
-          logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
+          if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
           replyTo ! msg
         }
       }
@@ -71,7 +71,7 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
                   expected -= 1
                   if( expected == 0 ) {
                     val msg = QueryResult(this, firstOf(limit, merged.sortWith((a, b) => a.stime.isAfter(b.stime))))
-                    logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
+                    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
                     replyTo ! msg
                   }
                 }
@@ -95,14 +95,14 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
 
   /** start the actors for all the merged collections then start this actor */
   override def start() = {
-    logger.info("Starting " + this)
+    if (logger.isInfoEnabled) logger.info("Starting " + this)
     collections.foreach(_.start())
     super.start()
   }
 
   /** stop the actors for all the merged collections then stop this actor */
   override def stop() {
-    logger.info("Stopping " + this)
+    if (logger.isInfoEnabled) logger.info("Stopping " + this)
     collections.foreach(_.stop())
     super.stop()
   }

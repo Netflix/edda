@@ -64,25 +64,25 @@ abstract class Queryable extends Observable {
   def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     val stopwatch = queryTimer.start()
     val msg = Query(Actor.self, queryMap, limit, live, keys, replicaOk)
-    logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with " + queryTimeout + "ms timeout")
+    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with " + queryTimeout + "ms timeout")
     this ! msg
     Actor.self.reactWithin(queryTimeout) {
       case msg @ QueryResult(from, results) => {
         stopwatch.stop()
         queryCounter.increment()
-        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
         events(Success(msg))
       }
       case msg @ QueryError(from, results) => {
         stopwatch.stop()
         queryErrorCounter.increment()
-        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
         events(Failure(msg))
       }
       case msg @ TIMEOUT => {
         stopwatch.stop()
         queryErrorCounter.increment()
-        logger.debug(Actor.self + " received: " + msg)
+        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
         events(Failure((msg, queryTimeout)))
       }
     }
@@ -102,7 +102,7 @@ abstract class Queryable extends Observable {
       val replyTo = sender
       Utils.NamedActor(this + " Query processor") {
         val msg = QueryResult(this, doQuery(queryMap, limit, live, keys, replicaOk, state))
-        logger.debug(this + " sending: " + msg + " -> " + replyTo)
+        if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + replyTo)
         replyTo ! msg
       }
       state

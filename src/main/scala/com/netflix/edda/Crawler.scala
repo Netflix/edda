@@ -59,7 +59,7 @@ abstract class Crawler extends Observable {
   def crawl() {
     if (enabled.get.toBoolean) {
       val msg = Crawl(Actor.self)
-      logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+      if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
       this ! msg
     }
   }
@@ -68,7 +68,7 @@ abstract class Crawler extends Observable {
   override def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     if (enabled.get.toBoolean) super.addObserver(actor)(events) else Actor.self.reactWithin(0) {
       case got @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + got + " for disabled crawler")
+        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + got + " for disabled crawler")
         events(Success(Observable.OK(Actor.self)))
       }
     }
@@ -78,7 +78,7 @@ abstract class Crawler extends Observable {
   override def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     if (enabled.get.toBoolean) super.delObserver(actor)(events) else Actor.self.reactWithin(0) {
       case got @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + got + " for disabled crawler")
+        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + got + " for disabled crawler")
         events(Success(Observable.OK(Actor.self)))
       }
     }
@@ -127,12 +127,12 @@ abstract class Crawler extends Observable {
         stopwatch.stop()
       }
 
-      logger.info("{} Crawled {} records in {} sec", toObjects(
+      if (logger.isInfoEnabled) logger.info("{} Crawled {} records in {} sec", toObjects(
         this, newRecords.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000D -> "%.2f"))
       crawlCounter.increment(newRecords.size)
       Observable.localState(state).observers.foreach(o => {
           val msg = Crawler.CrawlResult(this, newRecords)
-          logger.debug(this + " sending: " + msg + " -> " + o)
+          if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + o)
           o ! msg
       })
       setLocalState(state, CrawlerState(records = newRecords))

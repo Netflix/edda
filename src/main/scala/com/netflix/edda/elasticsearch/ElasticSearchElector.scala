@@ -101,7 +101,7 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      logger.info(this + " get leader lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(this + " get leader lapse: " + lapse + "ms")
     }
     if( response == null || !response.isExists ) {
       val t0 = System.nanoTime()
@@ -119,13 +119,13 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
           isLeader = true
       } catch {
         case e: Exception => {
-          logger.error("failed to create leader record: " + e.getMessage)
+          if (logger.isErrorEnabled) logger.error("failed to create leader record: " + e.getMessage)
           isLeader = false
         }
       } finally {
         val t1 = System.nanoTime()
         val lapse = (t1 - t0) / 1000000;
-        logger.info(this + " create leader lapse: " + lapse + "ms")
+        if (logger.isInfoEnabled) logger.info(this + " create leader lapse: " + lapse + "ms")
       }
     } else {
       val leaderRec = esToRecord(response.getSource)
@@ -147,13 +147,13 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
           isLeader = true
         } catch {
           case e: Exception => {
-            logger.error("failed to update mtime for leader record: " + e.getMessage)
+            if (logger.isErrorEnabled) logger.error("failed to update mtime for leader record: " + e.getMessage)
             isLeader = false
           }
         } finally {
           val t1 = System.nanoTime()
           val lapse = (t1 - t0) / 1000000;
-          logger.info(this + " index leader (update mtime) lapse: " + lapse + "ms")
+          if (logger.isInfoEnabled) logger.info(this + " index leader (update mtime) lapse: " + lapse + "ms")
         }
       } else {
         val timeout = DateTime.now().plusMillis(-1 * (pollCycle.get.toInt + leaderTimeout.get.toInt))
@@ -183,18 +183,18 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
               actionGet()
           } catch {
             case e: Exception => {
-              logger.error("failed to update leader for leader record: " + e.getMessage)
+              if (logger.isErrorEnabled) logger.error("failed to update leader for leader record: " + e.getMessage)
               isLeader = false
             }
           } finally {
             val t1 = System.nanoTime()
             val lapse = (t1 - t0) / 1000000;
-            logger.info(this + " index leader + archive old leader lapse: " + lapse + "ms")
+            if (logger.isInfoEnabled) logger.info(this + " index leader + archive old leader lapse: " + lapse + "ms")
           }
         }
       }
     }
-    logger.info("Leader [" + instance + "]: " + isLeader + " [" + leader + "]")
+    if (logger.isInfoEnabled) logger.info("Leader [" + instance + "]: " + isLeader + " [" + leader + "]")
     isLeader
   }
 

@@ -98,7 +98,7 @@ class StateMachine extends Actor {
 
   protected def init() {
     val msg = 'INIT
-    logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
     this ! msg
   }
 
@@ -113,7 +113,7 @@ class StateMachine extends Actor {
   /** stop the state machine */
   def stop() {
     val msg = Stop(Actor.self)
-    logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
     this ! msg
   }
 
@@ -168,34 +168,34 @@ class StateMachine extends Actor {
         var state = Utils.RETRY {
           initState
         }
-        logger.debug(this + " received: " + msg + " from " + sender)
+        if (logger.isDebugEnabled) logger.debug(this + " received: " + msg + " from " + sender)
         var keepLooping = true
         Actor.self.loopWhile(keepLooping) {
           Actor.self.react {
             case msg @ Stop(from) => {
-              logger.debug(this + " received: " + msg + " from " + sender)
+              if (logger.isDebugEnabled) logger.debug(this + " received: " + msg + " from " + sender)
               keepLooping = false
             }
             case message: Message => {
               if (!transitions.isDefinedAt(message, state)) {
-                logger.error("Unknown Message " + message + " sent from " + sender)
+                if (logger.isErrorEnabled) logger.error("Unknown Message " + message + " sent from " + sender)
                 val msg = UnknownMessageError(this, "Unknown Message " + message, message) 
-                logger.debug(this + " sending: " + msg + " -> " + sender)
+                if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + sender)
                 sender ! msg
               }
-              logger.debug(this + " received: " + message + " from " + sender)
+              if (logger.isDebugEnabled) logger.debug(this + " received: " + message + " from " + sender)
               try {
                 state = transitions(message, state)
               } catch {
                 case e: Exception => {
-                  logger.error("failed to handle event " + message, e)
+                  if (logger.isErrorEnabled) logger.error("failed to handle event " + message, e)
                 }
               }
             }
             case message => {
-              logger.error("Invalid Message " + message + " sent from " + sender)
+              if (logger.isErrorEnabled) logger.error("Invalid Message " + message + " sent from " + sender)
               val msg = InvalidMessageError(this, "Invalid Message " + message, message) 
-              logger.debug(this + " sending: " + msg + " -> " + sender)
+              if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + sender)
               sender ! msg
             }
           }
@@ -205,7 +205,7 @@ class StateMachine extends Actor {
   }
 
   var handlers: PartialFunction[Exception,Unit] = {
-    case e: Exception => logger.error(this + " caught exception", e)
+    case e: Exception => if (logger.isErrorEnabled) logger.error(this + " caught exception", e)
   }
     
   /** add a partial function to allow for specific exception

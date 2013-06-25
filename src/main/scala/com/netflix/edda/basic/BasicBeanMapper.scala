@@ -79,7 +79,7 @@ class BasicBeanMapper extends BeanMapper {
     case v: AnyRef => Some(fromBean(v))
     case null => Some(null)
     case other => {
-      logger.warn("dont know how to make value from " + other)
+      if (logger.isWarnEnabled) logger.warn("dont know how to make value from " + other)
       None
     }
   }

@@ -222,13 +222,13 @@ class MongoDatastore(val name: String) extends Datastore {
       if( limit > 0 ) seq else seq.sortWith((a, b) => a.stime.isAfter(b.stime))
     } catch {
        case e: Exception => {
-            logger.error(this + " query failed: " + queryMap + " limit: " + limit + " keys: " + keys + " replicaOk: " + replicaOk, e)
+            if (logger.isErrorEnabled) logger.error(this + " query failed: " + queryMap + " limit: " + limit + " keys: " + keys + " replicaOk: " + replicaOk, e)
             throw e
         }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      logger.info(this + " query: " + queryMap + " lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(this + " query: " + queryMap + " lapse: " + lapse + "ms")
       cursor.close()
     }
   }
@@ -247,7 +247,7 @@ class MongoDatastore(val name: String) extends Datastore {
     }
     try {
       val x = cursor.asScala.map(mongoToRecord(_)).toSeq.map(_.copy(mtime=mtime)).sortWith((a, b) => a.stime.isAfter(b.stime))
-      logger.info(this + " Loaded " + x.size + " records")
+      if (logger.isInfoEnabled) logger.info(this + " Loaded " + x.size + " records")
       x
     } catch {
       case e: Exception => {
@@ -310,7 +310,7 @@ class MongoDatastore(val name: String) extends Datastore {
       )
     } catch {
       case e: Exception => {
-        logger.error(this + "failed to update collection mtime", e)
+        if (logger.isErrorEnabled) logger.error(this + "failed to update collection mtime", e)
         throw e
       }
     }
@@ -338,7 +338,7 @@ class MongoDatastore(val name: String) extends Datastore {
       )
     } catch {
       case e: Exception => {
-        logger.error("failed to upsert record: " + record)
+        if (logger.isErrorEnabled) logger.error("failed to upsert record: " + record)
         throw e
       }
     }
@@ -353,7 +353,7 @@ class MongoDatastore(val name: String) extends Datastore {
       primary.remove(mapToMongo(queryMap))
     } catch {
       case e: Exception => {
-        logger.error("failed to remove records: " + queryMap)
+        if (logger.isErrorEnabled) logger.error("failed to remove records: " + queryMap)
         throw e
       }
     }
