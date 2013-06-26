@@ -178,7 +178,7 @@ class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) 
     if (tagCount == 0) {
       if (abortWithoutTags.get.toBoolean) {
         throw new java.lang.RuntimeException("no tags found for any record in " + name + ", ignoring crawl results")
-      } else logger.warn("no tags found for any record in " + name + ".  " +
+      } else if (logger.isWarnEnabled) logger.warn("no tags found for any record in " + name + ".  " +
         "If you expect at least one tag then set: edda.crawler." + name + ".abortWithoutTags=true")
     }
     list
@@ -329,7 +329,7 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
         catch {
           case e: Exception => {
             failed = true
-            logger.error(this + " exception from describeInstanceHealth", e)
+            if (logger.isErrorEnabled) logger.error(this + " exception from describeInstanceHealth", e)
             None
           }
         }
@@ -351,7 +351,7 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
     Utils.NamedActor(this + " init") {
       crawler.addObserver(this) {
         case Failure(msg) => {
-          logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
+          if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
           this.init
         }
         case Success(msg) => super.init
@@ -463,7 +463,7 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
     Utils.NamedActor(this + " init") {
       crawler.addObserver(this) {
         case Failure(msg) => {
-          logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
+          if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
           this.init
         }
         case Success(msg) => super.init
@@ -612,7 +612,7 @@ class AwsIamUserCrawler(val name: String, val ctx: AwsCrawler.Context) extends C
         try Some(f.get)
         catch {
           case e: Exception => {
-            logger.error(this + "exception from IAM user sub requests", e)
+            if (logger.isErrorEnabled) logger.error(this + "exception from IAM user sub requests", e)
             None
           }
         }
@@ -656,7 +656,7 @@ class AwsIamGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
         try Some(f.get)
         catch {
           case e: Exception => {
-            logger.error(this + "exception from IAM listGroupPolicies", e)
+            if (logger.isErrorEnabled) logger.error(this + "exception from IAM listGroupPolicies", e)
             None
           }
         }
@@ -733,7 +733,7 @@ class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) exten
         try Some(f.get)
         catch {
           case e: Exception => {
-            logger.error(this + "exception from SQS getQueueAttributes", e)
+            if (logger.isErrorEnabled) logger.error(this + "exception from SQS getQueueAttributes", e)
             None
           }
         }
@@ -833,7 +833,7 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
         catch {
           case e: Exception => {
             failed = true
-            logger.error(this + "exception from listResourceRecordSets", e)
+            if (logger.isErrorEnabled) logger.error(this + "exception from listResourceRecordSets", e)
             None
           }
         }
@@ -855,7 +855,7 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
     Utils.NamedActor(this + " init") {
       crawler.addObserver(this) {
         case Failure(msg) => {
-          logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
+          if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
           this.init
         }
         case Success(msg) => super.init

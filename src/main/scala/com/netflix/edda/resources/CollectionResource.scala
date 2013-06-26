@@ -357,7 +357,7 @@ class CollectionResource {
       } else details.id
       makeQuery(details) + ("id" -> idQuery)
     } else makeQuery(details)
-    logger.info(coll + " query: " + Utils.toJson(query))
+    if (logger.isInfoEnabled) logger.info(coll + " query: " + Utils.toJson(query))
     val keys: Set[String] = if (details.expand) details.fields else Set("id")
     // unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
     var records: Seq[Record] = Seq()

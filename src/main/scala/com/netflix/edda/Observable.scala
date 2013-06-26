@@ -53,15 +53,15 @@ abstract class Observable extends StateMachine {
   //* notify the given actor when the state changes */
   def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     val msg = Observe(Actor.self, actor)
-    logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
+    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
     this ! msg
     Actor.self.reactWithin(60000) {
       case msg: OK => {
-        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
         events(Success(msg))
       }
       case msg @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + msg)
+        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
         events(Failure((msg, 60000)))
       }
     }
@@ -70,15 +70,15 @@ abstract class Observable extends StateMachine {
   //* stop notifying the give actor when the state changes */
   def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
     val msg = Ignore(Actor.self, actor)
-    logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
+    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
     this ! msg
     Actor.self.reactWithin(60000) {
       case msg: OK => {
-        logger.debug(Actor.self + " received: " + msg + " from " + sender)
+        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
         events(Success(msg))
       }
       case msg @ TIMEOUT => {
-        logger.debug(Actor.self + " received: " + msg)
+        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
         events(Failure((msg, 60000)))
       }
     }
@@ -90,13 +90,13 @@ abstract class Observable extends StateMachine {
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Observe(from, caller), state) => {
       val msg = OK(this)
-      logger.debug(this + " sending: " + msg + " -> " + sender)
+      if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + sender)
       sender ! msg
       setLocalState(state, ObservableState(caller :: localState(state).observers))
     }
     case (Ignore(from, caller), state) => {
       val msg = OK(this)
-      logger.debug(this + " sending: " + msg + " -> " + sender)
+      if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + sender)
       sender ! msg
       setLocalState(state, ObservableState(localState(state).observers diff List(caller)))
     }

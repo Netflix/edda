@@ -41,7 +41,7 @@ class BasicServer extends HttpServlet {
 
     Utils.initConfiguration(System.getProperty("edda.properties","edda.properties"))
 
-    logger.info("Staring Server")
+    if (logger.isInfoEnabled) logger.info("Staring Server")
     
     val datastoreClassName = Utils.getProperty("edda", "datastore.class", "", "com.netflix.edda.mongo.MongoDatastore").get
     val datastoreClass = this.getClass.getClassLoader.loadClass(datastoreClassName)
@@ -68,7 +68,7 @@ class BasicServer extends HttpServlet {
 
     AwsCollectionBuilder.buildAll(BasicContext, awsClientFactory, bm, elector, dsFactory)
 
-    logger.info("Starting Collections")
+    if (logger.isInfoEnabled) logger.info("Starting Collections")
     CollectionManager.start()
 
     super.init()

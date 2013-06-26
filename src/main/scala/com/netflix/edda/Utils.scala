@@ -117,7 +117,7 @@ object Utils {
           Some(action)
         } catch {
           case e: Exception => {
-            logger.error("caught retryable exception:" + e, e)
+            if (logger.isErrorEnabled) logger.error("caught retryable exception:" + e, e)
             None
           }
         }
@@ -198,7 +198,7 @@ object Utils {
 
   /** convert list of Any to list of AnyRef.  This is useful for slf4j printf style formatting:
     * {{{
-    * logger.info("stuff {} {} {} {}", toObjects(1, 1.2, true, "string"))
+    * if (logger.isInfoEnabled) logger.info("stuff {} {} {} {}", toObjects(1, 1.2, true, "string"))
     * }}}
     * @param args list of items to massage into list of AnyRef
     */

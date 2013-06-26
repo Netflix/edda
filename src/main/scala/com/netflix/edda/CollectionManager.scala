@@ -22,7 +22,7 @@ object CollectionManager {
   var collections: Map[String, Queryable] = Map()
 
   def register(name: String, collection: Queryable) {
-    logger.info("Registering collection " + collection)
+    if (logger.isInfoEnabled) logger.info("Registering collection " + collection)
     collections = collections + (name -> collection)
   }
 
@@ -33,12 +33,12 @@ object CollectionManager {
   def names(): Set[String] = collections.keySet
 
   def start() {
-    logger.info("Starting collections")
+    if (logger.isInfoEnabled) logger.info("Starting collections")
     collections.values.foreach(_.start())
   }
 
   def stop() {
-    logger.info("Stopping collections")
+    if (logger.isInfoEnabled) logger.info("Stopping collections")
     collections.values.foreach(_.stop())
   }
 }
