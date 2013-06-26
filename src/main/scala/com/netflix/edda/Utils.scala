@@ -96,9 +96,7 @@ object Utils {
         case Exit(`actor`, err: scala.actors.UncaughtException) => {
           throw err.cause
         }
-        case Exit(`actor`, reason) => {
-          logger.error("SYNC actor exited with reason: " + reason)
-        }
+        case Exit(`actor`, reason) => 
       }
       Actor.self.trapExit = trapExit
     }
