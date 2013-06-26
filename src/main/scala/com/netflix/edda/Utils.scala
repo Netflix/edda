@@ -81,6 +81,7 @@ object Utils {
     def apply(action: => Unit): Unit = {
       val trapExit = Actor.self.trapExit
       Actor.self.trapExit = true
+      var err: Throwable = null;
       val actor = Actor.link(
         Actor.actor {
           Actor.self.react {
@@ -92,7 +93,12 @@ object Utils {
       )
       actor ! 'GO
       Actor.self.receive {
-        case Exit(`actor`, reason) =>
+        case Exit(`actor`, err: scala.actors.UncaughtException) => {
+          throw err.cause
+        }
+        case Exit(`actor`, reason) => {
+          logger.error("SYNC actor exited with reason: " + reason)
+        }
       }
       Actor.self.trapExit = trapExit
     }
