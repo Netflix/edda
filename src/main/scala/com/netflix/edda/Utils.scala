@@ -146,8 +146,9 @@ object Utils {
       * handling when needed
       * @param pf PartialFunction to handle exception types
       */
-    def addExceptionHandler(pf: PartialFunction[Exception,Unit]) {
+    def addExceptionHandler(pf: PartialFunction[Exception,Unit]): NamedActor = {
         handlers = pf orElse handlers 
+        this
     }
 
     /** setup exceptionHandler to use the custom handlers modified

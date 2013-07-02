@@ -16,6 +16,7 @@
 package com.netflix.edda
 
 import scala.actors.Actor
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import org.slf4j.LoggerFactory
 
@@ -33,56 +34,91 @@ class MergedCollection(val name: String, val collections: Seq[Collection]) exten
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
-  // helper function to run query and make reply
-  def queryRunner(coll: Collection, query: Query, replyTo: scala.actors.OutputChannel[Any]): Unit = {
-    Actor.actor {
-      coll.query(query.query, query.limit, query.live, query.keys, query.replicaOk) {
-        case Success(results: QueryResult) => {
-          if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + results + " -> " + replyTo)
-          replyTo ! results
-        }
-        case Failure(error) => {
-          if (logger.isErrorEnabled) logger.error("query on " + coll + " failed: " + query + " with error: " + error) 
-          val msg = QueryError(this, error)
-          if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
-          replyTo ! msg
-        }
-      }
-    }
-  }
+  // // helper function to run query and make reply
+  // def queryRunner(coll: Collection, query: Query, replyTo: scala.actors.OutputChannel[Any]): Unit = {
+  //   coll.query(query.query, query.limit, query.live, query.keys, query.replicaOk) onComplete {
+  //     case scala.util.Success(recs: Seq[Record]) => 
+  //       if (logger.isDebugEnabled) logger.debug(Actor.self + " sending query records to -> " + replyTo)
+  //       replyTo ! results
+  //     }
+  //     case scala.util.Failure(error) => {
+  //       if (logger.isErrorEnabled) logger.error("query on " + coll + " failed: " + query + " with error: " + error) 
+  //       val msg = QueryError(this, error)
+  //       if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
+  //       replyTo ! msg
+  //     }
+  //   }
+  // }
 
   /** handle Query Message for MergedCollection */
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
+    // case (query @ Query(from, queryMap, limit, live, keys, replicaOk), state) => {
+    //   val replyTo = sender
+
+    //   Utils.NamedActor(this + " Query processor") {
+    //     if( collections.size == 1 ) {
+    //       queryRunner(collections.head, query, replyTo)
+    //     } else {
+    //       // handle multiple results to all collections
+    //       val merger = Utils.NamedActor(this + " query merger") {
+    //         var expected = collections.size
+    //         var merged: Seq[Record] = Seq()
+    //         Actor.self.loopWhile( expected > 0 ) {
+    //           Actor.self.react {
+    //             case QueryResult(from, results) => {
+    //               merged = merged ++ results
+    //               expected -= 1
+    //               if( expected == 0 ) {
+    //                 val msg = QueryResult(this, firstOf(limit, merged.sortWith((a, b) => a.stime.isAfter(b.stime))))
+    //                 if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
+    //                 replyTo ! msg
+    //               }
+    //             }
+    //             case msg @ QueryError(from, error) => {
+    //               replyTo ! msg
+    //               expected = 0
+    //             }
+    //           }
+    //         }
+    //       }
+    //       collections.foreach( queryRunner(_, query, merger) )
+    //     }
+    //   }
+    //   state
+    // }
+
     case (query @ Query(from, queryMap, limit, live, keys, replicaOk), state) => {
       val replyTo = sender
-
-      Utils.NamedActor(this + " Query processor") {
+      scala.concurrent.future {
         if( collections.size == 1 ) {
-          queryRunner(collections.head, query, replyTo)
-        } else {
-          // handle multiple results to all collections
-          val merger = Utils.NamedActor(this + " query merger") {
-            var expected = collections.size
-            var merged: Seq[Record] = Seq()
-            Actor.self.loopWhile( expected > 0 ) {
-              Actor.self.react {
-                case QueryResult(from, results) => {
-                  merged = merged ++ results
-                  expected -= 1
-                  if( expected == 0 ) {
-                    val msg = QueryResult(this, firstOf(limit, merged.sortWith((a, b) => a.stime.isAfter(b.stime))))
-                    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
-                    replyTo ! msg
-                  }
-                }
-                case msg @ QueryError(from, error) => {
-                  replyTo ! msg
-                  expected = 0
-                }
-              }
+          collections.head.query(query.query, query.limit, query.live, query.keys, query.replicaOk) onComplete {
+            case scala.util.Success(recs: Seq[Record]) => {
+              val msg = QueryResult(this, recs)
+              if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
+              replyTo ! msg
+            }
+            case scala.util.Failure(error) => {
+              if (logger.isErrorEnabled) logger.error("query on " + collections.head + " failed: " + query + " with error: " + error) 
+              val msg = QueryError(this, error)
+              if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
+              replyTo ! msg
             }
           }
-          collections.foreach( queryRunner(_, query, merger) )
+        } else {
+          val futures = collections.map( _.query(query.query, query.limit, query.live, query.keys, query.replicaOk) )
+          try {
+            val recs = futures.flatMap( f => scala.concurrent.Await.result(f, scala.concurrent.duration.Duration(60000, scala.concurrent.duration.MILLISECONDS) ) )
+            val msg = QueryResult(this, firstOf(limit, recs.sortWith((a, b) => a.stime.isAfter(b.stime))))
+            if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
+            replyTo ! msg
+          }
+          catch {
+            case e: Exception => {
+              val msg = QueryError(this, e)
+              if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + replyTo)
+              replyTo ! msg
+            }
+          }
         }
       }
       state

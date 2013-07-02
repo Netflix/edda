@@ -20,6 +20,8 @@ import scala.actors.TIMEOUT
 
 import org.slf4j.LoggerFactory
 
+import scala.concurrent.ExecutionContext.Implicits.global
+
 /** local state for StateMachine */
 case class ObservableState(observers: List[Actor] = List[Actor]())
 
@@ -51,20 +53,24 @@ abstract class Observable extends StateMachine {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
   //* notify the given actor when the state changes */
-  def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
+  def addObserver(actor: Actor): scala.concurrent.Future[StateMachine.Message] = {
+    val p = scala.concurrent.promise[StateMachine.Message];
     val msg = Observe(Actor.self, actor)
     if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
-    this ! msg
-    Actor.self.reactWithin(60000) {
-      case msg: OK => {
-        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
-        events(Success(msg))
-      }
-      case msg @ TIMEOUT => {
-        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
-        events(Failure((msg, 60000)))
+    Actor.actor {
+      this ! msg
+      Actor.self.reactWithin(60000) {
+        case msg: OK => {
+          if (logger.isDebugEnabled) logger.debug(Actor.self + " BLORG received: " + msg + " from " + sender)
+          p success msg
+        }
+        case msg @ TIMEOUT => {
+          if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
+          p failure new java.util.concurrent.TimeoutException("Failed to addObserver after 60000ms")
+        }
       }
     }
+    p.future
   }
 
   //* stop notifying the give actor when the state changes */

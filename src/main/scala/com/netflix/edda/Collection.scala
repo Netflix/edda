@@ -30,6 +30,8 @@ import com.netflix.servo.monitor.MonitorConfig
 import com.netflix.servo.monitor.BasicGauge
 import java.lang
 
+import scala.concurrent.ExecutionContext.Implicits.global
+
 /** local state class for Collection
   *
   * @param records the current active records for the collection
@@ -142,22 +144,16 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   // override def scheduler = fjScheduler
 
   /** see [[com.netflix.edda.Queryable.query()]].  Overridden to return Nil when Collection is not enabled */
-  override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    if (enabled.get.toBoolean) super.query(queryMap, limit, live || liveOverride.get.toBoolean, keys, replicaOk)(events) else Actor.self.reactWithin(0) {
-      case msg @ TIMEOUT => {
-        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " for disabled collection")
-        events(Success(QueryResult(Actor.self,Seq.empty)))
-      }
+  override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): scala.concurrent.Future[Seq[Record]] = {
+    if (enabled.get.toBoolean) super.query(queryMap, limit, live || liveOverride.get.toBoolean, keys, replicaOk) else scala.concurrent.future {
+      Seq.empty
     }
   }
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Collection is not enabled */
-  override def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    if (enabled.get.toBoolean) super.addObserver(actor)(events) else Actor.self.reactWithin(0) { 
-      case msg @ TIMEOUT => {
-        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " for disabled collection")
-        events(Success(Observable.OK(Actor.self)))
-      }
+  override def addObserver(actor: Actor): scala.concurrent.Future[StateMachine.Message] = {
+    if (enabled.get.toBoolean) super.addObserver(actor) else scala.concurrent.future {
+      Observable.OK(Actor.self)
     }
   }
 
@@ -236,65 +232,63 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     * @param newRecords records from the Crawler
     * @param oldRecords records from previous Delta result
     */
-  protected def delta(newRecordsIn: Seq[Record], oldRecords: Seq[Record])(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    val now = DateTime.now
-    val newRecords = newRecordsIn.map( rec => rec.copy(mtime = now) )
-
-    // remove needs to be a list to allow for duplicate records (multiple record revisions
-    // on the same id)
-    var remove = Seq[Record]()
-
-    // sometimes there are duplicates in oldRecords (upon first-load when we load all records
-    // with null ltime) when we have a rogue writer (sometimes there are gaps between leadership
-    // changes). 
-    val oldSeen = scala.collection.mutable.Map[String,Record]()
-    val oldMap = oldRecords.filter(r => {
-      val in = oldSeen.contains(r.id)
-      if( in ) {
+  protected def delta(newRecordsIn: Seq[Record], oldRecords: Seq[Record]): scala.concurrent.Future[Delta] = {
+    scala.concurrent.future {
+      val now = DateTime.now
+      val newRecords = newRecordsIn.map( rec => rec.copy(mtime = now) )
+      
+      // remove needs to be a list to allow for duplicate records (multiple record revisions
+      // on the same id)
+      var remove = Seq[Record]()
+      
+      // sometimes there are duplicates in oldRecords (upon first-load when we load all records
+      // with null ltime) when we have a rogue writer (sometimes there are gaps between leadership
+        // changes). 
+      val oldSeen = scala.collection.mutable.Map[String,Record]()
+      val oldMap = oldRecords.filter(r => {
+          val in = oldSeen.contains(r.id)
+        if( in ) {
           val lastSeen = oldSeen(r.id).mtime
           remove +:= r.copy(mtime=lastSeen,ltime=lastSeen)
-      } else {
-          oldSeen += (r.id -> r)
-      }
-      !in
-    }).map(rec => rec.id -> rec).toMap
-    val newMap = newRecords.map(rec => rec.id -> rec).toMap
-
-    remove ++= oldMap.filterNot(pair => newMap.contains(pair._1)).map(
-      pair => pair._2.copy(mtime = now, ltime = now))
-
-    val addedMap = newMap.filterNot(pair => oldMap.contains(pair._1))
-
-    val changes = newMap.filter(pair => {
-      oldMap.contains(pair._1) && !pair._2.sameData(oldMap(pair._1))
-    }).map(
-      pair => {
-        val oldRec = oldMap(pair._1)
-        val newRec = pair._2
-        if (newStateTimeForChange(newRec, oldRec)) {
-          pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec)
         } else {
-          pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec.copy(stime = oldRec.stime))
+          oldSeen += (r.id -> r)
+          }
+        !in
+      }).map(rec => rec.id -> rec).toMap
+        val newMap = newRecords.map(rec => rec.id -> rec).toMap
+      
+      remove ++= oldMap.filterNot(pair => newMap.contains(pair._1)).map(
+        pair => pair._2.copy(mtime = now, ltime = now))
+      
+      val addedMap = newMap.filterNot(pair => oldMap.contains(pair._1))
+      
+      val changes = newMap.filter(pair => {
+        oldMap.contains(pair._1) && !pair._2.sameData(oldMap(pair._1))
+        }).map(
+        pair => {
+          val oldRec = oldMap(pair._1)
+          val newRec = pair._2
+          if (newStateTimeForChange(newRec, oldRec)) {
+            pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec)
+          } else {
+              pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec.copy(stime = oldRec.stime))
+          }
         }
+      )
+      
+      // need to reset stime, ctime, tags for crawled records to match what we have in memory
+      val fixedRecords = newRecords.collect {
+        case rec: Record if changes.contains(rec.id) => {
+          val newRec = changes(rec.id).newRecord
+          oldMap(rec.id).copy(data = rec.data, mtime = newRec.mtime, stime = newRec.stime)
+        }
+        case rec: Record if oldMap.contains(rec.id) =>
+          oldMap(rec.id).copy(data = rec.data, mtime = rec.mtime)
+        case rec: Record => rec
       }
-    )
-
-    // need to reset stime, ctime, tags for crawled records to match what we have in memory
-    val fixedRecords = newRecords.collect {
-      case rec: Record if changes.contains(rec.id) => {
-        val newRec = changes(rec.id).newRecord
-        oldMap(rec.id).copy(data = rec.data, mtime = newRec.mtime, stime = newRec.stime)
-      }
-      case rec: Record if oldMap.contains(rec.id) =>
-        oldMap(rec.id).copy(data = rec.data, mtime = rec.mtime)
-      case rec: Record => rec
-    }
-
-    if (logger.isInfoEnabled) logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + remove.size)
-    Actor.self.reactWithin(0) {
-      case TIMEOUT => {
-        events(Success(Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = remove)))
-      }
+      
+      if (logger.isInfoEnabled) logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + remove.size)
+      Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = remove)
     }
   }
 
@@ -309,7 +303,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     Utils.NamedActor(this + " init") {
       // create routine to run after the jitter timeout
       // or to run immediately if jitter is disabled
-      def postJitter: Nothing = {
+      def postJitter: Unit = {
         if (dataStore.isDefined) {
           dataStore.get.init()
         }
@@ -322,10 +316,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           // collection actor, so the next addObserver should procceed
           super.init()
           // listen to our own DeltaResult events
-          def retry: Nothing = {
-            this.addObserver(this) {
-              case Success(msg) => 
-              case Failure(msg) => {
+          def retry: Unit = {
+            this.addObserver(this) onFailure {
+              case msg => {
                 if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + this + " with error: " + msg + ", retrying")
                 retry
               }
@@ -335,9 +328,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         }
         
         if( Option(crawler).isDefined ) {
-          crawler.addObserver(this) {
-            case Success(msg) => postObserver
-            case Failure(msg) => {
+          crawler.addObserver(this) onComplete {
+            case scala.util.Success(msg) => postObserver
+            case scala.util.Failure(msg) => {
               if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + " with error: " + msg + ", retrying")
               postJitter
             }
@@ -388,14 +381,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
     // how often to purge history, default is every 6 hours
     val purgeFrequency = Utils.getProperty("edda.collection", "purgeFrequency", name, "21600000")
-
-    NamedActor(this + " refresher") {
-      elector.addObserver(Actor.self) {
-        case Failure(msg) => {
-          if (logger.isErrorEnabled) logger.error(Actor.self + " failed to addObserver: " + msg)
-          refresher
-        }
-        case Success(msg) => {
+    
+    val refresherActor = NamedActor(this + " refresher") {
+      Actor.self.react {
+        case 'CONTINUE => {
           var amLeader = false
           // crawl immediately the first time
           if (amLeader && allowCrawl) crawler.crawl()
@@ -455,6 +444,15 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }.addExceptionHandler({
       case e: Exception => if (logger.isErrorEnabled) logger.error(this + " failed to refresh", e)
     })
+    elector.addObserver(refresherActor) onComplete {
+      case scala.util.Failure(msg) => {
+        if (logger.isErrorEnabled) logger.error(refresherActor + " failed to addObserver: " + msg)
+        refresher
+      }
+      case scala.util.Success(msg) => {
+        refresherActor ! 'CONTINUE;
+      }
+    }
   }
 
   // basic servo metrics
@@ -512,7 +510,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         case SyncLoad(from) => true
       }
       val replyTo = sender
-      NamedActor(this + " SyncLoad processor") {
+      // NamedActor(this + " SyncLoad processor") {
+      scala.concurrent.future {
         val records = doLoad(replicaOk = false)
         val msg = Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
         if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + this)
@@ -520,6 +519,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         val msg2 = OK(this)
         if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg2 + " -> " + replyTo)
         replyTo ! msg2
+      } onFailure {
+        case err: Throwable => logger.error(this + " syncload processor failed", err)
+        case err => logger.error(this + " syncload processor failed: " + err)
       }
       state
     }
@@ -527,7 +529,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       flushMessages {
         case Load(from, full) => true
       }
-      NamedActor(this + " Load processor") {
+      // NamedActor(this + " Load processor") {
+      scala.concurrent.future {
           val stopwatch = loadTimer.start()
           val records = try {
               if( full ) {
@@ -570,6 +573,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
           val msg = Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
           if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + this)
           this ! msg
+      } onFailure {
+        case err: Throwable => logger.error(this + " load processor failed", err)
+        case err => logger.error(this + " load processor failed: " + err)
       }
       state
     }
@@ -578,7 +584,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         case Purge(from) => true
       }
       lastPurge = DateTime.now
-      NamedActor(this + " Purge processor") {
+      // NamedActor(this + " Purge processor") {
+      scala.concurrent.future {
         if( dataStore.isDefined ) {
           val purgeArgs: Map[String,String] = Utils.parseMatrixArguments(';' + purgeProperty.get)
           val policyName = (PurgePolicy.values.map(_.toString) & purgeArgs.keySet).head
@@ -605,6 +612,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             }
           }
         }
+      } onFailure {
+        case err: Throwable => logger.error(this + " purge processor failed", err)
+        case err => logger.error(this + " purge processor failed: " + err)
       }
       state
     }
@@ -612,7 +622,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
       // only propagate if newRecords are not the same as the last crawled result
       lastCrawl = DateTime.now
       if (newRecords ne localState(state).crawled) {
-        NamedActor(this + " CrawlResult processor") {
+        // NamedActor(this + " CrawlResult processor") {
+        scala.concurrent.future {
           def processDelta(d: Delta) = {
             lazy val path = name.replace('.', '/')
             d.added.foreach(
@@ -640,14 +651,17 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             // this is from a Load so no need to calculate Delta
             processDelta(Delta(newRecords, Seq(), Seq(), Seq()))
           } else {
-            delta(newRecords, localState(state).records) { 
-              case Failure(error) => {
+            delta(newRecords, localState(state).records) onComplete { 
+              case scala.util.Failure(error) => {
                 if (logger.isErrorEnabled) logger.error(this + " delta failed: " + error)
                 throw new java.lang.RuntimeException(this + " delta failed: " + error)
               }
-              case Success(delta: Delta) => processDelta(delta)
+              case scala.util.Success(delta: Delta) => processDelta(delta)
             }
           }
+        } onFailure {
+          case err: Throwable => logger.error(this + " crawl processing failed", err)
+          case err => logger.error(this + " crawl processing failed: " + err)
         }
         setLocalState(state, localState(state).copy(crawled = newRecords))
       } else state

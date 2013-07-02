@@ -16,6 +16,7 @@
 package com.netflix.edda.aws
 
 import scala.actors.Actor
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import com.netflix.edda.StateMachine
 import com.netflix.edda.Crawler
@@ -349,12 +350,12 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
   protected override def init() {
     import Utils._
     Utils.NamedActor(this + " init") {
-      crawler.addObserver(this) {
-        case Failure(msg) => {
+      crawler.addObserver(this) onComplete {
+        case scala.util.Failure(msg) => {
           if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
           this.init
         }
-        case Success(msg) => super.init
+        case scala.util.Success(msg) => super.init
       }
     }
   }
@@ -461,12 +462,12 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
   protected override def init() {
     import Utils._
     Utils.NamedActor(this + " init") {
-      crawler.addObserver(this) {
-        case Failure(msg) => {
+      crawler.addObserver(this) onComplete {
+        case scala.util.Failure(msg) => {
           if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
           this.init
         }
-        case Success(msg) => super.init
+        case scala.util.Success(msg) => super.init
       }
     }
   }
@@ -853,12 +854,12 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
   protected override def init() {
     import Utils._
     Utils.NamedActor(this + " init") {
-      crawler.addObserver(this) {
-        case Failure(msg) => {
+      crawler.addObserver(this) onComplete {
+        case scala.util.Failure(msg) => {
           if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
           this.init
         }
-        case Success(msg) => super.init
+        case scala.util.Success(msg) => super.init
       }
     }
   }

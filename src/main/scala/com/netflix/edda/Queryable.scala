@@ -17,6 +17,7 @@ package com.netflix.edda
 
 import scala.actors.Actor
 import scala.actors.TIMEOUT
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import com.netflix.servo.monitor.Monitors
 import org.slf4j.LoggerFactory
@@ -61,31 +62,29 @@ abstract class Queryable extends Observable {
    * @param replicaOk boolean flag to specify if is ok for the query to be sent to a data replica in the case of a primary/secondary datastore set.
    * @return the records that match the query criteria
    */
-  def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    val stopwatch = queryTimer.start()
+  def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): scala.concurrent.Future[Seq[Record]] = {
     val msg = Query(Actor.self, queryMap, limit, live, keys, replicaOk)
     if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with " + queryTimeout + "ms timeout")
-    this ! msg
-    Actor.self.reactWithin(queryTimeout) {
-      case msg @ QueryResult(from, results) => {
-        stopwatch.stop()
-        queryCounter.increment()
-        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
-        events(Success(msg))
-      }
-      case msg @ QueryError(from, results) => {
-        stopwatch.stop()
-        queryErrorCounter.increment()
-        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
-        events(Failure(msg))
-      }
-      case msg @ TIMEOUT => {
-        stopwatch.stop()
-        queryErrorCounter.increment()
-        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
-        events(Failure((msg, queryTimeout)))
+    val p = scala.concurrent.promise[Seq[Record]]
+    Actor.actor {
+      val stopwatch = queryTimer.start()
+      this ! msg
+      Actor.self.reactWithin(queryTimeout) {
+        case msg @ QueryResult(from, results) => {
+          stopwatch.stop()
+          queryCounter.increment()
+          if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
+          p success results
+        }
+        case msg @ TIMEOUT => {
+          stopwatch.stop()
+          queryErrorCounter.increment()
+          if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
+          p failure new java.util.concurrent.TimeoutException("query failed  after 60000ms timeout")
+        }
       }
     }
+    p.future
   }
 
   /** abstract routine to perform the raw query operation for whatever Datastore used. */
@@ -100,10 +99,14 @@ abstract class Queryable extends Observable {
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
     case (Query(from, queryMap, limit, live, keys, replicaOk), state) => {
       val replyTo = sender
-      Utils.NamedActor(this + " Query processor") {
+      // Utils.NamedActor(this + " Query processor") {
+      scala.concurrent.future {
         val msg = QueryResult(this, doQuery(queryMap, limit, live, keys, replicaOk, state))
         if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + replyTo)
         replyTo ! msg
+      } onFailure {
+        case err: Throwable => logger.error(this + " query processor failed", err)
+        case err => logger.error(this + " query processor failed: " + err )
       }
       state
     }

@@ -26,10 +26,14 @@ import org.slf4j.LoggerFactory
 
 import org.apache.commons.beanutils.BeanMap
 
+
+
 /** Class to convert a Java Bean to a primitive Scala object (Map, Seq, etc)
  */
 class BasicBeanMapper extends BeanMapper {
   private[this] val logger = LoggerFactory.getLogger(getClass)
+
+  // private[this] val stringInterner = new com.google.common.collect.Interner(com.google.common.collect.Interners.newWeakInterner[String])
 
   def apply(obj: Any): Any = {
     mkValue(obj).getOrElse(null)
@@ -56,7 +60,7 @@ class BasicBeanMapper extends BeanMapper {
     else
       m.asScala.collect({
         case (key: Any, value: Any) =>
-          argPattern.replaceAllIn(key.toString, "_") -> mkValue(value).getOrElse(null)
+          argPattern.replaceAllIn(key.toString, "_").intern -> mkValue(value).getOrElse(null)
       }).toMap[Any, Any] + ("class" -> m.getClass.getName)
   }
 
@@ -70,7 +74,7 @@ class BasicBeanMapper extends BeanMapper {
     case v: Float => Some(v)
     case v: Double => Some(v)
     case v: Char => Some(v)
-    case v: String => Some(v)
+    case v: String => Some(v.intern)
     case v: Date => Some(new DateTime(v))
     case v: DateTime => Some(v)
     case v: Class[_] => Some(v.getName)
@@ -96,7 +100,7 @@ class BasicBeanMapper extends BeanMapper {
           entry.getKey -> keyMappers(obj, entry.getKey, value)
         }).collect({
         case (name: String, Some(value)) =>
-          argPattern.replaceAllIn(name, "_") -> value
+          argPattern.replaceAllIn(name, "_").intern -> value
       }).toMap
     }
   }

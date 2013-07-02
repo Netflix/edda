@@ -361,15 +361,13 @@ class CollectionResource {
     val keys: Set[String] = if (details.expand) details.fields else Set("id")
     // unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
     var records: Seq[Record] = Seq()
-    Utils.SYNC {
-      coll.query(query, details.limit, details.timeTravelling || details.live, keys, replicaOk = true) {
-        case Success(results: QueryResult) => {
-          records = unique(results.records, details)
-        }
-        case msg @ Failure(error) => throw new java.lang.RuntimeException(this + "query failed: " + query + " error: " + error)
-      }
-    }
-    return records
+    scala.concurrent.Await.result(
+      coll.query(query, details.limit, details.timeTravelling || details.live, keys, replicaOk = true),
+      scala.concurrent.duration.Duration(
+        60000,
+        scala.concurrent.duration.MILLISECONDS
+      )
+    )
   }
 
   /** handle HTTP request.  Map uri path to collection name, matrix arguments and field selectors */

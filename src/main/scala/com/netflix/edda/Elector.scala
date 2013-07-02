@@ -17,6 +17,7 @@ package com.netflix.edda
 
 import scala.actors.Actor
 import scala.actors.TIMEOUT
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import org.slf4j.LoggerFactory
 
@@ -78,13 +79,12 @@ abstract class Elector extends Observable {
       electionPoller()
       super.init
       // listen to our own message events
-      def retry: Nothing = {
-        this.addObserver(this) {
-          case Failure(msg) => {
+      def retry: Unit = {
+        this.addObserver(this) onFailure {
+          case msg => {
             if (logger.isErrorEnabled) logger.error(Actor.self + "failed to add observer " + this + " to " + this + ", retrying")
             retry
           }
-          case Success(msg) =>
         }
       }
       retry

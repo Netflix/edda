@@ -17,6 +17,7 @@ package com.netflix.edda
 
 import scala.actors.Actor
 import scala.actors.TIMEOUT
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import java.util.concurrent.TimeUnit
 
@@ -65,12 +66,9 @@ abstract class Crawler extends Observable {
   }
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Crawler is not enabled */
-  override def addObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    if (enabled.get.toBoolean) super.addObserver(actor)(events) else Actor.self.reactWithin(0) {
-      case got @ TIMEOUT => {
-        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + got + " for disabled crawler")
-        events(Success(Observable.OK(Actor.self)))
-      }
+  override def addObserver(actor: Actor): scala.concurrent.Future[StateMachine.Message] = {
+    if (enabled.get.toBoolean) super.addObserver(actor) else scala.concurrent.future {
+      Observable.OK(Actor.self)
     }
   }
 
