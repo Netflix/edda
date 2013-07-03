@@ -360,7 +360,6 @@ class CollectionResource {
     if (logger.isInfoEnabled) logger.info(coll + " query: " + Utils.toJson(query))
     val keys: Set[String] = if (details.expand) details.fields else Set("id")
     // unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
-    var records: Seq[Record] = Seq()
     scala.concurrent.Await.result(
       coll.query(query, details.limit, details.timeTravelling || details.live, keys, replicaOk = true),
       scala.concurrent.duration.Duration(

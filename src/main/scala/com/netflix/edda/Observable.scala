@@ -54,7 +54,7 @@ abstract class Observable extends StateMachine {
 
   //* notify the given actor when the state changes */
   def addObserver(actor: Actor): scala.concurrent.Future[StateMachine.Message] = {
-    val p = scala.concurrent.promise[StateMachine.Message];
+    val p = scala.concurrent.promise[StateMachine.Message]
     val msg = Observe(Actor.self, actor)
     if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
     Actor.actor {
@@ -66,7 +66,7 @@ abstract class Observable extends StateMachine {
         }
         case msg @ TIMEOUT => {
           if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
-          p failure new java.util.concurrent.TimeoutException("Failed to addObserver after 60000ms")
+          p failure new java.util.concurrent.TimeoutException("Failed to addObserver after 60s")
         }
       }
     }
@@ -74,20 +74,24 @@ abstract class Observable extends StateMachine {
   }
 
   //* stop notifying the give actor when the state changes */
-  def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
+  def delObserver(actor: Actor): scala.concurrent.Future[StateMachine.Message] = {
+    val p = scala.concurrent.promise[StateMachine.Message]
     val msg = Ignore(Actor.self, actor)
     if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
-    this ! msg
-    Actor.self.reactWithin(60000) {
-      case msg: OK => {
-        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
-        events(Success(msg))
-      }
-      case msg @ TIMEOUT => {
-        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
-        events(Failure((msg, 60000)))
+    Actor.actor {
+      this ! msg
+      Actor.self.reactWithin(60000) {
+        case msg: OK => {
+          if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
+          p success msg
+        }
+        case msg @ TIMEOUT => {
+          if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
+          p failure new java.util.concurrent.TimeoutException("Failed to delObserver after 60s")
+        }
       }
     }
+    p.future
   }
 
   protected override def initState = addInitialState(super.initState, newLocalState(ObservableState()))

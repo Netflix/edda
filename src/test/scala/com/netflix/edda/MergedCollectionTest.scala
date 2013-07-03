@@ -20,10 +20,17 @@ import org.slf4j.LoggerFactory
 import org.scalatest.FunSuite
 
 import scala.actors.Actor
+import scala.concurrent._
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class MergedCollectionTest extends FunSuite {
   import Utils._
   import Queryable._
+
+  def SYNC[T](future: Awaitable[T]): T = {
+    Await.result(future, Duration(5, SECONDS))
+  }
 
   val logger = LoggerFactory.getLogger(getClass)
   test("query") {
@@ -35,28 +42,18 @@ class MergedCollectionTest extends FunSuite {
     val merged = new MergedCollection("merged.collection", Seq(collA, collB))
     merged.start()
 
-    SYNC {
-      merged.query(Map("data" -> 1)) {
-        case Success(results: QueryResult) => {
-          expectResult(2) { results.records.size }
-        }
-      }
+    expectResult(2) {
+      SYNC ( merged.query(Map("data" -> 1)) ).size
     }
 
-    SYNC {
-      merged.query(Map("data" -> Map("$gte" -> 2))) {
-        case Success(results: QueryResult) => {
-          expectResult(4) { results.records.size }
-        }
-      }
+    expectResult(4) {
+      SYNC( merged.query(Map("data" -> Map("$gte" -> 2))) ).size
     }
 
-    SYNC {
-      merged.query(Map("id" -> Map("$in" -> Seq("A", "a")))) {
-        case Success(results: QueryResult) => {
-          expectResult(2) { results.records.size }
-        }
-      }
+    expectResult(2) {
+      SYNC( merged.query(Map("id" -> Map("$in" -> Seq("A", "a")))) ).size
     }
+
+    merged.stop()
   }
 }

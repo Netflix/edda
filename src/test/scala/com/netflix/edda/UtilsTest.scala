@@ -27,18 +27,6 @@ import org.scalatest.FunSuite
 
 class UtilsTest extends FunSuite {
 
-  test("sync") {
-    expectResult("foobar") {
-      try {
-        Utils.SYNC {
-          throw new java.lang.RuntimeException("foobar");
-        }
-      } catch {
-        case err: java.lang.RuntimeException => err.getMessage()
-      }
-    }
-  }
-
   test("getProperty") {
     DynamicPropertyFactory.getInstance()
     val composite = DynamicPropertyFactory. getBackingConfigurationSource.asInstanceOf[ConcurrentCompositeConfiguration]

@@ -30,10 +30,17 @@ import com.netflix.config.ConcurrentCompositeConfiguration
 
 import org.apache.commons.configuration.MapConfiguration
 
+import scala.concurrent._
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 class CollectionTest extends FunSuite with BeforeAndAfter {
   import Utils._
   import Queryable._
+
+  def SYNC[T](future: Awaitable[T]): T = {
+    Await.result(future, Duration(5, SECONDS))
+  }
 
   val logger = LoggerFactory.getLogger(getClass)
 
@@ -45,36 +52,28 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     val coll = new TestCollection
     coll.start()
 
-    SYNC {
-      coll.query(Map("id" -> "b")) {
-        case Success(results: QueryResult) => {
-          expectResult(Nil) { results.records }
-        }
-      }
+    expectResult(Nil) {
+      SYNC ( coll.query(Map("id" -> "b")) ) 
     }
-
+    
     // dont let the crawler reset our records
     coll.elector.leader = false
     coll.dataStore.get.records = Seq(Record("a", 1), Record("b", 2), Record("c", 3))
     coll ! Collection.Load(coll)
     // allow for collection to load
+    
     Thread.sleep(1000)
-    SYNC {
-      coll.query(Map("id" -> "b")) {
-        case Success(results: QueryResult) => {
-          expectResult(1) {
-            results.records.size
-          }
-          expectResult(2) {
-            results.records.head.data
-          }
-          expectResult("b") {
-            results.records.head.id
-          }
-          coll.stop()
-        }
-      }
+    val records = SYNC( coll.query(Map("id" -> "b")) )
+    expectResult(1) {
+      records.size
     }
+    expectResult(2) {
+        records.head.data
+    }
+    expectResult("b") {
+      records.head.id
+    }
+    coll.stop()
   }
   
   test("update") {
@@ -83,12 +82,8 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     coll.start()
 
 
-    SYNC {
-      coll.query() {
-        case Success(results: QueryResult) => {
-          expectResult(3) { results.records.size }
-        }
-      }
+    expectResult(3) {
+      SYNC( coll.query() ).size
     }
 
     coll.crawler.records = Seq(Record("a", 1), Record("b", 3), Record("c", 4), Record("d", 5))
@@ -96,13 +91,10 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     // allow for crawl to propagate
     Thread.sleep(1000)
 
-    SYNC {
-      coll.query(Map("data" -> Map("$gte" -> 3))) {
-        case Success(results: QueryResult) => {
-          expectResult(3) { results.records.size }
-        }
-      }
+    expectResult(3) {
+      SYNC( coll.query(Map("data" -> Map("$gte" -> 3))) ).size 
     }
+    coll.stop()
   }
 
   test("leader") {
@@ -123,26 +115,18 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     coll.dataStore.get.records = dataStoreResults
     coll.start()
 
-    SYNC {
-      // expect data loaded form dataStore
-      coll.query() {
-        case Success(results: QueryResult) => {
-          expectResult(3) { results.records.size }
-        }
-      }
+    // expect data loaded form dataStore
+    expectResult(3) {
+      SYNC( coll.query() ).size
     }
-
+    
     // set crawler results and wait for the crawler results to propagate
     coll.crawler.records = crawlResults
     Thread.sleep(1000)
-
-    SYNC {
-      // we should get 4 records now
-      coll.query() {
-        case Success(results: QueryResult) => {
-          expectResult(4) { results.records.size }
-        }
-      }
+    
+    // we should get 4 records now
+    expectResult(4) {
+      SYNC( coll.query() ).size
     }
 
     // now drop leader role and wait for dataStore results to reload
@@ -153,20 +137,14 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     coll.dataStore.get.records = newA +: coll.dataStore.get.records.tail
     Thread.sleep(1000)
 
-    SYNC {
-      coll.query() {
-        case Success(results: QueryResult) => {
-          expectResult(3) { results.records.size }
-        }
-      }
+    expectResult(3) {
+      SYNC( coll.query() ).size
     }
 
-    SYNC {
-      coll.query(Map("id" -> "a")) {
-        case Success(results: QueryResult) => {
-          expectResult(0) { results.records.size }
-        }
-      }
+    expectResult(0) {
+      SYNC( coll.query(Map("id" -> "a")) ).size
     }
+
+    coll.stop()
   }
 }

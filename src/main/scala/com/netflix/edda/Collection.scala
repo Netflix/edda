@@ -158,12 +158,9 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   }
 
   /** see [[com.netflix.edda.Observable.delObserver()]].  Overridden to be a NoOp when Collection is not enabled */
-  override def delObserver(actor: Actor)(events: EventHandlers = DefaultEventHandlers): Nothing = {
-    if (enabled.get.toBoolean) super.delObserver(actor)(events) else Actor.self.reactWithin(0) {
-      case msg @ TIMEOUT => {
-        if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " for disabled collection")
-        events(Success(Observable.OK(Actor.self)))
-      }
+  override def delObserver(actor: Actor): scala.concurrent.Future[StateMachine.Message] = {
+    if (enabled.get.toBoolean) super.delObserver(actor) else scala.concurrent.future {
+      Observable.OK(Actor.self)
     }
   }
   

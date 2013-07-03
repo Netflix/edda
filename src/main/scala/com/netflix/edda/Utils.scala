@@ -53,54 +53,42 @@ object Utils {
   }
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
-  class EventStatus() {}
-  
-  type EventHandlers = PartialFunction[EventStatus,Unit]
-  
-  case class Success(event: Any) extends EventStatus
-  case class Failure(event: Any) extends EventStatus
-  
-  val DefaultEventHandlers: EventHandlers = {
-    case Success(event) => 
-    case Failure(event) => throw new java.lang.RuntimeException(event.toString)
-  }
-
-  /** object to help syncronize an event base api (like Collection.query)
-    * that requires onComplete event handlers
-    * {{{
-    * var queryResults: Seq[Record] = Seq()
-    * SYNC {
-    *   collection.query(queryMap, limit, live, keys, replicaOk) {
-    *     case Success(results: QueryResult) => queryResults = results.records
-    *   }
-    * }
-    * }}}  
-    * @param action closure to run and wait for completion
-    */
-  object SYNC {
-    def apply(action: => Unit): Unit = {
-      val trapExit = Actor.self.trapExit
-      Actor.self.trapExit = true
-      var err: Throwable = null;
-      val actor = Actor.link(
-        Actor.actor {
-          Actor.self.react {
-            case 'GO => {
-              action
-            }
-          }
-        }
-      )
-      actor ! 'GO
-      Actor.self.receive {
-        case Exit(`actor`, err: scala.actors.UncaughtException) => {
-          throw err.cause
-        }
-        case Exit(`actor`, reason) => 
-      }
-      Actor.self.trapExit = trapExit
-    }
-  }
+  // /** object to help syncronize an event base api (like Collection.query)
+  //   * that requires onComplete event handlers
+  //   * {{{
+  //   * var queryResults: Seq[Record] = Seq()
+  //   * SYNC {
+  //   *   collection.query(queryMap, limit, live, keys, replicaOk) {
+  //   *     case Success(results: QueryResult) => queryResults = results.records
+  //   *   }
+  //   * }
+  //   * }}}  
+  //   * @param action closure to run and wait for completion
+  //   */
+  // object SYNC {
+  //   def apply(action: => Unit): Unit = {
+  //     val trapExit = Actor.self.trapExit
+  //     Actor.self.trapExit = true
+  //     var err: Throwable = null;
+  //     val actor = Actor.link(
+  //       Actor.actor {
+  //         Actor.self.react {
+  //           case 'GO => {
+  //             action
+  //           }
+  //         }
+  //       }
+  //     )
+  //     actor ! 'GO
+  //     Actor.self.receive {
+  //       case Exit(`actor`, err: scala.actors.UncaughtException) => {
+  //         throw err.cause
+  //       }
+  //       case Exit(`actor`, reason) => 
+  //     }
+  //     Actor.self.trapExit = trapExit
+  //   }
+  // }
 
   /** object to help retry critical operations.   It catches
     * any exceptions, logs them, and retrys the operation.

@@ -115,7 +115,8 @@ abstract class Elector extends Observable {
       flushMessages {
         case RunElection(from) => true
       }
-      Utils.NamedActor(this + " election runner") {
+      // Utils.NamedActor(this + " election runner") {
+      scala.concurrent.future {
         val result = runElection()
         val msg = ElectionResult(this, result)
         Observable.localState(state).observers.foreach(o => {
