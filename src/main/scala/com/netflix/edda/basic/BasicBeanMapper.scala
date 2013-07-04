@@ -74,7 +74,7 @@ class BasicBeanMapper extends BeanMapper {
     case v: Float => Some(v)
     case v: Double => Some(v)
     case v: Char => Some(v)
-    case v: String => Some(v.intern)
+    case v: String => Some(v)
     case v: Date => Some(new DateTime(v))
     case v: DateTime => Some(v)
     case v: Class[_] => Some(v.getName)
