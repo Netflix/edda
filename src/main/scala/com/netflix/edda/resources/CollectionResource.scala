@@ -361,7 +361,7 @@ class CollectionResource {
     val keys: Set[String] = if (details.expand) details.fields else Set("id")
     // unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
     scala.concurrent.Await.result(
-      coll.query(query, details.limit, details.timeTravelling || details.live, keys, replicaOk = true),
+      coll.query(query, details.limit, details.timeTravelling || details.live, keys, replicaOk = if ( details.live ) false true else),
       scala.concurrent.duration.Duration(
         60000,
         scala.concurrent.duration.MILLISECONDS
