@@ -360,13 +360,21 @@ class CollectionResource {
     if (logger.isInfoEnabled) logger.info(coll + " query: " + Utils.toJson(query))
     val keys: Set[String] = if (details.expand) details.fields else Set("id")
     // unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
-    scala.concurrent.Await.result(
-      coll.query(query, details.limit, details.timeTravelling || details.live, keys, replicaOk = if ( details.live ) false true else),
-      scala.concurrent.duration.Duration(
-        60000,
-        scala.concurrent.duration.MILLISECONDS
+    try {
+      scala.concurrent.Await.result(
+        coll.query(query, details.limit, details.timeTravelling || details.live, keys, replicaOk = if ( details.live ) false else true),
+        scala.concurrent.duration.Duration(
+          60000,
+          scala.concurrent.duration.MILLISECONDS
+        )
       )
-    )
+    } catch {
+      case e: Exception => {
+        logger.error(coll + " query failed " + query, e)
+        fail("query failed: " + e.getMessage(), Response.Status.INTERNAL_SERVER_ERROR)
+        Seq()
+      }
+    }
   }
 
   /** handle HTTP request.  Map uri path to collection name, matrix arguments and field selectors */
