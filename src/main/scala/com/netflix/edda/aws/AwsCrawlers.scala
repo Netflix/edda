@@ -71,6 +71,7 @@ import java.util.concurrent.Callable
 
 import org.slf4j.LoggerFactory
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
+import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
 
 /** static namespace for out Context trait */
 object AwsCrawler {
@@ -887,4 +888,16 @@ class AwsDatabaseCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
 
   override def doCrawl() =  ctx.awsClient.rds.describeDBInstances(request).getDBInstances.asScala.map(
     item => Record(item.getDBInstanceIdentifier, ctx.beanMapper(item))).toSeq
+}
+
+/** crawler for ElastiCache Clusters
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsCacheClusterCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeCacheClustersRequest
+
+  override def doCrawl() = ctx.awsClient.elasticache.describeCacheClusters(request).getCacheClusters.asScala.map(
+    item => Record(item.getCacheClusterId, ctx.beanMapper(item))).toSeq
 }
