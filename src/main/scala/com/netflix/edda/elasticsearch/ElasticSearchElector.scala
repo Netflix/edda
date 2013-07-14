@@ -34,7 +34,7 @@ class ElasticSearchElector extends Elector {
 private[this] val logger = LoggerFactory.getLogger(getClass)
   import ElasticSearchDatastore._
 
-  lazy val client = initClient("elector.elasticsearche")
+  lazy val client = initClient("elector.elasticsearch")
 
   lazy val instance = Option(
     System.getenv(Utils.getProperty("edda.elector", "uniqueEnvName", "elasticsearch", "EC2_INSTANCE_ID").get)).getOrElse("dev")

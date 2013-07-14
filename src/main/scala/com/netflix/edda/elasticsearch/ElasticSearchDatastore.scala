@@ -34,6 +34,8 @@ import org.elasticsearch.action.WriteConsistencyLevel
 import org.elasticsearch.action.support.replication.ReplicationType
 import org.elasticsearch.search.sort.SortOrder
 import org.elasticsearch.search.SearchHitField
+import org.elasticsearch.search.facet.FacetBuilders
+import org.elasticsearch.search.facet.terms.TermsFacet
 import org.elasticsearch.common.settings.ImmutableSettings
 import org.elasticsearch.client.Client
 import org.elasticsearch.node.NodeBuilder
@@ -329,17 +331,25 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
   /** perform query on data store, see [[com.netflix.edda.Queryable.query()]] */
   def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
     // if query is for "null" ltime, then use the .live index alias
-    val builder = 
-      if( queryMap.contains("ltime") && queryMap("ltime") == null ) 
-        client.prepareSearch().setIndices(liveAliasName).setQuery(esQuery(queryMap - "ltime"))
-      else
-        client.prepareSearch().setIndices(aliasName).setQuery(esQuery(queryMap))
+    val (alias, query) = if( queryMap.contains("ltime") && queryMap("ltime") == null ) {
+      (liveAliasName, queryMap - "ltime")
+    } else {
+      (aliasName, queryMap)
+    }
+
+    val idQuery = keys.size == 1 && keys.contains("id")
+    val builder = if( idQuery ) {
+      val facet = FacetBuilders.termsFacet("f").field("id").size(1000000).facetFilter(esFilter(query)).order(TermsFacet.ComparatorType.TERM)
+      client.prepareSearch().setIndices(alias).setSize(0).addFacet(facet)
+    } else {
+      client.prepareSearch().setIndices(alias).setQuery(esQuery(query))
+    }
     queryMap.get("id") match {
       case Some(id: String) => builder.setRouting(id)
       case _ =>
     }
     if( !replicaOk ) builder.setPreference("_primary")
-    if( limit > 0 ) fetch(builder, limit, keys) else scan(builder, keys)
+    if( limit > 0 || idQuery ) fetch(builder, limit, keys) else scan(builder, keys)
   }
 
   /** load records from data store, used at Collection start-up to prime in-memory cache and to refresh
@@ -360,20 +370,31 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     import org.elasticsearch.action.search.SearchType
     val t0 = System.nanoTime()
     try {
-      val builder = search.setTypes(docType).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).addSort("stime", SortOrder.DESC).setFrom(0).setSize(limit);
+      val idQuery = keys.size == 1 && keys.contains("id")
+      val builder = search.setTypes(docType).setSearchType(SearchType.DFS_QUERY_THEN_FETCH);
+      if( !idQuery ) {
+        builder.addSort("stime", SortOrder.DESC).setFrom(0).setSize(limit)
+      }
       // add fields, but only 2 deep, beyond that we cannot infer the document structure from the response
       if( keys.size > 0 ) builder.addFields((keys + "stime").map(s => s.split('.').take(2).mkString(".")).toSet.toSeq:_*)
       if (logger.isDebugEnabled) logger.debug("["+builder.request.indices.mkString(",")+"]" + " fetch: " + builder.toString)
       val searchResp = builder.execute().actionGet();
-      searchResp.getHits().asScala.map(r => {
-        try esToRecord(if(keys.size > 0) esFieldsFixup(r.getFields) else r.getSource)
-        catch {
-          case e: Exception => {
-            if (logger.isErrorEnabled) logger.error(this + " failed to parse record: " + r.getSource, e)
-            throw e
+      if( idQuery ) {
+        val now = DateTime.now
+        searchResp.getFacets().facet[TermsFacet]("f").getEntries().asScala.map(f => {
+          Record( f.getTerm().toString(), null )
+        }).toSeq
+      } else {
+        searchResp.getHits().asScala.map(r => {
+          try esToRecord(if(keys.size > 0) esFieldsFixup(r.getFields) else r.getSource)
+          catch {
+            case e: Exception => {
+              if (logger.isErrorEnabled) logger.error(this + " failed to parse record: " + r.getSource, e)
+              throw e
+            }
           }
-        }
-      }).toSeq.sortWith((a, b) => a.stime.isAfter(b.stime))
+        }).toSeq.sortWith((a, b) => a.stime.isAfter(b.stime))
+      }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
