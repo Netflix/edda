@@ -29,6 +29,7 @@ import com.amazonaws.services.sqs.AmazonSQSClient
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
 import com.amazonaws.services.route53.AmazonRoute53Client
 import com.amazonaws.services.rds.AmazonRDSClient
+import com.amazonaws.services.elasticache.AmazonElastiCacheClient
 
 /** provides access to AWS service client objects
   *
@@ -127,5 +128,11 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
      val client = new AmazonRDSClient(provider)
      client.setEndpoint("rds.amazonaws.com")
      client
+   }
+
+   def elasticache = {
+    val client = new AmazonElastiCacheClient(provider)
+    client.setEndpoint("elasticache." + region + ".amazonaws.com")
+    client
    }
 }
