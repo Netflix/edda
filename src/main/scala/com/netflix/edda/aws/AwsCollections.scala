@@ -123,7 +123,8 @@ object AwsCollectionBuilder {
       new GroupAutoScalingGroups(asg, inst, dsFactory, elector, ctx),
       hostedZones,
       hostedRecords,
-      new AwsDatabaseCollection(dsFactory, accountName, elector, ctx)
+      new AwsDatabaseCollection(dsFactory, accountName, elector, ctx),
+      new AwsCacheClusterCollection(dsFactory, accountName, elector, ctx)
     )
   }
 }
@@ -757,3 +758,24 @@ class AwsDatabaseCollection(
   val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsDatabaseCrawler(name, ctx)
 }
+
+/** collection for AWS ElastiCache clusters
+  *
+  * root collection name: aws.cacheClusters
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsCacheClusterCrawler]]
+  *
+  * @param dsFactory function that creates new Datastore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+class AwsCacheClusterCollection(
+                                dsFactory: String => Option[Datastore],
+                                val accountName: String,
+                                val elector: Elector,
+                                override val ctx: AwsCollection.Context) extends RootCollection("aws.cacheClusters", accountName, ctx) {
+  val dataStore: Option[Datastore] = dsFactory(name)
+  val crawler = new AwsCacheClusterCrawler(name, ctx)
+}
+

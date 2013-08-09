@@ -125,9 +125,9 @@ object MongoDatastore {
   def mongoConnection(name: String, replicaOk: Boolean = false): Mongo = {
     import collection.JavaConverters._
     val servers = mongoProperty("address", name, "");
-    if( replicaOk && replicaMongoConnections.contains(servers) ) 
+    if( replicaOk && replicaMongoConnections.contains(servers) )
         replicaMongoConnections(servers)
-    else if( !replicaOk && primaryMongoConnections.contains(servers) ) 
+    else if( !replicaOk && primaryMongoConnections.contains(servers) )
         primaryMongoConnections(servers)
     else {
         val serverList = util.Random.shuffle(
@@ -151,7 +151,7 @@ object MongoDatastore {
         options.socketKeepAlive = true
         options.socketTimeout = queryTimeout
         options.threadsAllowedToBlockForConnectionMultiplier = 8
-        
+
         val primary = new Mongo(serverList.asJava, options)
         primaryMongoConnections += (servers -> primary)
 
@@ -275,7 +275,7 @@ class MongoDatastore(val name: String) extends Datastore {
           Seq(pair.oldRecord, pair.newRecord)
         }
       })
-    
+
     records.foreach( r => if (Collection.RetentionPolicy.withName(retentionPolicy.get) == LIVE && r.ltime != null) remove(r) else upsert(r) )
     toRemove.foreach( remove(_) )
     markCollectionModified
@@ -328,7 +328,7 @@ class MongoDatastore(val name: String) extends Datastore {
   protected def upsert(record: Record) {
     try {
       primary.findAndModify(
-        mapToMongo(Map("_id" -> (record.id + "|" + record.stime.getMillis))), // query
+        mapToMongo(Map("_id" -> (record.toId()))), // query
         null, // fields
         null, // sort
         false, // remove
@@ -345,7 +345,7 @@ class MongoDatastore(val name: String) extends Datastore {
   }
 
   protected def remove(record: Record) {
-    remove(Map("_id" -> (record.id + "|" + record.stime.getMillis)));
+    remove(Map("_id" -> (record.toId())));
   }
 
   override def remove(queryMap: Map[String, Any]) {
@@ -358,6 +358,6 @@ class MongoDatastore(val name: String) extends Datastore {
       }
     }
   }
-    
+
   override def toString = "[MongoDatastore " + name + "]"
 }

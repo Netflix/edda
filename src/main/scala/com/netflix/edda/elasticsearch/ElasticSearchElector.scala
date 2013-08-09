@@ -61,7 +61,7 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
     inited = true
     super.init()
   }
-  
+
   /** select the leader record from ElasticSearch to determine if we are the leader */
   override
   def isLeader: Boolean = {
@@ -72,7 +72,7 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
       } else false
     }
     else false
-  } 
+  }
 
 
   /** attempt to become the leader.  If no leader is present it attempts
@@ -89,7 +89,7 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
     if( !inited ) {
       return false
     }
-    
+
     val now = DateTime.now
     var leader = instance
 

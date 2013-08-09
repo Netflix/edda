@@ -72,6 +72,7 @@ import java.util.concurrent.Callable
 
 import org.slf4j.LoggerFactory
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
+import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
 
 /** static namespace for out Context trait */
 object AwsCrawler {
@@ -109,13 +110,13 @@ trait AwsBeanMapper extends BeanMapper {
 
   // this will flatten the tags so that we will have: { key -> a, value -> b, a -> b }
   val tagObjMapper: PartialFunction[AnyRef,AnyRef] = {
-    case obj : com.amazonaws.services.ec2.model.Tag => 
+    case obj : com.amazonaws.services.ec2.model.Tag =>
       flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
-    case obj : com.amazonaws.services.ec2.model.TagDescription => 
+    case obj : com.amazonaws.services.ec2.model.TagDescription =>
       flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
-    case obj : com.amazonaws.services.autoscaling.model.Tag => 
+    case obj : com.amazonaws.services.autoscaling.model.Tag =>
       flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
-    case obj : com.amazonaws.services.autoscaling.model.TagDescription => 
+    case obj : com.amazonaws.services.autoscaling.model.TagDescription =>
       flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
   }
   this.addObjMapper(tagObjMapper)
@@ -764,7 +765,7 @@ class AwsReservedInstanceCrawler(val name: String, val ctx: AwsCrawler.Context) 
   *
   * @param name name of collection we are crawling for
   * @param ctx context to provide beanMapper
-  */ 
+  */
 class AwsHostedZoneCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new ListHostedZonesRequest
 
@@ -783,7 +784,7 @@ object AwsHostedRecordCrawler extends StateMachine.LocalState[AwsHostedRecordCra
   * @param name name of collection we are crawling for
   * @param ctx context to provide beanMapper
   * @param crawler the awsHostedZone crawler
-  */ 
+  */
 class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler {
 
   import AwsHostedRecordCrawler._
@@ -792,7 +793,7 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
 
   // we dont crawl, just get updates from crawler when it crawls
   override def doCrawl() = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on HostedRecordCrawler")
-  
+
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(10)
   /** for each zone call listResourceRecordSets and map that to a new document
@@ -801,7 +802,7 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
     * @return the record set for the resourceRecordSet
     */
   def doCrawl(zones: Seq[Record]): Seq[Record] = {
-    
+
     val futures: Seq[java.util.concurrent.Future[Seq[Record]]] = zones.map(
       zone => {
         val zoneId = zone.data.asInstanceOf[Map[String,Any]]("id").asInstanceOf[String]
@@ -888,4 +889,16 @@ class AwsDatabaseCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
 
   override def doCrawl() =  ctx.awsClient.rds.describeDBInstances(request).getDBInstances.asScala.map(
     item => Record(item.getDBInstanceIdentifier, ctx.beanMapper(item))).toSeq
+}
+
+/** crawler for ElastiCache Clusters
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsCacheClusterCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeCacheClustersRequest
+
+  override def doCrawl() = ctx.awsClient.elasticache.describeCacheClusters(request).getCacheClusters.asScala.map(
+    item => Record(item.getCacheClusterId, ctx.beanMapper(item))).toSeq
 }

@@ -41,8 +41,8 @@ class BasicServer extends HttpServlet {
 
     Utils.initConfiguration(System.getProperty("edda.properties","edda.properties"))
 
-    if (logger.isInfoEnabled) logger.info("Staring Server")
-    
+    logger.info("Staring Server")
+
     val datastoreClassName = Utils.getProperty("edda", "datastore.class", "", "com.netflix.edda.mongo.MongoDatastore").get
     val datastoreClass = this.getClass.getClassLoader.loadClass(datastoreClassName)
     val datastoreCtor = datastoreClass.getConstructor(classOf[String])
