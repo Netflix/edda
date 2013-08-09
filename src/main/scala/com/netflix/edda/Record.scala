@@ -103,6 +103,10 @@ class Record(
       "tags" -> tags)
   }
 
+  def toId(): String = {
+      return (this.id + "|" + this.stime.getMillis)
+  }
+
   /** json serialized string used to compare if 2 records with same id are in-fact identical */
   lazy val dataString = Utils.toJson(this.data)
 

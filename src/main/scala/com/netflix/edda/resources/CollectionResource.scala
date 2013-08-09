@@ -327,7 +327,7 @@ class CollectionResource {
       }
 
       val prefix = details.req.getContextPath + details.req.getServletPath + "/v2/";
-        
+
       val diff = Utils.diffRecords(
         recs,
         details.diff.collect({

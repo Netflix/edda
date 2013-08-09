@@ -187,7 +187,7 @@ object Utils {
 
   /** convert list of Any to list of AnyRef.  This is useful for slf4j printf style formatting:
     * {{{
-    * if (logger.isInfoEnabled) logger.info("stuff {} {} {} {}", toObjects(1, 1.2, true, "string"))
+    * logger.info("stuff {} {} {} {}", toObjects(1, 1.2, true, "string"))
     * }}}
     * @param args list of items to massage into list of AnyRef
     */
@@ -372,7 +372,7 @@ object Utils {
       // the edda.config to the configuration composite
       val scheduler = new FixedDelayPollingScheduler
       val source = new URLConfigurationSource(
-        Thread.currentThread().getContextClassLoader().getResource(name) 
+        Thread.currentThread().getContextClassLoader().getResource(name)
       )
       val eddaConfig = new DynamicConfiguration(source, scheduler)
       composite.addConfiguration(eddaConfig, "eddaConfig")

@@ -94,7 +94,7 @@ class UtilsTest extends FunSuite {
   test("diffRecords") {
     val r1 = Record("id", 1).copy(stime = new DateTime(0, UTC))
     val r2 = Record("id", 2).copy(stime = new DateTime(1, UTC))
-    var expected = 
+    var expected =
 """--- collection/path/id;_pp;_at=0
 +++ collection/path/id;_pp;_at=1
 @@ -1,1 +1,1 @@

@@ -105,7 +105,7 @@ abstract class Crawler extends Observable {
       // this is blocking so we don't crawl in parallel
 
       // in case we are crawling slower than expected
-      // we might have a bunch of Crawl messages in the 
+      // we might have a bunch of Crawl messages in the
       // mailbox, so just burn through them now
       flushMessages {
         case Crawl(from) => true
