@@ -19,7 +19,6 @@ import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
-
 import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
@@ -30,6 +29,7 @@ import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
 import com.amazonaws.services.route53.AmazonRoute53Client
 import com.amazonaws.services.rds.AmazonRDSClient
 import com.amazonaws.services.elasticache.AmazonElastiCacheClient
+import com.netflix.edda.Utils
 
 /** provides access to AWS service client objects
   *
@@ -65,41 +65,64 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
   /** get [[com.amazonaws.services.ec2.AmazonEC2Client]] object */
   def ec2 = {
     val client = new AmazonEC2Client(provider)
-    client.setEndpoint("ec2." + region + ".amazonaws.com")
+    val url = if (Utils.isAwsRegion(region)) {
+      "ec2." + region + ".amazonaws.com"
+    } else {
+      region + ":8773/services/Eucalyptus"
+    }
+    client.setEndpoint(url)
     client
   }
 
   /** get [[com.amazonaws.services.autoscaling.AmazonAutoScalingClient]] object */
   def asg = {
     val client = new AmazonAutoScalingClient(provider)
-    client.setEndpoint("autoscaling." + region + ".amazonaws.com")
+    val url = if (Utils.isAwsRegion(region)) {
+      "autoscaling." + region + ".amazonaws.com"
+    } else {
+      region + ":8773/services/AutoScaling"
+    }
+    client.setEndpoint(url)
     client
   }
 
   /** get [[com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient]] object */
   def elb = {
     val client = new AmazonElasticLoadBalancingClient(provider)
-    client.setEndpoint("elasticloadbalancing." + region + ".amazonaws.com")
+    val url = if (Utils.isAwsRegion(region)) {
+      "elasticloadbalancing." + region + ".amazonaws.com"
+    } else {
+      region + ":8773/services/LoadBalancing"
+    }
+    client.setEndpoint(url)
     client
   }
 
   /** get [[com.amazonaws.services.s3.AmazonS3Client]] object */
   def s3 = {
     val client = new AmazonS3Client(provider)
-    if (region == "us-east-1")
-      client.setEndpoint("s3.amazonaws.com")
-    else
-      client.setEndpoint("s3-" + region + ".amazonaws.com")
+    val url = if (region == "us-east-1") {
+      "s3.amazonaws.com"
+    } else if (Utils.isAwsRegion(region)) {
+      "s3-" + region + ".amazonaws.com"
+    } else {
+      region + ":8773/services/Walrus"
+    }
+    client.setEndpoint(url)
     client
   }
 
   /** get [[com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient]] object */
   def identitymanagement = {
     val client = new AmazonIdentityManagementClient(provider)
-    if (region == "us-gov")
-      client.setEndpoint("iam.us-gov.amazonaws.com")
-    else
-      client.setEndpoint("iam.amazonaws.com")
+    val url =     if (region == "us-gov") {
+      "iam.us-gov.amazonaws.com"
+    } else if (Utils.isAwsRegion(region)) {
+      "iam.amazonaws.com"
+    } else {
+      region + ":8773/services/Euare"
+    }
+    client.setEndpoint(url)
     client
   }
 
@@ -113,7 +136,12 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
   /** get [[com.amazonaws.services.sqs.AmazonCloudWatchClient]] object */
   def cw = {
     val client = new AmazonCloudWatchClient(provider)
-    client.setEndpoint("monitoring." + region + ".amazonaws.com")
+    val url = if (Utils.isAwsRegion(region)) {
+      "monitoring." + region + ".amazonaws.com"
+    } else {
+      region + ":8773/services/CloudWatch"
+    }
+    client.setEndpoint(url)
     client
   }
 

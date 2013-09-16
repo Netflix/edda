@@ -18,30 +18,26 @@ package com.netflix.edda
 import scala.actors.Actor
 import scala.actors.DaemonActor
 import scala.actors.Exit
-
 import java.io.ByteArrayOutputStream
 import java.util.Date
 import java.util.Properties
 import java.text.SimpleDateFormat
-
 import com.netflix.config.DynamicProperty
 import com.netflix.config.DynamicPropertyFactory
 import com.netflix.config.DynamicStringProperty
-
 import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
-
 import org.codehaus.jackson.JsonGenerator
 import org.codehaus.jackson.JsonEncoding.UTF8
 import org.codehaus.jackson.util.DefaultPrettyPrinter
 import org.codehaus.jackson.map.MappingJsonFactory
 import org.codehaus.jackson.JsonNode
-
 import com.netflix.config.ConcurrentCompositeConfiguration
 import com.netflix.config.DynamicPropertyFactory
 import com.netflix.config.FixedDelayPollingScheduler
 import com.netflix.config.sources.URLConfigurationSource
 import com.netflix.config.DynamicConfiguration
+import java.net.InetAddress
 
 /** singleton object for various helper functions */
 object Utils {
@@ -376,6 +372,16 @@ object Utils {
       )
       val eddaConfig = new DynamicConfiguration(source, scheduler)
       composite.addConfiguration(eddaConfig, "eddaConfig")
+    }
+  }
+
+  /** use EC2 region's DNS name's existence as test **/
+  def isAwsRegion(region: String): Boolean = {
+    try {
+      InetAddress.getByName("ec2.$region.amazonaws.com")
+      true
+    } catch {
+      case e : Exception => { false }
     }
   }
 }
