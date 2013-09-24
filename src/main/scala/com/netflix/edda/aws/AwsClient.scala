@@ -31,6 +31,7 @@ import com.amazonaws.services.route53.AmazonRoute53Client
 import com.amazonaws.services.rds.AmazonRDSClient
 import com.amazonaws.services.elasticache.AmazonElastiCacheClient
 import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
+import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 
 /** provides access to AWS service client objects
   *
@@ -140,6 +141,12 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
    def beanstalk = {
     val client = new AWSElasticBeanstalkClient(provider)
     client.setEndpoint("elasticbeanstalk." + region + ".amazonaws.com")
+    client
+   }
+
+   def cloudformation = {
+    val client = new AmazonCloudFormationClient(provider)
+    client.setEndpoint("cloudformation." + region + ".amazonaws.com")
     client
    }
 }

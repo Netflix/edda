@@ -74,6 +74,7 @@ import org.slf4j.LoggerFactory
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
 import com.amazonaws.services.elasticbeanstalk.model.DescribeEnvironmentsRequest
+import com.amazonaws.services.cloudformation.model.ListStacksRequest
 
 /** static namespace for out Context trait */
 object AwsCrawler {
@@ -916,4 +917,15 @@ class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends
     item => Record(item.getEnvironmentId, ctx.beanMapper(item))).toSeq
 }
 
+/** crawler for Cloudformation Stacks
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new ListStacksRequest
+
+  override def doCrawl() =  ctx.awsClient.cloudformation.listStacks(request).asScala.map(
+    item => Record(item.getStackId, ctx.beanMapper(item))).toSeq
+}
 
