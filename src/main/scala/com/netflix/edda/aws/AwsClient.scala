@@ -30,7 +30,7 @@ import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
 import com.amazonaws.services.route53.AmazonRoute53Client
 import com.amazonaws.services.rds.AmazonRDSClient
 import com.amazonaws.services.elasticache.AmazonElastiCacheClient
-import com.amazonaws.services.beanstalk.AWSElasticBeanstalkClient
+import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
 
 /** provides access to AWS service client objects
   *
