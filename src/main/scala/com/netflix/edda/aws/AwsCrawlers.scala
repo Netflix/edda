@@ -74,7 +74,8 @@ import org.slf4j.LoggerFactory
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
 import com.amazonaws.services.elasticbeanstalk.model.DescribeEnvironmentsRequest
-import com.amazonaws.services.cloudformation.model.ListStacksRequest
+import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
+import com.amazonaws.services.cloudformation.model.ListStackResourcesRequest
 
 /** static namespace for out Context trait */
 object AwsCrawler {
@@ -923,9 +924,40 @@ class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends
   * @param ctx context to provide beanMapper
   */
 class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
-  val request = new ListStacksRequest
+  val request = new DescribeStacksRequest
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  private[this] val threadPool = Executors.newFixedThreadPool(1)
 
-  override def doCrawl() =  ctx.awsClient.cloudformation.listStacks(request).asScala.map(
-    item => Record(item.getStackId, ctx.beanMapper(item))).toSeq
+  override def doCrawl() = {
+    val stacks = ctx.awsClient.cloudformation.describeStacks(request).getStacks.asScala
+    val futures: Seq[java.util.concurrent.Future[Record]] = stacks.map(
+      stack => {
+        threadPool.submit(
+          new Callable[Record] {
+            def call() = {
+              val stackResourcesRequest = new ListStackResourcesRequest().withStackName(stack.getStackName)
+              val stackResources = ctx.awsClient.cloudformation.listStackResources(stackResourcesRequest).getStackResourceSummaries.asScala.map(item => ctx.beanMapper(item)).toSeq
+              Record(stack.getStackName, new DateTime(stack.getCreationTime), ctx.beanMapper(stack).asInstanceOf[Map[String,Any]] ++ Map("resources" -> stackResources))
+            }
+          }
+        )
+      }
+    )
+    val records = futures.map(
+      f => {
+        try Some(f.get)
+        catch {
+          case e: Exception => {
+            if (logger.isErrorEnabled) logger.error(this + "exception from Cloudformation listStackResources", e)
+            None
+          }
+        }
+      }
+    ).collect {
+      case Some(rec) => rec
+    }
+
+    records
+  }
+
 }
-
