@@ -73,7 +73,6 @@ import java.util.concurrent.Callable
 import org.slf4j.LoggerFactory
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
-import com.amazonaws.services.elasticbeanstalk.model.DescribeEnvironmentsRequest
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
 import com.amazonaws.services.cloudformation.model.ListStackResourcesRequest
 
@@ -904,18 +903,6 @@ class AwsCacheClusterCrawler(val name: String, val ctx: AwsCrawler.Context) exte
 
   override def doCrawl() = ctx.awsClient.elasticache.describeCacheClusters(request).getCacheClusters.asScala.map(
     item => Record(item.getCacheClusterId, ctx.beanMapper(item))).toSeq
-}
-
-/** crawler for Beanstalk Environments
-  *
-  * @param name name of collection we are crawling for
-  * @param ctx context to provide beanMapper
-  */
-class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
-  val request = new DescribeEnvironmentsRequest
-
-  override def doCrawl() =  ctx.awsClient.beanstalk.describeEnvironments(request).getEnvironments.asScala.map(
-    item => Record(item.getEnvironmentId, ctx.beanMapper(item))).toSeq
 }
 
 /** crawler for Cloudformation Stacks
