@@ -73,7 +73,8 @@ import java.util.concurrent.Callable
 import org.slf4j.LoggerFactory
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
-import com.amazonaws.services.elasticbeanstalk.model.DescribeEnvironmentsRequest
+import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
+import com.amazonaws.services.cloudformation.model.ListStackResourcesRequest
 
 /** static namespace for out Context trait */
 object AwsCrawler {
@@ -904,16 +905,52 @@ class AwsCacheClusterCrawler(val name: String, val ctx: AwsCrawler.Context) exte
     item => Record(item.getCacheClusterId, ctx.beanMapper(item))).toSeq
 }
 
-/** crawler for Beanstalk Environments
+/** crawler for Cloudformation Stacks
   *
   * @param name name of collection we are crawling for
   * @param ctx context to provide beanMapper
   */
-class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
-  val request = new DescribeEnvironmentsRequest
+class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeStacksRequest
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  private[this] val threadPool = Executors.newFixedThreadPool(1)
 
+<<<<<<< HEAD
   override def doCrawl() =  ctx.awsClient.beanstalk.describeEnvironments(request).getEnvironments.withResources.asScala.map(
     item => Record(item.getEnvironmentId, ctx.beanMapper(item))).toSeq
 }
+=======
+  override def doCrawl() = {
+    val stacks = ctx.awsClient.cloudformation.describeStacks(request).getStacks.asScala
+    val futures: Seq[java.util.concurrent.Future[Record]] = stacks.map(
+      stack => {
+        threadPool.submit(
+          new Callable[Record] {
+            def call() = {
+              val stackResourcesRequest = new ListStackResourcesRequest().withStackName(stack.getStackName)
+              val stackResources = ctx.awsClient.cloudformation.listStackResources(stackResourcesRequest).getStackResourceSummaries.asScala.map(item => ctx.beanMapper(item)).toSeq
+              Record(stack.getStackName, new DateTime(stack.getCreationTime), ctx.beanMapper(stack).asInstanceOf[Map[String,Any]] ++ Map("resources" -> stackResources))
+            }
+          }
+        )
+      }
+    )
+    val records = futures.map(
+      f => {
+        try Some(f.get)
+        catch {
+          case e: Exception => {
+            if (logger.isErrorEnabled) logger.error(this + "exception from Cloudformation listStackResources", e)
+            None
+          }
+        }
+      }
+    ).collect {
+      case Some(rec) => rec
+    }
+>>>>>>> origin/cloudformation
 
+    records
+  }
 
+}
