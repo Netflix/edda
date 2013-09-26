@@ -912,7 +912,7 @@ class AwsCacheClusterCrawler(val name: String, val ctx: AwsCrawler.Context) exte
 class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeEnvironmentsRequest
 
-  override def doCrawl() =  ctx.awsClient.beanstalk.describeEnvironments(request).getEnvironments.asScala.map(
+  override def doCrawl() =  ctx.awsClient.beanstalk.describeEnvironments(request).getEnvironments.withResources.asScala.map(
     item => Record(item.getEnvironmentId, ctx.beanMapper(item))).toSeq
 }
 
