@@ -40,9 +40,12 @@ class MergedCollectionTest extends FunSuite {
     collA.dataStore.get.recordSet = collA.dataStore.get.recordSet.copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
     val collB = new TestCollection("test.B")
     collB.dataStore.get.recordSet = collB.dataStore.get.recordSet.copy(records = Seq(Record("A", 1), Record("B", 2), Record("C", 3)))
-
     val merged = new MergedCollection("merged.collection", Seq(collA, collB))
+
     merged.start()
+    collA.processor ! CollectionProcessor.Load(collA)
+    collB.processor ! CollectionProcessor.Load(collB)
+    Thread.sleep(1000)
 
     expectResult(2) {
       SYNC ( merged.query(Map("data" -> 1)) ).size

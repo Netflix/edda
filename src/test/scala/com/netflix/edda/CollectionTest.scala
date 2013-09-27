@@ -125,6 +125,7 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     
     // set crawler results and wait for the crawler results to propagate
     coll.crawler.records = crawlResults
+    coll.crawler.crawl()
     Thread.sleep(1000)
     
     // we should get 4 records now
