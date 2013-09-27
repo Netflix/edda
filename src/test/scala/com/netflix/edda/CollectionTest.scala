@@ -15,8 +15,6 @@
  */
 package com.netflix.edda
 
-import org.slf4j.LoggerFactory
-
 import com.netflix.edda.basic.BasicContext
 
 import org.scalatest.FunSuite
@@ -28,6 +26,9 @@ import java.util.Properties
 import com.netflix.config.DynamicPropertyFactory
 import com.netflix.config.ConcurrentCompositeConfiguration
 
+import org.apache.log4j.Logger
+import org.apache.log4j.Level
+
 import org.apache.commons.configuration.MapConfiguration
 
 import scala.concurrent._
@@ -38,11 +39,13 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
   import Utils._
   import Queryable._
 
+  implicit val req = RequestId()
+
   def SYNC[T](future: Awaitable[T]): T = {
     Await.result(future, Duration(5, SECONDS))
   }
 
-  val logger = LoggerFactory.getLogger(getClass)
+  val logger = Logger.getRootLogger()
 
   before {
     Utils.initConfiguration("edda.properties")
@@ -58,8 +61,8 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     
     // dont let the crawler reset our records
     coll.elector.leader = false
-    coll.dataStore.get.records = Seq(Record("a", 1), Record("b", 2), Record("c", 3))
-    coll ! Collection.Load(coll)
+    coll.dataStore.get.recordSet = coll.dataStore.get.recordSet.copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
+    coll.processor ! CollectionProcessor.Load(coll)
     // allow for collection to load
     
     Thread.sleep(1000)
@@ -78,7 +81,7 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
 
   test("update") {
     val coll = new TestCollection
-    coll.dataStore.get.records = Seq(Record("a", 1), Record("b", 2), Record("c", 3))
+    coll.dataStore.get.recordSet = coll.dataStore.get.recordSet.copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
     coll.start()
 
 
@@ -112,7 +115,7 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     val dataStoreResults = Seq(Record("a", 1), Record("b", 2), Record("c", 3))
     val crawlResults = Seq(Record("a", 1), Record("b", 3), Record("c", 4), Record("d", 5))
 
-    coll.dataStore.get.records = dataStoreResults
+    coll.dataStore.get.recordSet = coll.dataStore.get.recordSet.copy(records = dataStoreResults)
     coll.start()
 
     // expect data loaded form dataStore
@@ -130,12 +133,13 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     }
 
     // now drop leader role and wait for dataStore results to reload
-    // but first set the ltime on the "a" record so it will be
-    // removed from the record set upon reload
+    // but remove the "a" record
     coll.elector.leader = false
-    val newA = coll.dataStore.get.records.head.copy(ltime=DateTime.now())
-    coll.dataStore.get.records = newA +: coll.dataStore.get.records.tail
-    Thread.sleep(1000)
+    // wait for previous crawls to propogate
+    Thread.sleep(300)
+    coll.dataStore.get.recordSet = coll.dataStore.get.recordSet.copy(records = coll.dataStore.get.recordSet.records.tail)
+    coll.processor ! CollectionProcessor.Load(coll)
+    Thread.sleep(300)
 
     expectResult(3) {
       SYNC( coll.query() ).size

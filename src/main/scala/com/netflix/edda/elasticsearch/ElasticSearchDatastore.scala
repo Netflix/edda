@@ -16,9 +16,11 @@
 package com.netflix.edda.elasticsearch
 
 import com.netflix.edda.Record
+import com.netflix.edda.RecordSet
 import com.netflix.edda.Collection
 import com.netflix.edda.Datastore
 import com.netflix.edda.Utils
+import com.netflix.edda.RequestId
 
 import org.joda.time.DateTime
 import java.util.Date
@@ -59,34 +61,34 @@ object ElasticSearchDatastore {
           Option(o.get("id")).getOrElse(o.get("_id")).asInstanceOf[String],
           Option(o.get("ftime")) match {
             case Some(date:String) => basicDateTime.parseDateTime(date)
-            case None => Option(o.get("ctime")) match {
+            case _ => Option(o.get("ctime")) match {
               case Some(date:String) => basicDateTime.parseDateTime(date)
-              case None => null
+              case _ => null
             }
           },
           Option(o.get("ctime")) match {
             case Some(date:String) => basicDateTime.parseDateTime(date)
-            case None => null
+            case _ => null
           },
           Option(o.get("stime")) match {
             case Some(date:String) => basicDateTime.parseDateTime(date)
-            case None => null
+            case _ => null
           },
           Option(o.get("ltime")) match {
             case Some(date: String) => basicDateTime.parseDateTime(date)
-            case None => null
+            case _ => null
           },
           Option(o.get("mtime")) match {
             case Some(date: String) => basicDateTime.parseDateTime(date)
-            case None => null
+            case _ => null
           },
           Option(o.get("data")) match {
             case Some(data) => esToScala(data)
-            case None => null
+            case _ => null
           },
           Option(o.get("tags")) match {
             case Some(tags) => esToScala(tags).asInstanceOf[Map[String,Any]]
-            case None => Map[String,Any]()
+            case _ => Map[String,Any]()
           }
         )
       case other => throw new java.lang.RuntimeException("cannot turn " + other + " into a Record")
@@ -276,8 +278,10 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
   private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get.replaceAll("[.]","_")
   private lazy val retentionPolicy = Utils.getProperty("edda.collection", "retentionPolicy", name, "ALL")
 
-  private def writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticsearch.writeConsistency", name, "quorum").get )
-  private def replicationType  = ReplicationType.fromString( Utils.getProperty("edda", "elasticsearch.replicationType", name, "async").get )
+  private val writeConsistencyProp = Utils.getProperty("edda", "elasticsearch.writeConsistency", name, "quorum")
+  private def writeConsistency = WriteConsistencyLevel.fromString( writeConsistencyProp.get )
+  private val replicationTypeProp = Utils.getProperty("edda", "elasticsearch.replicationType", name, "async")
+  private def replicationType  = ReplicationType.fromString( replicationTypeProp.get )
 
   private lazy val scanBatchSize  = Utils.getProperty("edda", "elasticsearch.scanBatchSize", name, "1000");
   private lazy val scanCursorDuration  = Utils.getProperty("edda", "elasticsearch.scanCursorDuration", name, "60000");
@@ -329,7 +333,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
   }
 
   /** perform query on data store, see [[com.netflix.edda.Queryable.query()]] */
-  def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
+  def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean)(implicit req: RequestId): Seq[Record] = {
     // if query is for "null" ltime, then use the .live index alias
     val (alias, query) = if( queryMap.contains("ltime") && queryMap("ltime") == null ) {
       (liveAliasName, queryMap - "ltime")
@@ -358,13 +362,13 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     * @param replicaOk specify if we can load from a read-replica in the data store when there are
     *                  redundant systems running for high-availability.
     */
-  def load(replicaOk: Boolean): Seq[Record] = {
+  def load(replicaOk: Boolean)(implicit req: RequestId): RecordSet = {
     val builder = client.prepareSearch().setIndices(liveAliasName)
     if( !replicaOk ) builder.setPreference("_primary")
-    scan(builder)
+    RecordSet(scan(builder), Map("mtime" -> collectionModified() ))
   }
 
-  def fetch(search: SearchRequestBuilder, limit: Int, keys: Set[String]): Seq[Record] = {
+  def fetch(search: SearchRequestBuilder, limit: Int, keys: Set[String])(implicit req: RequestId): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     import org.elasticsearch.action.search.SearchResponse
     import org.elasticsearch.action.search.SearchType
@@ -377,19 +381,28 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       }
       // add fields, but only 2 deep, beyond that we cannot infer the document structure from the response
       if( keys.size > 0 ) builder.addFields((keys + "stime").map(s => s.split('.').take(2).mkString(".")).toSet.toSeq:_*)
-      if (logger.isDebugEnabled) logger.debug("["+builder.request.indices.mkString(",")+"]" + " fetch: " + builder.toString)
+      if (logger.isDebugEnabled) {
+        val ix = builder.request.indices.mkString(",")
+        logger.debug(s"$req [$ix] fetch: $builder")
+      }
       val searchResp = builder.execute().actionGet();
+      if( searchResp.getFailedShards() > 0 ) {
+        val failures = searchResp.getShardFailures()
+        failures.foreach( failure => {
+          val ix = builder.request.indices.mkString(",")
+          logger.error(s"$req [$ix] search shard failure on ${failure.shardId} reason: ${failure.reason} on query: $builder")
+        })
+        throw new java.lang.RuntimeException(builder.request.indices.mkString(",") + " shard failures")
+      }
       if( idQuery ) {
         val now = DateTime.now
-        searchResp.getFacets().facet[TermsFacet]("f").getEntries().asScala.map(f => {
-          Record( f.getTerm().toString(), null )
-        }).toSeq
+        searchResp.getFacets().facet[TermsFacet]("f").getEntries().asScala.map(f => f.getTerm().toString()).toSet.map( (id: String) => Record(id,null) ).toSeq
       } else {
         searchResp.getHits().asScala.map(r => {
           try esToRecord(if(keys.size > 0) esFieldsFixup(r.getFields) else r.getSource)
           catch {
             case e: Exception => {
-              if (logger.isErrorEnabled) logger.error(this + " failed to parse record: " + r.getSource, e)
+              if (logger.isErrorEnabled) logger.error(s"$req$this failed to parse record: ${r.getSource}", e)
               throw e
             }
           }
@@ -398,11 +411,11 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      if (logger.isInfoEnabled) logger.info(this + " fetch lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(s"$req$this fetch lapse: ${lapse}ms")
     }
   }
 
-  def scan( search: SearchRequestBuilder, keys: Set[String] = Set()): Seq[Record] = {
+  def scan( search: SearchRequestBuilder, keys: Set[String] = Set())(implicit req: RequestId): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     import org.elasticsearch.action.search.SearchResponse
     import org.elasticsearch.action.search.SearchType
@@ -415,22 +428,38 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       setSize(scanBatchSize.get.toInt)
     // add fields, but only 2 deep, beyond that we cannot infer the document structure from the response
     if( keys.size > 0 ) builder.addFields((keys + "stime").map(s => s.split('.').take(2).mkString(".")).toSet.toSeq:_*)
-    if (logger.isDebugEnabled) logger.debug("["+builder.request.indices.mkString(",")+"]" + " scan: " + builder.toString)
+    if (logger.isDebugEnabled) {
+      val ix = builder.request.indices.mkString(",")
+      logger.debug(s"$req [$ix] scan: $builder")
+    }
 
-    var scrollResp: SearchResponse = builder.execute().actionGet()
-
-    //Scroll until no hits are returned
+    var scrollResp = builder.execute().actionGet()
     var keepLooping = true
     var seq: Seq[Record] = Seq()
 
     try {
       while (keepLooping) {
-        scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(60000)).execute().actionGet()
+        scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(scanCursorDuration.get.toInt)).execute().actionGet() 
+        // get shard failures
+        if( scrollResp.getFailedShards() > 0 ) {
+          val failures = scrollResp.getShardFailures()
+          failures.foreach( failure => {
+            val ix = builder.request.indices.mkString(",")
+            logger.error(s"$req [$ix] search shard failure on ${failure.shardId} reason: ${failure.reason} on query: $builder")
+          })
+          throw new java.lang.RuntimeException(builder.request.indices.mkString(",") + " shard failures")
+        }
+        // check for timeout
+        if( scrollResp.isTimedOut ) {
+          val ix = builder.request.indices.mkString(",")
+          logger.error(s"$req $ix search timed out on query: $builder")
+          throw new java.util.concurrent.TimeoutException(builder.request.indices.mkString(",") + " scanning query failed  after " + scanCursorDuration.get + "ms timeout")
+        }
         seq = seq ++ scrollResp.getHits().asScala.map(r => {
           try esToRecord(if(keys.size > 0) esFieldsFixup(r.getFields) else r.getSource)
           catch {
             case e: Exception => {
-              if (logger.isErrorEnabled) logger.error(this + " failed to parse record: " + r.getSource, e)
+              if (logger.isErrorEnabled) logger.error(s"$req$this failed to parse record: ${r.getSource}", e)
               throw e
             }
           }
@@ -445,13 +474,13 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      if (logger.isInfoEnabled) logger.info(this + " scan lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(s"$req$this scan lapse: ${lapse}ms")
     }
   }
 
 
   /** make changes to the data store depending on the Collection delta found after a Crawl result */
-  def update(d: Collection.Delta) {
+  def update(d: Collection.Delta)(implicit req: RequestId): Collection.Delta = {
     var toRemove: Seq[Record] = Seq();
     val records = d.removed ++ d.added ++ d.changed.flatMap(
       pair => {
@@ -478,9 +507,10 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       remove(toRemove)
     }
     markCollectionModified
+    d
   }
 
-  override def collectionModified: DateTime  = {
+  def collectionModified()(implicit req: RequestId): DateTime  = {
     // if query is for "null" ltime, then use the .live index alias
     val t0 = System.nanoTime()
     try {
@@ -493,11 +523,11 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      if (logger.isInfoEnabled) logger.info(this + " get collection_mark: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(s"$req$this get collection_mark: ${lapse}ms")
     }
   }
 
-  def markCollectionModified = {
+  def markCollectionModified()(implicit req: RequestId) = {
     val markRec = Record(name, Map("updated" -> DateTime.now, "id" -> name, "type" -> "collection"))
     val t0 = System.nanoTime()
     try {
@@ -510,17 +540,17 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         actionGet();
     } catch {
       case e: Exception => {
-        if (logger.isErrorEnabled) logger.error("failed to index record: " + markRec, e)
+        if (logger.isErrorEnabled) logger.error(s"$req failed to index record: $markRec", e)
         throw e
       }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      if (logger.isInfoEnabled) logger.info(this + " update collection_mark: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(s"$req$this update collection_mark: ${lapse}ms")
     }
   }
 
-  protected def upsert(record: Record) {
+  protected def upsert(record: Record)(implicit req: RequestId) {
     val t0 = System.nanoTime()
     try {
       client.prepareIndex(writeAliasName, docType).
@@ -533,18 +563,18 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         actionGet();
     } catch {
       case e: Exception => {
-        if (logger.isErrorEnabled) logger.error("failed to index record: " + record, e)
+        if (logger.isErrorEnabled) logger.error(s"$req failed to index record: $record", e)
         throw e
       }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      if (logger.isInfoEnabled) logger.info(this + " upsert: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(s"$req$this upsert: ${lapse}ms")
     }
   }
 
 
- protected def upsert(records: Seq[Record]) {
+ protected def upsert(records: Seq[Record])(implicit req: RequestId) {
     if( records.size <= 0 ) return
     val t0 = System.nanoTime()
     try {
@@ -564,23 +594,23 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         val response = bulk.execute.actionGet
         if( response.hasFailures() ) {
           val err = this + " failed to bulk index: " + response.buildFailureMessage()
-          if (logger.isErrorEnabled) logger.error(err)
+          if (logger.isErrorEnabled) logger.error(s"$req $err")
           throw new java.lang.RuntimeException(err)
         }
       })
     }
     catch {
       case e: Exception => {
-        if (logger.isErrorEnabled) logger.error("failed to bulk index records", e)
+        if (logger.isErrorEnabled) logger.error(s"$req failed to bulk index records", e)
       }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      if (logger.isInfoEnabled) logger.info(this + " bulk upsert lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(s"$req$this bulk upsert lapse: ${lapse}ms")
     }
   }
 
-  protected def remove(record: Record) {
+  protected def remove(record: Record)(implicit req: RequestId) {
     val t0 = System.nanoTime()
     try {
       val response = client.prepareDelete(writeAliasName, docType, record.toId()).
@@ -588,21 +618,21 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         execute().
         actionGet();
       if( response.isNotFound() ) {
-        logger.error(this + " failed to delete \"" + record.toId() + "\": Not Found")
+        logger.error(s"$req$this failed to delete '${record.toId()}': Not Found")
       }
     } catch {
       case e: Exception => {
-        if (logger.isErrorEnabled) logger.error("failed to delete record: " + record, e)
+        if (logger.isErrorEnabled) logger.error(s"$req failed to delete record: $record", e)
         throw e
       }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      if (logger.isInfoEnabled) logger.info(this + " remove lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(s"$req$this remove lapse: ${lapse}ms")
     }
   }
 
-  override def remove(queryMap: Map[String, Any]) {
+  override def remove(queryMap: Map[String, Any])(implicit req: RequestId) {
     val t0 = System.nanoTime()
     try {
       val response = client.prepareDeleteByQuery(writeAliasName).
@@ -613,22 +643,22 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
       // FIXME need to upgrade elasticsearch so that DeleteByQueryResponse has status() member
       // if( response.status() != RestStatus.OK ) {
       //   val err = this + " failed to delete with query " + queryMap.toString
-      //   if (logger.isErrorEnabled) logger.error(err)
+      //   if (logger.isErrorEnabled) logger.error(s"$req $err")
       //   throw new java.lang.RuntimeException(err)
       // }
     } catch {
       case e: Exception => {
-        if (logger.isErrorEnabled) logger.error("failed to delete records: " + queryMap, e)
+        if (logger.isErrorEnabled) logger.error(s"$req failed to delete records: $queryMap", e)
         throw e
       }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      if (logger.isInfoEnabled) logger.info(this + " remove by query lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(s"$req$this remove by query lapse: ${lapse}ms")
     }
   }
 
-  protected def remove(records: Seq[Record]) {
+  protected def remove(records: Seq[Record])(implicit req: RequestId) {
     if( records.size <= 0 ) return
     val t0 = System.nanoTime()
     try {
@@ -642,18 +672,18 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
         })
         val response = bulk.execute.actionGet
         if( response.hasFailures() ) {
-          if (logger.isErrorEnabled) logger.error(this + " failed to bulk delete: " + response.buildFailureMessage())
+          if (logger.isErrorEnabled) logger.error(s"$req$this failed to bulk delete: ${response.buildFailureMessage()}")
         }
       })
     }
     catch {
       case e: Exception => {
-        if (logger.isErrorEnabled) logger.error("failed to bulk index records", e)
+        if (logger.isErrorEnabled) logger.error(s"$req failed to bulk index records", e)
       }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      if (logger.isInfoEnabled) logger.info(this + " bulk remove lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(s"$req$this bulk remove lapse: ${lapse}ms")
     }
   }
 

@@ -32,13 +32,13 @@ object CollectionManager {
 
   def names(): Set[String] = collections.keySet
 
-  def start() {
-    if (logger.isInfoEnabled) logger.info("Starting collections")
+  def start()(implicit req: RequestId) {
+    if (logger.isInfoEnabled) logger.info(s"$req Starting collections")
     collections.values.foreach(_.start())
   }
 
-  def stop() {
-    if (logger.isInfoEnabled) logger.info("Stopping collections")
+  def stop()(implicit req: RequestId) {
+    if (logger.isInfoEnabled) logger.info(s"$req Stopping collections")
     collections.values.foreach(_.stop())
   }
 }

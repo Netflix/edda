@@ -15,6 +15,8 @@
  */
 package com.netflix.edda.aws
 
+import com.netflix.edda.Utils
+
 import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.auth.AWSCredentialsProvider
@@ -32,6 +34,20 @@ import com.amazonaws.services.rds.AmazonRDSClient
 import com.amazonaws.services.elasticache.AmazonElastiCacheClient
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 
+object AwsClient {
+  def mkCredentialProvider(accessKey: String, secretKey: String): AWSCredentialsProvider = {
+    if( accessKey.isEmpty ) {
+      new DefaultAWSCredentialsProviderChain()
+    } else {
+      new AWSCredentialsProvider() {
+        def getCredentials = new BasicAWSCredentials(accessKey, secretKey)
+        def refresh = {}
+      }
+    }
+  }
+}
+
+
 /** provides access to AWS service client objects
   *
   * @param credentials provider used to connect to AWS services
@@ -47,12 +63,17 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
   def this(credentials: AWSCredentials, region: String) =
     this(new AWSCredentialsProvider() {def getCredentials = credentials; def refresh = {}}, region)
 
-  /** uses [[com.amazonaws.auth.DefaultAWSCredentialsProviderChain]] to discover credentials
-    *
-    * @param region to select endpoint for AWS services
+  /** create credentials from config file for account
+    * @param account 
     */
-  def this(region: String) =
-    this(new DefaultAWSCredentialsProviderChain(), region)
+  def this(account: String) =
+    this(
+      AwsClient.mkCredentialProvider(
+        Utils.getProperty("edda", "aws.accessKey", account, "").get,
+        Utils.getProperty("edda", "aws.secretKey", account, "").get
+      ),
+      Utils.getProperty("edda", "region", account, "").get
+    )
 
   /** create credential from provided arguments
     *
@@ -61,7 +82,8 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
     * @param region used to select endpoint for AWS service
     */
   def this(accessKey: String, secretKey: String, region: String) =
-    this(new BasicAWSCredentials(accessKey, secretKey), region)
+    this(AwsClient.mkCredentialProvider(accessKey,secretKey), region)
+
 
   /** get [[com.amazonaws.services.ec2.AmazonEC2Client]] object */
   def ec2 = {

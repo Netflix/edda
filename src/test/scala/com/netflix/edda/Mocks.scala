@@ -19,49 +19,52 @@ import com.netflix.edda.basic.BasicContext
 import org.joda.time.DateTime
 
 class TestDatastore extends Datastore {
-  var records = Seq[Record]()
+  var recordSet = RecordSet()
 
   def init() {
   }
 
-  def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
-    records
+  override 
+  def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean)(implicit req: RequestId): Seq[Record] = {
+    recordSet.records
   }
 
-  def load(replicaOk: Boolean): Seq[Record] = {
-    records
+  override
+  def load(replicaOk: Boolean)(implicit req: RequestId): RecordSet = {
+    recordSet
   }
 
-  def update(d: Collection.Delta) {
-    records = d.records
+  override 
+  def update(d: Collection.Delta)(implicit req: RequestId): Collection.Delta = {
+    recordSet = d.recordSet
+    d
   }
 
-  def remove(queryMap: Map[String, Any]) {
-    records
+  override
+  def remove(queryMap: Map[String, Any])(implicit req: RequestId) {
+    recordSet.records
   }
 
-  def collectionModified = {
-      DateTime.now
-  }
 }
 
 
 class TestCrawler(val name: String = "TestCrawler") extends Crawler {
   var records = Seq[Record]()
 
-  protected def doCrawl(): Seq[Record] = records
+  protected def doCrawl()(implicit req: RequestId): Seq[Record] = records
 }
 
 
 class TestElector extends Elector {
   var leader = true
 
-  protected def runElection(): Boolean = leader
+  protected def runElection()(implicit req: RequestId): Boolean = leader
 }
 
 class TestCollection(val name: String = "test.collection") extends Collection(BasicContext) {
   val crawler = new TestCrawler(name + " Crawler")
-  val dataStore = Some(new TestDatastore)
+  override
+  lazy val dataStore = Some(new TestDatastore)
   val elector = new TestElector
 }
 
