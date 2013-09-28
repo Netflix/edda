@@ -126,6 +126,7 @@ object AwsCollectionBuilder {
       hostedRecords,
       new AwsDatabaseCollection(accountName, elector, ctx),
       new AwsCacheClusterCollection(accountName, elector, ctx),
+      new AwsSubnetCollection(accountName, elector, ctx),
       new AwsCloudformationCollection(accountName, elector, ctx)
     )
   }
@@ -178,7 +179,7 @@ object AwsCollection {
 
 /** collection for AWS Addresses
   *
-  * root collection name: aws.addresses
+A  * root collection name: aws.addresses
   *
   * see crawler details [[com.netflix.edda.aws.AwsAddressCrawler]]
   *
@@ -762,6 +763,22 @@ class AwsCacheClusterCollection(
   val crawler = new AwsCacheClusterCrawler(name, ctx)
 }
 
+/** collection for AWS Subnets
+  *
+  * root collection name: aws.subnets
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsSnapshotCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+class AwsSubnetCollection(
+                             val accountName: String,
+                             val elector: Elector,
+                             override val ctx: AwsCollection.Context) extends RootCollection("aws.subnets", accountName, ctx) {
+  val crawler = new AwsSubnetCrawler(name, ctx)
+}
 /** collection for AWS Cloudformation Stacks
   *
   * root collection name: aws.stacks
