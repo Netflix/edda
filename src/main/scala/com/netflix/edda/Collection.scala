@@ -32,11 +32,19 @@ import com.netflix.servo.monitor.BasicGauge
 import java.lang
 
 
+import java.nio.file.Paths
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption.REPLACE_EXISTING
+
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.Executors
 import concurrent.ExecutionContext
 import com.netflix.servo.monitor.Monitors
 import com.netflix.servo.DefaultMonitorRegistry
+
+import org.codehaus.jackson.JsonGenerator
+import org.codehaus.jackson.JsonEncoding.UTF8
+import org.codehaus.jackson.map.MappingJsonFactory
 
 /** local state class for Collection
   *
@@ -81,6 +89,8 @@ object Collection extends StateMachine.LocalState[CollectionState] {
     type PurgePolicy = Value
     val NONE, LIVE, LAST, AGE = Value
   }
+
+  private lazy val jsonFactory = new MappingJsonFactory
 }
 
 /** general Collection logic.  It is abstract to specify the collection name,
@@ -136,7 +146,10 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
    */
   lazy val liveOverride = Utils.getProperty("edda.collection", "noCache", name, "false")
 
+  lazy val diskCache = Utils.getProperty("edda.collection", "diskCache", name, "")
+
   lazy val ignoreHistoryUpdateFailures = Utils.getProperty("edda.collection", "ignoreHistoryUpdateFailures", name, "false")
+
 
   // /** use separate ForkJoin scheduler for the Collection actors so one Collection doesn't end
   //   * up starving the global actor pool.
@@ -533,6 +546,52 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
     case (gotMsg @ UpdateOK(from, d, origMeta), state) => {
       implicit val req = gotMsg.req
+      val cacheDir = diskCache.get
+      if( ! cacheDir.isEmpty ) {
+        val t0 = System.nanoTime()
+        try {
+          val uuid = Utils.uuid
+          val dir = Paths.get(cacheDir)
+          if( Files.notExists(dir) ) {
+            Files.createDirectories(dir)
+          }
+          val realPath = dir.resolve(name + "." + uuid)
+          val fos = new java.io.FileOutputStream(realPath.toString)
+          try {
+            val gen = jsonFactory.createJsonGenerator(fos, UTF8)
+            try {
+              Utils.writeJson(gen, d.recordSet.records.map(_.data))
+            }
+            finally {
+              gen.close()
+            }
+          } finally {
+            fos.close()
+          }
+          
+          try {
+            val symPath = dir.resolve(name)
+            if( Files.isSymbolicLink(symPath) ) {
+              val oldFile = Files.readSymbolicLink(symPath)
+              // cant replace symlink in one operation, so make tmp symlink
+              // and move it over the old one
+              val tmpSymPath = dir.resolve(name + "." + Utils.uuid)
+              Files.createSymbolicLink(tmpSymPath, realPath)
+              Files.move(tmpSymPath, symPath, REPLACE_EXISTING)
+              Files.delete(oldFile)
+            }
+            else {
+              Files.createSymbolicLink(symPath, realPath)
+            }
+          } catch {
+            case e: Exception => logger.error(s"$req$this failed to create disk cache: ${e.getMessage}", e)
+          }
+        } finally {
+          val t1 = System.nanoTime()
+          val lapse = (t1 - t0) / 1000000;
+          if (logger.isInfoEnabled) logger.info(s"$req$this writing disk cache: ${lapse}ms")
+        }
+      }
       Observable.localState(state).observers.foreach(o => {
         val msg = gotMsg.copy(from=this)
         if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $o")
