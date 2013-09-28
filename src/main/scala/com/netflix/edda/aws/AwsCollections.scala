@@ -179,7 +179,7 @@ object AwsCollection {
 
 /** collection for AWS Addresses
   *
-A  * root collection name: aws.addresses
+  * root collection name: aws.addresses
   *
   * see crawler details [[com.netflix.edda.aws.AwsAddressCrawler]]
   *
