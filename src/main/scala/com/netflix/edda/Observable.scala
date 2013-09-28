@@ -20,22 +20,21 @@ import scala.actors.TIMEOUT
 
 import org.slf4j.LoggerFactory
 
-import scala.concurrent.ExecutionContext.Implicits.global
 
 /** local state for StateMachine */
-case class ObservableState(observers: List[Actor] = List[Actor]())
+case class ObservableState(observers: Set[Actor] = Set[Actor]())
 
 /** companion for [[com.netflix.edda.Observable]], contains messages for StateMachine */
 object Observable extends StateMachine.LocalState[ObservableState] {
 
   /** Message to add observer to local state */
-  case class Observe(from: Actor, actor: Actor) extends StateMachine.Message
+  case class Observe(from: Actor, actor: Actor)(implicit req: RequestId) extends StateMachine.Message
 
   /** Message to remove observer from local state */
-  case class Ignore(from: Actor, actor: Actor) extends StateMachine.Message
+  case class Ignore(from: Actor, actor: Actor)(implicit req: RequestId) extends StateMachine.Message
 
   /** Response to use for sync calls to add/remove observers */
-  case class OK(from: Actor) extends StateMachine.Message
+  case class OK(from: Actor)(implicit req: RequestId) extends StateMachine.Message
 
 }
 
@@ -53,19 +52,20 @@ abstract class Observable extends StateMachine {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
   //* notify the given actor when the state changes */
-  def addObserver(actor: Actor): scala.concurrent.Future[StateMachine.Message] = {
+  def addObserver(actor: Actor)(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
+    import ObserverExecutionContext._
     val p = scala.concurrent.promise[StateMachine.Message]
-    val msg = Observe(Actor.self, actor)
-    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
-    Actor.actor {
+    Utils.namedActor(this + " observer client") {
+      val msg = Observe(Actor.self, actor)
+      if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} sending: $msg -> $this with 60s timeout")
       this ! msg
       Actor.self.reactWithin(60000) {
         case msg: OK => {
-          if (logger.isDebugEnabled) logger.debug(Actor.self + " BLORG received: " + msg + " from " + sender)
+          if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} received: $msg from $sender")
           p success msg
         }
         case msg @ TIMEOUT => {
-          if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
+          if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} received: $msg")
           p failure new java.util.concurrent.TimeoutException("Failed to addObserver after 60s")
         }
       }
@@ -74,19 +74,20 @@ abstract class Observable extends StateMachine {
   }
 
   //* stop notifying the give actor when the state changes */
-  def delObserver(actor: Actor): scala.concurrent.Future[StateMachine.Message] = {
+  def delObserver(actor: Actor)(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
+    import ObserverExecutionContext._
     val p = scala.concurrent.promise[StateMachine.Message]
-    val msg = Ignore(Actor.self, actor)
-    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with 60s timeout")
-    Actor.actor {
+    Utils.namedActor(this + " observer client") {
+      val msg = Ignore(Actor.self, actor)
+      if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} sending: $msg -> $this with 60s timeout")
       this ! msg
       Actor.self.reactWithin(60000) {
         case msg: OK => {
-          if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
+          if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} received: $msg from $sender")
           p success msg
         }
         case msg @ TIMEOUT => {
-          if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
+          if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} received: $msg")
           p failure new java.util.concurrent.TimeoutException("Failed to delObserver after 60s")
         }
       }
@@ -98,17 +99,19 @@ abstract class Observable extends StateMachine {
 
   /** setup trasitions to handle Oberserve and Ignore messages */
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
-    case (Observe(from, caller), state) => {
+    case (gotMsg @ Observe(from, caller), state) => {
+      implicit val req = gotMsg.req
       val msg = OK(this)
-      if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + sender)
+      if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $sender")
       sender ! msg
-      setLocalState(state, ObservableState(caller :: localState(state).observers))
+      setLocalState(state, ObservableState(localState(state).observers + caller))
     }
-    case (Ignore(from, caller), state) => {
+    case (gotMsg @ Ignore(from, caller), state) => {
+      implicit val req = gotMsg.req
       val msg = OK(this)
-      if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + sender)
+      if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $sender")
       sender ! msg
-      setLocalState(state, ObservableState(localState(state).observers diff List(caller)))
+      setLocalState(state, ObservableState(localState(state).observers diff Set(caller)))
     }
   }
 

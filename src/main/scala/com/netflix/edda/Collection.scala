@@ -20,6 +20,7 @@ import scala.actors.TIMEOUT
 // import scala.actors.scheduler.ForkJoinScheduler
 import scala.util.Random
 
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.Callable
 import org.joda.time.DateTime
@@ -30,14 +31,19 @@ import com.netflix.servo.monitor.MonitorConfig
 import com.netflix.servo.monitor.BasicGauge
 import java.lang
 
-import scala.concurrent.ExecutionContext.Implicits.global
+
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.Executors
+import concurrent.ExecutionContext
+import com.netflix.servo.monitor.Monitors
+import com.netflix.servo.DefaultMonitorRegistry
 
 /** local state class for Collection
   *
   * @param records the current active records for the collection
   * @param crawled the results from the Crawler
   */
-case class CollectionState(records: Seq[Record] = Seq[Record](), crawled: Seq[Record] = Seq[Record]())
+case class CollectionState(recordSet: RecordSet = RecordSet())
 
 /** companion object for Collection*/
 object Collection extends StateMachine.LocalState[CollectionState] {
@@ -57,24 +63,14 @@ object Collection extends StateMachine.LocalState[CollectionState] {
     * @param added   the list of new records (new records that Crawler found)
     * @param removed the list of records that are not longer active (were not returned from Crawler)
     */
-  case class Delta(records: Seq[Record], changed: Seq[RecordUpdate], added: Seq[Record], removed: Seq[Record]) {
-    override def toString = "Delta(records=" + records.size + ", changed=" + changed.size + ", added=" + added.size + ", removed=" + removed.size + ")"
+  case class Delta(recordSet: RecordSet, changed: Seq[RecordUpdate], added: Seq[Record], removed: Seq[Record]) {
+    override def toString = "Delta(records=" + recordSet.records.size + ", changed=" + changed.size + ", added=" + added.size + ", removed=" + removed.size + ")"
   }
-
-  /** Message sent to observers after a collection has been updated */
-  case class DeltaResult(from: Actor, delta: Delta) extends StateMachine.Message
-
-  /** Message to Load the record set from the Datastore */
-  case class Load(from: Actor, full: Boolean = false) extends StateMachine.Message
-
-  /** Messsage to *Synchronously* Load the record set from the Datastore */
-  case class SyncLoad(from: Actor) extends StateMachine.Message
-
+  
   /** Message to Purge the record set from the Datastore */
-  case class Purge(from: Actor) extends StateMachine.Message
+  case class Purge(from: Actor)(implicit req: RequestId) extends StateMachine.Message
 
-  /** Response from the SyncLoad request */
-  case class OK(from: Actor) extends StateMachine.Message
+  case class UpdateOK(from: Actor, delta: Delta, origMeta: Map[String,Any] = Map())(implicit req: RequestId) extends StateMachine.Message
 
   object RetentionPolicy extends Enumeration {
     type RetentionPolicy = Value
@@ -115,11 +111,19 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     */
   def crawler: Crawler
 
+  val processor = new CollectionProcessor(this)
+  val refresher = new CollectionRefresher(this)
+
   /** the optional abstracted Datastore.  MongoDB is currently the only available Datastore
     * but more could be added.  It is optional so you can run without a datastore, although many
     * features will be limited (only current state is available, so no history queries possible)
     */
-  def dataStore: Option[Datastore]
+  lazy val dataStore: Option[Datastore] = Utils.makeHistoryDatastore(name)
+  
+  lazy val currentDataStore: Option[Datastore] = {
+    val ds = Utils.makeCurrentDatastore(name);
+    if( ds.isDefined ) ds else dataStore
+  }
 
   /** The elector to determine leadership. This is typically a singleton so all Collections share
     * the same Election results, but it could be customized if we need to have multiple leaders handling
@@ -131,6 +135,8 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   /** allow option to skip cache usage and go straigt to datastore
    */
   lazy val liveOverride = Utils.getProperty("edda.collection", "noCache", name, "false")
+
+  lazy val ignoreHistoryUpdateFailures = Utils.getProperty("edda.collection", "ignoreHistoryUpdateFailures", name, "false")
 
   // /** use separate ForkJoin scheduler for the Collection actors so one Collection doesn't end
   //   * up starving the global actor pool.
@@ -144,77 +150,172 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   // override def scheduler = fjScheduler
 
   /** see [[com.netflix.edda.Queryable.query()]].  Overridden to return Nil when Collection is not enabled */
-  override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): scala.concurrent.Future[Seq[Record]] = {
+  override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(implicit req: RequestId): scala.concurrent.Future[Seq[Record]] = {
+    import QueryExecutionContext._
     if (enabled.get.toBoolean) super.query(queryMap, limit, live || liveOverride.get.toBoolean, keys, replicaOk) else scala.concurrent.future {
       Seq.empty
     }
   }
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Collection is not enabled */
-  override def addObserver(actor: Actor): scala.concurrent.Future[StateMachine.Message] = {
+  override def addObserver(actor: Actor)(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
+    import ObserverExecutionContext._
     if (enabled.get.toBoolean) super.addObserver(actor) else scala.concurrent.future {
       Observable.OK(Actor.self)
     }
   }
 
   /** see [[com.netflix.edda.Observable.delObserver()]].  Overridden to be a NoOp when Collection is not enabled */
-  override def delObserver(actor: Actor): scala.concurrent.Future[StateMachine.Message] = {
+  override def delObserver(actor: Actor)(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
+    import ObserverExecutionContext._
     if (enabled.get.toBoolean) super.delObserver(actor) else scala.concurrent.future {
       Observable.OK(Actor.self)
     }
   }
   
+  // basic servo metrics
+  private[this] val loadTimer = Monitors.newTimer("load")
+  private[this] val loadCounter = Monitors.newCounter("load.count")
+  private[this] val loadErrorCounter = Monitors.newCounter("load.errors")
+
+  private[this] val loadRecordCount = new AtomicLong(0);
+  private[this] val loadRecordGauge = new BasicGauge[java.lang.Long](
+    MonitorConfig.builder("load.recordCount").build(),
+    new Callable[java.lang.Long] {
+      def call() = loadRecordCount.get
+    })
+
+  private[this] val updatedRecordCount = new AtomicLong(0);
+  private[this] val updatedRecordGauge =  new BasicGauge[java.lang.Long](
+    MonitorConfig.builder("crawl.updatedRecordCount").build(),
+    new Callable[java.lang.Long] {
+      def call() = if(elector.isLeader()(RequestId("crawl.updatedRecordCount.gauge"))) updatedRecordCount.get else 0
+    })
+  
+  private[this] val addedRecordCount = new AtomicLong(0);
+  private[this] val addedRecordGauge = new BasicGauge[java.lang.Long](
+    MonitorConfig.builder("crawl.addedRecordCount").build(),
+    new Callable[java.lang.Long] {
+      def call() = if(elector.isLeader()(RequestId("crawl.addedRecordCount.gauge"))) addedRecordCount.get else 0
+    })
+
+  private[this] val deletedRecordCount = new AtomicLong(0);
+  private[this] val deletedRecordGauge = new BasicGauge[java.lang.Long](
+    MonitorConfig.builder("crawl.deletedRecordCount").build(),
+    new Callable[java.lang.Long] {
+      def call() = if(elector.isLeader()(RequestId("crawl.deletedRecordCount.gauge"))) deletedRecordCount.get else 0
+    })
+
+  private[this] var lastCurrentUpdate = DateTime.now
+  private[this] val currentUpdateGauge = new BasicGauge[java.lang.Long](
+    MonitorConfig.builder("lastCurrentUpdate").build(),
+    new Callable[java.lang.Long] {
+      def call() = {
+        if (currentDataStore.isDefined && elector.isLeader()(RequestId("lastCurrentUpdateGauge"))) {
+          DateTime.now.getMillis - lastCurrentUpdate.getMillis
+        } else 0
+      }
+    })
+
+  private[this] var lastHistoryUpdate = DateTime.now
+  private[this] val historyUpdateGauge = new BasicGauge[java.lang.Long](
+    MonitorConfig.builder("lastHistoryUpdate").build(),
+    new Callable[java.lang.Long] {
+      def call() = {
+        if (dataStore.isDefined && elector.isLeader()(RequestId("lastHistoryUpdateGauge"))) {
+          DateTime.now.getMillis - lastHistoryUpdate.getMillis
+        } else 0
+      }
+    })
+
+  // eliminate used-only-once warnings from IntelliJ
+  if(false) currentUpdateGauge
+  if(false) historyUpdateGauge
+
+
   var lastMtimeUpdated: DateTime = new DateTime(0);
   var lastMtime: DateTime = new DateTime(0);
 
   /** query datastore or in memory collection. */
-  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
+  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State)(implicit req: RequestId): Seq[Record] = {
     // generate function
     if (live || liveOverride.get.toBoolean) {
       if (dataStore.isDefined) {
         return dataStore.get.query(queryMap, limit, keys, replicaOk)
       } else {
-        if (logger.isWarnEnabled) logger.warn("Datastore is not available, applying query to cached records")
+        if (logger.isWarnEnabled) logger.warn(s"$req Datastore is not available, applying query to cached records")
       }
     }
-    val recs = if (queryMap.isEmpty) {
-      firstOf(limit, localState(state).records)
-    } else {
-      firstOf(limit, localState(state).records.filter(record => ctx.recordMatcher.doesMatch(queryMap, record.toMap)))
-    }
-    if( dataStore.isDefined ) {
-      val now = DateTime.now;
-      if( now.getMillis - lastMtimeUpdated.getMillis > 10000 ) {
-        lastMtime = dataStore.get.collectionModified
-        lastMtimeUpdated = now
+    val t0 = System.nanoTime()
+    try {
+      val recs = if (queryMap.isEmpty) {
+        firstOf(limit, localState(state).recordSet.records)
+      } else {
+        firstOf(limit, localState(state).recordSet.records.filter(record => ctx.recordMatcher.doesMatch(queryMap, record.toMap)))
       }
-      recs.map(_.copy(mtime=lastMtime))
-    } else recs
+      localState(state).recordSet.meta.get("mtime") match {
+        case Some(date: DateTime) => {
+          recs.map(_.copy(mtime=date))
+        }
+        case _ => recs
+      }
+    } finally {
+      val t1 = System.nanoTime()
+      val lapse = (t1 - t0) / 1000000;
+      if (logger.isInfoEnabled) logger.info(s"$req$this memory scan lapse: ${lapse}ms")
+    }    
   }
 
   /** load collection from Datastore (if available) */
-  protected def load(replicaOk: Boolean): Seq[Record] = {
-    if (dataStore.isDefined) {
+  protected def load(replicaOk: Boolean)(implicit req: RequestId): RecordSet = {
+    if (currentDataStore.isDefined) {
       val now = DateTime.now
-      val records = dataStore.get.load(replicaOk)
-      lastLoad = records match {
-          case Nil => now
-          case _: Seq[_] => records.maxBy( _.mtime.getMillis ).mtime
+      val recordSet = try {
+        currentDataStore.get.load(replicaOk)
       }
-      lastFullLoad = now
-      records
+      catch {
+        case e: java.lang.UnsupportedOperationException => {
+          // this can happen when currentDataStore has not been initalized yet, so pull from
+          // the history datastore instead
+          if( dataStore.isDefined ) dataStore.get.load(replicaOk) else RecordSet()
+        }
+      }
+      lastLoad = recordSet.records match {
+          case Nil => now
+          case _: Seq[_] => recordSet.records.maxBy( _.mtime.getMillis ).mtime
+      }
+      loadRecordCount.set(recordSet.records.size)
+      recordSet
     } else {
-      if (logger.isWarnEnabled) logger.warn("Datastore is not available for load()")
-      Seq()
+      if (logger.isWarnEnabled) logger.warn(s"$req Datastore is not available for load()")
+      RecordSet()
     }
   }
 
-  protected def update(d: Delta) {
-    if (dataStore.isDefined) {
-      dataStore.get.update(d)
-    } else {
-      if (logger.isWarnEnabled) logger.warn("Datastore is not available, skipping update")
-    }
+  protected[edda] def update(d: Delta)(implicit req: RequestId): Delta = {
+    loadRecordCount.set(d.recordSet.records.size)
+    updatedRecordCount.set(d.changed.size)
+    addedRecordCount.set(d.added.size)
+    deletedRecordCount.set(d.removed.size)
+    val d1 = if (currentDataStore.isDefined) {
+      val delta = currentDataStore.get.update(d)
+      lastCurrentUpdate = DateTime.now
+      delta
+    } else d
+    val d2 = if(dataStore.isDefined && ((currentDataStore.isDefined && currentDataStore.get != dataStore.get) || currentDataStore.isEmpty)) { 
+      // merge the meta data for the datastore updates
+      try {
+        val newDelta = dataStore.get.update(d)
+        lastHistoryUpdate = DateTime.now
+        d1.copy(recordSet = d1.recordSet.copy(meta = newDelta.recordSet.meta ++ d1.recordSet.meta))
+      } catch {
+        case e: Exception => {
+          logger.error(s"$req$this Failed update datastore: $e", e)
+          if( ! ignoreHistoryUpdateFailures.get.toBoolean ) throw e else d1
+        }
+      }
+    } else d1
+    d2
   }
 
   /** customize how a record change is handled.  If it returns true
@@ -229,94 +330,96 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     * @param newRecords records from the Crawler
     * @param oldRecords records from previous Delta result
     */
-  protected def delta(newRecordsIn: Seq[Record], oldRecords: Seq[Record]): scala.concurrent.Future[Delta] = {
-    scala.concurrent.future {
-      val now = DateTime.now
-      val newRecords = newRecordsIn.map( rec => rec.copy(mtime = now) )
-      
-      // remove needs to be a list to allow for duplicate records (multiple record revisions
-      // on the same id)
-      var remove = Seq[Record]()
-      
-      // sometimes there are duplicates in oldRecords (upon first-load when we load all records
-      // with null ltime) when we have a rogue writer (sometimes there are gaps between leadership
-        // changes). 
-      val oldSeen = scala.collection.mutable.Map[String,Record]()
-      val oldMap = oldRecords.filter(r => {
-          val in = oldSeen.contains(r.id)
-        if( in ) {
-          val lastSeen = oldSeen(r.id).mtime
-          remove +:= r.copy(mtime=lastSeen,ltime=lastSeen)
-        } else {
-          oldSeen += (r.id -> r)
-          }
-        !in
-      }).map(rec => rec.id -> rec).toMap
-        val newMap = newRecords.map(rec => rec.id -> rec).toMap
-      
-      remove ++= oldMap.filterNot(pair => newMap.contains(pair._1)).map(
-        pair => pair._2.copy(mtime = now, ltime = now))
-      
-      val addedMap = newMap.filterNot(pair => oldMap.contains(pair._1))
-      
-      val changes = newMap.filter(pair => {
-        oldMap.contains(pair._1) && !pair._2.sameData(oldMap(pair._1))
-        }).map(
-        pair => {
-          val oldRec = oldMap(pair._1)
-          val newRec = pair._2
-          if (newStateTimeForChange(newRec, oldRec)) {
-            pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec)
-          } else {
-              pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec.copy(stime = oldRec.stime))
-          }
-        }
-      )
-      
-      // need to reset stime, ctime, tags for crawled records to match what we have in memory
-      val fixedRecords = newRecords.collect {
-        case rec: Record if changes.contains(rec.id) => {
-          val newRec = changes(rec.id).newRecord
-          oldMap(rec.id).copy(data = rec.data, mtime = newRec.mtime, stime = newRec.stime)
-        }
-        case rec: Record if oldMap.contains(rec.id) =>
-          oldMap(rec.id).copy(data = rec.data, mtime = rec.mtime)
-        case rec: Record => rec
+  protected[edda] def delta(newRecordSet: RecordSet, oldRecordSet: RecordSet)(implicit req: RequestId): Delta = {
+    val now = DateTime.now
+    val newRecords = newRecordSet.records.map( rec => rec.copy(mtime = now) )
+    
+    // remove needs to be a list to allow for duplicate records (multiple record revisions
+    // on the same id)
+    var remove = Seq[Record]()
+    
+    // sometimes there are duplicates in oldRecords (upon first-load when we load all records
+    // with null ltime) when we have a rogue writer (sometimes there are gaps between leadership
+    // changes). 
+    val oldSeen = scala.collection.mutable.Map[String,Record]()
+    val oldMap = oldRecordSet.records.filter(r => {
+      val in = oldSeen.contains(r.id)
+      if( in ) {
+        val lastSeen = oldSeen(r.id).mtime
+        remove +:= r.copy(mtime=lastSeen,ltime=lastSeen)
+      } else {
+        oldSeen += (r.id -> r)
       }
+      !in
+    }).map(rec => rec.id -> rec).toMap
+    val newMap = newRecords.map(rec => rec.id -> rec).toMap
       
-      if (logger.isInfoEnabled) logger.info(this + " total: " + fixedRecords.size + " changed: " + changes.size + " added: " + addedMap.size + " removed: " + remove.size)
-      Delta(fixedRecords, changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = remove)
+    remove ++= oldMap.filterNot(pair => newMap.contains(pair._1)).map(
+      pair => pair._2.copy(mtime = now, ltime = now))
+    
+    val addedMap = newMap.filterNot(pair => oldMap.contains(pair._1))
+    
+    val changes = newMap.filter(pair => {
+      oldMap.contains(pair._1) && !pair._2.sameData(oldMap(pair._1))
+    }).map(
+      pair => {
+        val oldRec = oldMap(pair._1)
+        val newRec = pair._2
+        if (newStateTimeForChange(newRec, oldRec)) {
+          pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec)
+        } else {
+          pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec.copy(stime = oldRec.stime))
+        }
+      }
+    )
+    
+    // need to reset stime, ctime, tags for crawled records to match what we have in memory
+    val fixedRecords = newRecords.collect {
+      case rec: Record if changes.contains(rec.id) => {
+        val newRec = changes(rec.id).newRecord
+        oldMap(rec.id).copy(data = rec.data, mtime = newRec.mtime, stime = newRec.stime)
+      }
+      case rec: Record if oldMap.contains(rec.id) =>
+        oldMap(rec.id).copy(data = rec.data, mtime = rec.mtime)
+      case rec: Record => rec
     }
+    
+    if (logger.isInfoEnabled) logger.info(s"$req$this total: ${fixedRecords.size} changed: ${changes.size} added: ${addedMap.size} removed: ${remove.size} meta: ${oldRecordSet.meta ++ newRecordSet.meta}")
+    Delta(RecordSet(fixedRecords, oldRecordSet.meta ++ newRecordSet.meta), changed = changes.values.toSeq, added = addedMap.values.toSeq, removed = remove)
   }
 
   /** setup CollectionState, initialize the records to be loaded from the Datastore before the Actor starts accepting message */
-  protected override def initState = addInitialState(super.initState, newLocalState(CollectionState(records = load(replicaOk = true))))
+  protected[edda] override def initState = addInitialState(super.initState, newLocalState(CollectionState(recordSet = doLoad(replicaOk = true)(RequestId("initState")))))
 
   /** initialize servo metrics for Collection.  Delay start based on random jitter to prevent Datastore from being
     * overloaded by all Collection loading all at once.
     */
   protected override def init() {
+    implicit val req = RequestId("init")
     Monitors.registerObject("edda.collection." + name, this)
-    Utils.NamedActor(this + " init") {
+    DefaultMonitorRegistry.getInstance().register(Monitors.newThreadPoolMonitor(s"edda.collection.$name.threadpool", this.pool.asInstanceOf[ThreadPoolExecutor]))
+
+    Utils.namedActor(this + " init") {
       // create routine to run after the jitter timeout
       // or to run immediately if jitter is disabled
       def postJitter: Unit = {
-        if (dataStore.isDefined) {
+        if (currentDataStore.isDefined) currentDataStore.get.init()
+        if (dataStore.isDefined && ((currentDataStore.isDefined && currentDataStore.get != dataStore.get) || currentDataStore.isEmpty))
           dataStore.get.init()
-        }
-
+        
         // routine to run on success of crawler addObserver call
         // or to run immediately if crawler is disabled
         def postObserver = {
-          refresher()
+          refresher.start()
           // super.init will cause normal event processing to start on this
           // collection actor, so the next addObserver should procceed
           super.init()
           // listen to our own DeltaResult events
           def retry: Unit = {
-            this.addObserver(this) onFailure {
+            import ObserverExecutionContext._
+            processor.addObserver(processor) onFailure {
               case msg => {
-                if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + this + " with error: " + msg + ", retrying")
+                if (logger.isErrorEnabled) logger.error(s"$req${Actor.self} failed to add observer $processor to $processor with error: $msg, retrying")
                 retry
               }
             }
@@ -325,10 +428,11 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         }
 
         if( Option(crawler).isDefined ) {
-          crawler.addObserver(this) onComplete {
+          import ObserverExecutionContext._
+          crawler.addObserver(processor) onComplete {
             case scala.util.Success(msg) => postObserver
             case scala.util.Failure(msg) => {
-              if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + " with error: " + msg + ", retrying")
+              if (logger.isErrorEnabled) logger.error(s"$req${Actor.self} failed to add observer $processor to $crawler with error: $msg, retrying")
               postJitter
             }
           }
@@ -338,14 +442,15 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
       if (Utils.getProperty("edda.collection", "jitter.enabled", name, "true").get.toBoolean) {
         val cacheRefresh = Utils.getProperty("edda.collection", "cache.refresh", name, "10000").get.toLong
+        val maxJitter = if( cacheRefresh > 30000 ) 30000 else cacheRefresh
         // adding in random jitter on start so we dont crush the datastore immediately if multiple
         // systems are coming up at the same time
         val rand = new Random
-        val jitter = (cacheRefresh * rand.nextDouble).toLong
-        if (logger.isInfoEnabled) logger.info(this + " start delayed by " + jitter + "ms")
+        val jitter = (maxJitter * rand.nextDouble).toLong
+        if (logger.isInfoEnabled) logger.info(s"$req$this start delayed by ${jitter}ms")
         Actor.self.reactWithin(jitter) {
           case msg @ TIMEOUT => {
-            if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " for jitter timeout")
+            if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} received: $msg for jitter timeout")
             postJitter
           }
         }
@@ -358,230 +463,41 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
    * in the case where the are downstream of another collection/crawler that
    * just post-processes crawl results from another collection.
    */
-  protected def allowCrawl = true
+  protected[edda] def allowCrawl = true
 
-  /** helper routine to calculate timeLeft before a Crawl request shoudl be made */
-  def timeLeft(lastRun: DateTime, millis: Long): Long = {
-    val timeLeft = millis - (DateTime.now.getMillis - lastRun.getMillis)
-    if (timeLeft < 0) 0 else timeLeft
-  }
-
-  /** responsible for asking the Crawler to crawl if we are the leader, or if we are not the leader
-    * responsible for reloading the in-memory cache.  Also responsible for receiving election
-    * results to take over leaderhip when necessary.
-    */
-  protected def refresher() {
-    if (Option(crawler) == None || Option(elector) == None) return
-    val refresh = Utils.getProperty("edda.collection", "refresh", name, "60000")
-    val cacheRefresh = Utils.getProperty("edda.collection", "cache.refresh", name, "10000")
-    val cacheFullRefresh = Utils.getProperty("edda.collection", "cache.full.refresh", name, "1800000")
-
-    // how often to purge history, default is every 6 hours
-    val purgeFrequency = Utils.getProperty("edda.collection", "purgeFrequency", name, "21600000")
-    
-    val refresherActor = NamedActor(this + " refresher") {
-      Actor.self.react {
-        case 'CONTINUE => {
-          var amLeader = false
-          // crawl immediately the first time
-          if (amLeader && allowCrawl) crawler.crawl()
-
-          var lastRun = DateTime.now
-          Actor.self.loop {
-            val timeout = if (amLeader) refresh.get.toLong else cacheRefresh.get.toLong
-            Actor.self.reactWithin(timeLeft(lastRun, timeout)) {
-              case msg @ TIMEOUT => {
-                if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
-                val full = if( timeLeft(lastFullLoad, cacheFullRefresh.get.toLong) > 0 ) false else true
-                if (amLeader) {
-                  val purge = if( timeLeft(lastPurge, purgeFrequency.get.toLong) > 0 ) false else true
-                  if( purge ) {
-                    val msg = Purge(Actor.self)
-                    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
-                    this ! msg
-                  }
-                  if( allowCrawl ) crawler.crawl()
-                }
-                else {
-                  val msg = Load(Actor.self,full)
-                  if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
-                  this ! msg
-                }
-                lastRun = DateTime.now
-              }
-              case msg @ Elector.ElectionResult(from, result) => {
-                if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
-                // if we just became leader, then start a crawl
-                if (!amLeader && result) {
-                  val rand = new Random
-                  // purgeJitter is can be up to +/-20% of purgeFrequency
-                  val purgeJitter = (purgeFrequency.get.toLong * .2 * rand.nextDouble).toLong * (if( rand.nextBoolean ) 1 else -1);
-                  val lastPurge = new DateTime( DateTime.now().getMillis + purgeJitter)
-                  val msg = SyncLoad(Actor.self)
-                  if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
-                  this ! msg
-                  Actor.self.reactWithin(300000) {
-                    case msg @ OK(frm) => {
-                      if( allowCrawl ) crawler.crawl()
-                      lastRun = DateTime.now
-                      amLeader = result
-                    }
-                    case msg @ TIMEOUT => {
-                      if (logger.isErrorEnabled) logger.error(this + " failed to reload data in 5m as we became leader")
-                      throw new java.lang.RuntimeException("TIMEOUT: " + this + " Failed to reload data in 5m as we became leader")
-                    }
-                  }
-                }
-                else amLeader = result
-              }
-            }
-          }
-        }
-      }
-    }.addExceptionHandler({
-      case e: Exception => if (logger.isErrorEnabled) logger.error(this + " failed to refresh", e)
-    })
-    elector.addObserver(refresherActor) onComplete {
-      case scala.util.Failure(msg) => {
-        if (logger.isErrorEnabled) logger.error(refresherActor + " failed to addObserver: " + msg)
-        refresher
-      }
-      case scala.util.Success(msg) => {
-        refresherActor ! 'CONTINUE;
-      }
-    }
-  }
-
-  // basic servo metrics
-  private[this] val loadTimer = Monitors.newTimer("load")
-  private[this] val loadCounter = Monitors.newCounter("load.count")
-  private[this] val loadErrorCounter = Monitors.newCounter("load.errors")
-
-  private[this] val updateTimer = Monitors.newTimer("update")
-  private[this] val updateCounter = Monitors.newCounter("update.count")
-  private[this] val updateErrorCounter = Monitors.newCounter("update.errors")
-
-  private[this] var lastCrawl = DateTime.now
-  private[this] val crawlGauge: BasicGauge[lang.Long] = new BasicGauge[java.lang.Long](
-    MonitorConfig.builder("lastCrawl").build(),
-    new Callable[java.lang.Long] {
-      def call() = {
-        if (elector.isLeader) {
-          DateTime.now.getMillis - lastCrawl.getMillis
-        } else 0
-      }
-    })
-
-  private[this] var lastFullLoad: DateTime = new DateTime(0)
   private[this] var lastLoad: DateTime = new DateTime(0)
-  private[this] var lastPurge: DateTime = DateTime.now()
-
-  // eliminate used-only-once warnings from IntelliJ
-  if(false) crawlGauge
+  private[edda] var lastPurge: DateTime = DateTime.now()
 
   /** load records from Datastore and update monitoring metrics */
-  private def doLoad(replicaOk: Boolean): Seq[Record] = {
+  private[edda] def doLoad(replicaOk: Boolean)(implicit req: RequestId): RecordSet = {
     val stopwatch = loadTimer.start()
-    val records = try {
+    val recordSet = try {
       load(replicaOk)
     } catch {
       case e: Exception => {
         loadErrorCounter.increment()
+        logger.error(s"$req$this failed to load", e)
         throw e
       }
     } finally {
       stopwatch.stop()
     }
     loadCounter.increment()
-    if (logger.isInfoEnabled) logger.info("{} Loaded {} records in {} sec", toObjects(
-      this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
-    records
+    if (logger.isInfoEnabled) logger.info("{}{} Loaded {} records in {} sec", toObjects(
+      req, this, recordSet.records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
+    recordSet.copy(meta = recordSet.meta + ("source" -> "load") + ("req" -> req.id))
   }
 
   /** handle Collection Messages */
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
-    case (SyncLoad(from), state) => {
-      // SyncLoad allows us to make sure we have a current cache in memory of "live" records
-      // before we take over as "Leader" and start writing to the Datastore
-      flushMessages {
-        case SyncLoad(from) => true
-      }
-      val replyTo = sender
-      // NamedActor(this + " SyncLoad processor") {
-      scala.concurrent.future {
-        val records = doLoad(replicaOk = false)
-        val msg = Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
-        if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + this)
-        this ! msg
-        val msg2 = OK(this)
-        if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg2 + " -> " + replyTo)
-        replyTo ! msg2
-      } onFailure {
-        case err: Throwable => logger.error(this + " syncload processor failed", err)
-        case err => logger.error(this + " syncload processor failed: " + err)
-      }
-      state
-    }
-    case (Load(from, full), state) => {
-      flushMessages {
-        case Load(from, full) => true
-      }
-      // NamedActor(this + " Load processor") {
-      scala.concurrent.future {
-          val stopwatch = loadTimer.start()
-          val records = try {
-              if( full ) {
-                  if (logger.isInfoEnabled) logger.info(this + " doing full reload of collection");
-                  doLoad(replicaOk = true)
-              }
-              else {
-                  val recs = doQuery(Map("mtime" -> Map("$gte" -> lastLoad)), limit = 0, live = true, keys=Set(), replicaOk = true, state)
-                  if( recs.size == 0 ) {
-                      localState(state).records
-                  } else {
-                      lastLoad = recs.maxBy( _.mtime.getMillis ).mtime
-                      val seen = scala.collection.mutable.Set[String]()
-                      val uniqRecs = recs.filter(r => {
-                          val in = seen.contains(r.id)
-                          if( !in ) seen += r.id
-                          !in
-                      })
-
-                      val addRecs = uniqRecs.filter( rec => rec.ltime == null )
-                      val delRecs = uniqRecs.filter( rec => rec.ltime != null )
-
-                      val oldMap = localState(state).records.map(rec => rec.id -> rec).toMap
-                      val addMap = addRecs.map( rec => rec.id -> rec).toMap
-                      ((oldMap ++ addMap) -- delRecs.map(_.id)).values.toSeq.sortWith((a, b) => a.stime.isAfter(b.stime))
-                  }
-              }
-          } catch {
-              case e: Exception => {
-                  loadErrorCounter.increment()
-                  throw e
-              }
-          } finally {
-                  stopwatch.stop()
-          }
-          loadCounter.increment()
-          if (logger.isInfoEnabled) logger.info("{} Loaded {} records in {} sec", toObjects(
-              this, records.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
-
-          val msg = Crawler.CrawlResult(this, if (records.size == 0) localState(state).records else records)
-          if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + this)
-          this ! msg
-      } onFailure {
-        case err: Throwable => logger.error(this + " load processor failed", err)
-        case err => logger.error(this + " load processor failed: " + err)
-      }
-      state
-    }
-    case (Purge(from), state) => {
+    case (gotMsg @ Purge(from), state) => {
+      implicit val req = gotMsg.req
       flushMessages {
         case Purge(from) => true
       }
       lastPurge = DateTime.now
       // NamedActor(this + " Purge processor") {
+      import PurgeExecutionContext._
       scala.concurrent.future {
         if( dataStore.isDefined ) {
           val purgeArgs: Map[String,String] = Utils.parseMatrixArguments(';' + purgeProperty.get)
@@ -595,7 +511,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
               dataStore.get.remove(Map("ltime" -> Map("$ne" -> null)))
             }
             case PurgePolicy.LAST => {
-              if (logger.isWarnEnabled) logger.warn(this + " LAST PurgePolicy is not yet implelemented")
+              if (logger.isWarnEnabled) logger.warn(s"$req$this LAST PurgePolicy is not yet implelemented")
             }
             case PurgePolicy.AGE => {
               val options = purgePolicyOptions.asInstanceOf[Map[String,String]]
@@ -604,88 +520,25 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
                 dataStore.get.remove(Map("ltime" -> Map("$lt" -> new DateTime( DateTime.now.getMillis - expiry ))))
               }
               else {
-                if (logger.isErrorEnabled) logger.error(this + " AGE PurgePolicy requires expiry option to be specified, such as AGE;expiry=2678400000")
+                if (logger.isErrorEnabled) logger.error(s"$req$this AGE PurgePolicy requires expiry option to be specified, such as AGE;expiry=2678400000")
               }
             }
           }
         }
       } onFailure {
-        case err: Throwable => logger.error(this + " purge processor failed", err)
-        case err => logger.error(this + " purge processor failed: " + err)
+        case err: Throwable => logger.error(s"$req$this purge processor failed", err)
+        case err => logger.error(s"$req$this purge processor failed: $err")
       }
       state
     }
-    case (Crawler.CrawlResult(from, newRecords), state) => {
-      // only propagate if newRecords are not the same as the last crawled result
-      lastCrawl = DateTime.now
-      if (newRecords ne localState(state).crawled) {
-        // NamedActor(this + " CrawlResult processor") {
-        scala.concurrent.future {
-          def processDelta(d: Delta) = {
-            lazy val path = name.replace('.', '/')
-            d.added.foreach(
-              rec => {
-                if (logger.isInfoEnabled) logger.info("Added {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
-              })
-            d.removed.foreach(
-              rec => {
-                if (logger.isInfoEnabled) logger.info("Removing {}/{};_pp;_at={}", toObjects(path, rec.id, rec.stime.getMillis))
-              })
-            d.changed.foreach(
-              update => {
-                lazy val diff: String = Utils.diffRecords(Array(update.newRecord, update.oldRecord), Some(1), path)
-                if (logger.isInfoEnabled) logger.info("\n{}", diff)
-              })
-
-            val msg = DeltaResult(this, d)
-            Observable.localState(state).observers.foreach(o => {
-              if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + o)
-              o ! msg
-            })
-          }
-
-          if (from == this) {
-            // this is from a Load so no need to calculate Delta
-            processDelta(Delta(newRecords, Seq(), Seq(), Seq()))
-          } else {
-            delta(newRecords, localState(state).records) onComplete { 
-              case scala.util.Failure(error) => {
-                if (logger.isErrorEnabled) logger.error(this + " delta failed: " + error)
-                throw new java.lang.RuntimeException(this + " delta failed: " + error)
-              }
-              case scala.util.Success(delta: Delta) => processDelta(delta)
-            }
-          }
-        } onFailure {
-          case err: Throwable => logger.error(this + " crawl processing failed", err)
-          case err => logger.error(this + " crawl processing failed: " + err)
-        }
-        setLocalState(state, localState(state).copy(crawled = newRecords))
-      } else state
-    }
-    case (DeltaResult(from, d), state) => {
-      // only propagate if the delta records are not the same as the current cached records
-      if ((d.records ne localState(state).records)) {
-        if (elector.isLeader) {
-          Actor.actor {
-            val stopwatch = updateTimer.start()
-            try {
-              update(d)
-              updateCounter.increment()
-            } catch {
-              case e: Exception => {
-                updateErrorCounter.increment()
-                throw e
-              }
-            } finally {
-              stopwatch.stop()
-            }
-            if (logger.isInfoEnabled) logger.info("{} Updated {} records(Changed: {}, Added: {}, Removed: {}) in {} sec", toObjects(
-              this, d.records.size, d.changed.size, d.added.size, d.removed.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000.0 -> "%.2f"))
-          }
-        }
-        setLocalState(state, localState(state).copy(records = d.records))
-      } else state
+    case (gotMsg @ UpdateOK(from, d, origMeta), state) => {
+      implicit val req = gotMsg.req
+      Observable.localState(state).observers.foreach(o => {
+        val msg = gotMsg.copy(from=this)
+        if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $o")
+        o ! msg
+      })
+      setLocalState(state, localState(state).copy(recordSet = d.recordSet))
     }
   }
 
@@ -695,23 +548,26 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
 
   /** if collection is enabled start elector, start crawler first */
   override def start(): Actor = {
+    implicit val req = RequestId("start")
     if (enabled.get.toBoolean) {
-      if (logger.isInfoEnabled) logger.info("Starting " + this)
+      if (logger.isInfoEnabled) logger.info(s"$req Starting $this")
       Option(elector).foreach(_.start())
       Option(crawler).foreach(_.start())
+      processor.start()
       super.start()
     } else {
-      if (logger.isInfoEnabled) logger.info("Collection " + name + " is disabled, not starting")
+      if (logger.isInfoEnabled) logger.info(s"$req Collection $name is disabled, not starting")
       this
     }
   }
 
   /** stop elector, crawler and shutdown ForkJoin special scheduler */
-  override def stop() {
-    if (logger.isInfoEnabled) logger.info("Stopping " + this)
+  override def stop()(implicit req: RequestId) {
+    if (logger.isInfoEnabled) logger.info(s"$req Stopping $this")
     Option(elector).foreach(_.stop())
     Option(crawler).foreach(_.stop())
-    // fjScheduler.shutdown()
+    processor.stop()
+    refresher.stop()
     super.stop()
   }
 }

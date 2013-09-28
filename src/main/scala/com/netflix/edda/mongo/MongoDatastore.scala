@@ -16,9 +16,11 @@
 package com.netflix.edda.mongo
 
 import com.netflix.edda.Record
+import com.netflix.edda.RecordSet
 import com.netflix.edda.Collection
 import com.netflix.edda.Datastore
 import com.netflix.edda.Utils
+import com.netflix.edda.RequestId
 
 // http://www.mongodb.org/display/DOCS/Java+Tutorial
 
@@ -53,7 +55,7 @@ object MongoDatastore {
           new DateTime(Option(o.get("stime")).getOrElse(o.get("ctime")).asInstanceOf[Date]),
           Option(o.get("ltime")) match {
             case Some(date: Date) => new DateTime(date)
-            case None => null
+            case _ => null
           },
           new DateTime(o.get("mtime").asInstanceOf[Date]),
           mongoToScala(o.get("data")),
@@ -207,7 +209,7 @@ class MongoDatastore(val name: String) extends Datastore {
     * @param replicaOk reading from a replica in a replSet is OK this is set to true
     * @return the records that match the query
     */
-  override def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean): Seq[Record] = {
+  override def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean)(implicit req: RequestId): Seq[Record] = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     val mtime = collectionModified
     val mongoKeys = if (keys.isEmpty) null else mapToMongo(keys.map(_ -> 1).toMap)
@@ -222,13 +224,13 @@ class MongoDatastore(val name: String) extends Datastore {
       if( limit > 0 ) seq else seq.sortWith((a, b) => a.stime.isAfter(b.stime))
     } catch {
        case e: Exception => {
-            if (logger.isErrorEnabled) logger.error(this + " query failed: " + queryMap + " limit: " + limit + " keys: " + keys + " replicaOk: " + replicaOk, e)
+         if (logger.isErrorEnabled) logger.error(s"$req$this query failed: $queryMap limit: $limit keys: $keys replicaOk: replicaOk", e)
             throw e
         }
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      if (logger.isInfoEnabled) logger.info(this + " query: " + queryMap + " lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(s"$req$this query: $queryMap $lapse: ${lapse}ms")
       cursor.close()
     }
   }
@@ -238,7 +240,7 @@ class MongoDatastore(val name: String) extends Datastore {
     * @param replicaOk reading from a replica in a replSet is OK if this is set to true
     * @return the active records (ltime == null) from the collection
     */
-  override def load(replicaOk: Boolean): Seq[Record] = {
+  override def load(replicaOk: Boolean)(implicit req: RequestId): RecordSet = {
     import collection.JavaConverters.iterableAsScalaIterableConverter
     val mtime = collectionModified
     val cursor = {
@@ -247,8 +249,8 @@ class MongoDatastore(val name: String) extends Datastore {
     }
     try {
       val x = cursor.asScala.map(mongoToRecord(_)).toSeq.map(_.copy(mtime=mtime)).sortWith((a, b) => a.stime.isAfter(b.stime))
-      if (logger.isInfoEnabled) logger.info(this + " Loaded " + x.size + " records")
-      x
+      if (logger.isInfoEnabled) logger.info(s"$req$this Loaded ${x.size} records")
+      RecordSet(x, Map("mtime" -> collectionModified() ))
     } catch {
       case e: Exception => {
         throw new java.lang.RuntimeException(this + " failed to load", e)
@@ -259,7 +261,7 @@ class MongoDatastore(val name: String) extends Datastore {
   }
 
   /** update records, delete removed records, insert added records */
-  override def update(d: Collection.Delta) {
+  override def update(d: Collection.Delta)(implicit req: RequestId): Collection.Delta = {
     var toRemove: Seq[Record] = Seq();
     val records = d.removed ++ d.added ++ d.changed.flatMap(
       pair => {
@@ -279,14 +281,15 @@ class MongoDatastore(val name: String) extends Datastore {
     records.foreach( r => if (Collection.RetentionPolicy.withName(retentionPolicy.get) == LIVE && r.ltime != null) remove(r) else upsert(r) )
     toRemove.foreach( remove(_) )
     markCollectionModified
+    d
   }
 
-  def collectionModified: DateTime  = {
+  def collectionModified()(implicit req: RequestId): DateTime  = {
       val rec = monitor.findOne(mapToMongo(Map("_id" -> name)));
       if( rec == null ) DateTime.now() else mongoToRecord(rec).mtime
   }
 
-  def markCollectionModified = {
+  def markCollectionModified()(implicit req: RequestId) = {
     try {
       val now = DateTime.now()
       monitor.findAndModify(
@@ -310,7 +313,7 @@ class MongoDatastore(val name: String) extends Datastore {
       )
     } catch {
       case e: Exception => {
-        if (logger.isErrorEnabled) logger.error(this + "failed to update collection mtime", e)
+        if (logger.isErrorEnabled) logger.error(s"$req$this failed to update collection mtime", e)
         throw e
       }
     }
@@ -325,7 +328,7 @@ class MongoDatastore(val name: String) extends Datastore {
     primary.ensureIndex(mapToMongo(Map("id" -> 1)))
   }
 
-  protected def upsert(record: Record) {
+  protected def upsert(record: Record)(implicit req: RequestId) {
     try {
       primary.findAndModify(
         mapToMongo(Map("_id" -> (record.toId()))), // query
@@ -338,22 +341,22 @@ class MongoDatastore(val name: String) extends Datastore {
       )
     } catch {
       case e: Exception => {
-        if (logger.isErrorEnabled) logger.error("failed to upsert record: " + record)
+        if (logger.isErrorEnabled) logger.error(s"$req$this failed to upsert record: $record")
         throw e
       }
     }
   }
 
-  protected def remove(record: Record) {
+  protected def remove(record: Record)(implicit req: RequestId) {
     remove(Map("_id" -> (record.toId())));
   }
 
-  override def remove(queryMap: Map[String, Any]) {
+  override def remove(queryMap: Map[String, Any])(implicit req: RequestId) {
     try {
       primary.remove(mapToMongo(queryMap))
     } catch {
       case e: Exception => {
-        if (logger.isErrorEnabled) logger.error("failed to remove records: " + queryMap)
+        if (logger.isErrorEnabled) logger.error(s"$req$this failed to remove records: $queryMap")
         throw e
       }
     }
