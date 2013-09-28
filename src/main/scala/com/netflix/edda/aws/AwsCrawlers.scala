@@ -39,6 +39,7 @@ import com.amazonaws.services.ec2.model.DescribeInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeReservedInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest
 import com.amazonaws.services.ec2.model.DescribeSnapshotsRequest
+import com.amazonaws.services.ec2.model.DescribeSubnetsRequest
 import com.amazonaws.services.ec2.model.DescribeTagsRequest
 import com.amazonaws.services.ec2.model.DescribeVolumesRequest
 
@@ -944,6 +945,29 @@ class AwsCacheClusterCrawler(val name: String, val ctx: AwsCrawler.Context) exte
 
   override def doCrawl()(implicit req: RequestId) = ctx.awsClient.elasticache.describeCacheClusters(request).getCacheClusters.asScala.map(
     item => Record(item.getCacheClusterId, ctx.beanMapper(item))).toSeq
+}
+
+/** crawler for Subnets
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsSubnetCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeSubnetsRequest
+  lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
+
+  override def doCrawl()(implicit req: RequestId) = {
+    var tagCount = 0
+    val list = ctx.awsClient.ec2.describeSubnets(request).getSubnets.asScala.map(
+      item => {
+        tagCount += item.getTags.size
+        Record(item.getSubnetId, ctx.beanMapper(item))
+      }).toSeq
+    if (tagCount == 0 && abortWithoutTags.get.toBoolean) {
+      throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
+    }
+    list
+  }
 }
 
 /** crawler for Cloudformation Stacks
