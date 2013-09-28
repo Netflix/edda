@@ -69,6 +69,7 @@ class BasicBeanMapperTest extends FunSuite {
 
 
     val expected = Map(
+      "terminationPolicies" -> List(),
       "healthCheckGracePeriod" -> 600,
       "tags" -> List(
         Map(

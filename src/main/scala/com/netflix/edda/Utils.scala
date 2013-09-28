@@ -22,6 +22,9 @@ import scala.actors.Scheduler
 import scala.actors.Exit
 
 import java.io.ByteArrayOutputStream
+import java.io.ByteArrayInputStream
+import java.util.zip.GZIPOutputStream
+import java.util.zip.GZIPInputStream
 import java.util.Date
 import java.util.Properties
 import java.text.SimpleDateFormat
@@ -44,6 +47,8 @@ import com.netflix.config.DynamicPropertyFactory
 import com.netflix.config.FixedDelayPollingScheduler
 import com.netflix.config.sources.URLConfigurationSource
 import com.netflix.config.DynamicConfiguration
+
+import org.apache.commons.io.IOUtils
 
 /** singleton object for various helper functions */
 object Utils {
@@ -416,6 +421,19 @@ object Utils {
   }
     
   def uuid = java.util.UUID.randomUUID.toString
+
+  def compress( in: String ): Array[Byte] = {
+    var out = new ByteArrayOutputStream()
+    var gzip = new GZIPOutputStream(out)
+    gzip.write(in.getBytes("UTF-8"))
+    gzip.close()
+    out.toByteArray()
+  }
+
+  def decompress( in: Array[Byte] ): String = {
+    val gis = new GZIPInputStream(new ByteArrayInputStream(in));
+    IOUtils.toString(gis, "UTF-8")
+  }
 
   def makeHistoryDatastore(name: String): Option[Datastore] = {
     Utils.getProperty("edda", "datastore.class", name, "com.netflix.edda.mongo.MongoDatastore").get match {
