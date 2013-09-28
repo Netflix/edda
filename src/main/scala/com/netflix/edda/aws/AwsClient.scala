@@ -32,6 +32,7 @@ import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
 import com.amazonaws.services.route53.AmazonRoute53Client
 import com.amazonaws.services.rds.AmazonRDSClient
 import com.amazonaws.services.elasticache.AmazonElastiCacheClient
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 
 object AwsClient {
@@ -157,6 +158,12 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
     val client = new AmazonElastiCacheClient(provider)
     client.setEndpoint("elasticache." + region + ".amazonaws.com")
     client
+   }
+
+   def dynamo = {
+     val client = new AmazonDynamoDBClient(provider)
+     client.setEndpoint("dynamodb." + region + ".amazonaws.com")
+     client
    }
 
    def cloudformation = {
