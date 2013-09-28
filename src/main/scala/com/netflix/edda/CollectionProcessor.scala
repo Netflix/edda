@@ -183,6 +183,9 @@ class CollectionProcessor(collection: Collection) extends Observable {
         val origReq = origMeta("req").asInstanceOf[String]
         logger.error(s"$req$this ignoring delta results, compared against old state: $origReq")
         state
+      } else if( d.recordSet.meta("source") == "crawl" && !collection.elector.isLeader() ) {
+        logger.error(s"$req$this ignoring delta result from crawl, no longer leader")
+        state
       } else {
         if (collection.elector.isLeader()) {
           val stopwatch = updateTimer.start()

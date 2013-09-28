@@ -15,8 +15,6 @@
  */
 package com.netflix.edda
 
-import org.slf4j.LoggerFactory
-
 import org.scalatest.FunSuite
 
 import scala.actors.Actor
@@ -24,41 +22,58 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 
+import org.apache.log4j.Logger
+import org.apache.log4j.Level
+
 class MergedCollectionTest extends FunSuite {
   import Utils._
   import Queryable._
 
   implicit val req = RequestId()
 
+  val logger = Logger.getRootLogger()
+  //logger.setLevel(Level.DEBUG)
+
   def SYNC[T](future: Awaitable[T]): T = {
     Await.result(future, Duration(5, SECONDS))
   }
 
-  val logger = LoggerFactory.getLogger(getClass)
   test("query") {
     val collA = new TestCollection("test.A")
-    collA.dataStore.get.recordSet = collA.dataStore.get.recordSet.copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
+    collA.elector.leader = false
     val collB = new TestCollection("test.B")
-    collB.dataStore.get.recordSet = collB.dataStore.get.recordSet.copy(records = Seq(Record("A", 1), Record("B", 2), Record("C", 3)))
+    collB.elector.leader = false
     val merged = new MergedCollection("merged.collection", Seq(collA, collB))
-
+    
     merged.start()
-    collA.processor ! CollectionProcessor.Load(collA)
-    collB.processor ! CollectionProcessor.Load(collB)
-    Thread.sleep(1000)
+
+    collA.dataStore.get.recordSet = collA.dataStore.get.recordSet.copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
+    collB.dataStore.get.recordSet = collB.dataStore.get.recordSet.copy(records = Seq(Record("A", 1), Record("B", 2), Record("C", 3)))
+
+    SYNC( collA.addObserver(Actor.self) )
+    SYNC( collB.addObserver(Actor.self) )
+    
+    Actor.self receive {
+      case Collection.UpdateOK(`collA`, d, meta) => Unit
+    }
+    Actor.self receive {
+      case Collection.UpdateOK(`collB`, d, meta) => Unit
+    }
 
     expectResult(2) {
       SYNC ( merged.query(Map("data" -> 1)) ).size
     }
-
+    
     expectResult(4) {
       SYNC( merged.query(Map("data" -> Map("$gte" -> 2))) ).size
     }
-
+    
     expectResult(2) {
       SYNC( merged.query(Map("id" -> Map("$in" -> Seq("A", "a")))) ).size
     }
-
+    
+    SYNC( collA.delObserver(Actor.self) )
+    SYNC( collB.delObserver(Actor.self) )
     merged.stop()
   }
 }

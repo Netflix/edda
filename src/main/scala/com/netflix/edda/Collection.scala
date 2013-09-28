@@ -533,6 +533,11 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
     case (gotMsg @ UpdateOK(from, d, origMeta), state) => {
       implicit val req = gotMsg.req
+      Observable.localState(state).observers.foreach(o => {
+        val msg = gotMsg.copy(from=this)
+        if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $o")
+        o ! msg
+      })
       setLocalState(state, localState(state).copy(recordSet = d.recordSet))
     }
   }

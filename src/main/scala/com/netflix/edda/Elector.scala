@@ -75,7 +75,7 @@ abstract class Elector extends Observable {
     val p = scala.concurrent.promise[Boolean]
     Utils.namedActor(this + " elector client") {
       val msg = IsLeader(Actor.self)
-      if (logger.isDebugEnabled) logger.debug("$req${Actor.self} sending: $msg -> $this with 10000ms timeout")
+      if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} sending: $msg -> $this with 10000ms timeout")
       this !?(10000, msg) match {
         case Some(ElectionResult(from, result)) => p success result
         case Some(message) => p failure new java.lang.UnsupportedOperationException("Failed to determine leadership: " + message)

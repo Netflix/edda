@@ -31,6 +31,7 @@ import org.apache.log4j.Level
 
 import org.apache.commons.configuration.MapConfiguration
 
+import scala.actors.Actor
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -46,6 +47,7 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
   }
 
   val logger = Logger.getRootLogger()
+  //logger.setLevel(Level.DEBUG)
 
   before {
     Utils.initConfiguration("edda.properties")
@@ -55,17 +57,31 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     val coll = new TestCollection
     coll.start()
 
+    SYNC( coll.addObserver(Actor.self) )
+
+    SYNC( coll.elector.addObserver(Actor.self) )
+
     expectResult(Nil) {
-      SYNC ( coll.query(Map("id" -> "b")) ) 
+      SYNC( coll.query(Map("id" -> "b")) )
     }
     
     // dont let the crawler reset our records
     coll.elector.leader = false
+    coll.elector ! Elector.RunElection(Actor.self)
+    
+    // wait for leadership change to propagate
+    Actor.self receive {
+      case Elector.ElectionResult(from,false) => Unit
+    }
+
     coll.dataStore.get.recordSet = coll.dataStore.get.recordSet.copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
     coll.processor ! CollectionProcessor.Load(coll)
-    // allow for collection to load
-    
-    Thread.sleep(1000)
+
+    // wait for load to propagate
+    Actor.self receive {
+      case Collection.UpdateOK(`coll`, d, meta) if d.recordSet.meta("source") == "load" => Unit
+    }
+
     val records = SYNC( coll.query(Map("id" -> "b")) )
     expectResult(1) {
       records.size
@@ -76,6 +92,9 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     expectResult("b") {
       records.head.id
     }
+    
+    SYNC( coll.elector.delObserver(Actor.self) )
+    SYNC( coll.delObserver(Actor.self) )
     coll.stop()
   }
 
@@ -84,7 +103,8 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     coll.dataStore.get.recordSet = coll.dataStore.get.recordSet.copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
     coll.start()
 
-
+    SYNC( coll.addObserver(Actor.self) )
+    
     expectResult(3) {
       SYNC( coll.query() ).size
     }
@@ -92,42 +112,47 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     coll.crawler.records = Seq(Record("a", 1), Record("b", 3), Record("c", 4), Record("d", 5))
     coll.crawler.crawl()
     // allow for crawl to propagate
-    Thread.sleep(1000)
+    Actor.self receive {
+      case Collection.UpdateOK(`coll`, d, meta) if d.recordSet.meta("source") == "crawl" => Unit
+    }
 
     expectResult(3) {
       SYNC( coll.query(Map("data" -> Map("$gte" -> 3))) ).size 
     }
+    SYNC( coll.delObserver(Actor.self) )
     coll.stop()
   }
 
   test("leader") {
-    DynamicPropertyFactory.getInstance()
-    val composite = DynamicPropertyFactory. getBackingConfigurationSource.asInstanceOf[ConcurrentCompositeConfiguration]
-    val config = new MapConfiguration(new Properties);
-    composite.addConfigurationAtFront(config, "testConfig")
-
-    // check for election results every 100ms
-    config.addProperty("edda.elector.refresh", "200")
-    // collection should crawl every 100ms
-    config.addProperty("edda.collection.refresh", "200")
-    config.addProperty("edda.collection.cache.refresh", "200")
     val coll = new TestCollection
     val dataStoreResults = Seq(Record("a", 1), Record("b", 2), Record("c", 3))
     val crawlResults = Seq(Record("a", 1), Record("b", 3), Record("c", 4), Record("d", 5))
 
     coll.dataStore.get.recordSet = coll.dataStore.get.recordSet.copy(records = dataStoreResults)
+    coll.crawler.records = crawlResults
+
     coll.start()
+
+    SYNC( coll.addObserver(Actor.self) )
+
+    SYNC( coll.elector.addObserver(Actor.self) )
+
+    Actor.self receive {
+      case Collection.UpdateOK(`coll`, d, meta) if d.recordSet.meta("source") == "load" => Unit
+    }
 
     // expect data loaded form dataStore
     expectResult(3) {
       SYNC( coll.query() ).size
     }
     
-    // set crawler results and wait for the crawler results to propagate
-    coll.crawler.records = crawlResults
+    // wait for the crawler results to propagate
     coll.crawler.crawl()
-    Thread.sleep(1000)
     
+    Actor.self receive {
+      case Collection.UpdateOK(`coll`, d, meta) if d.recordSet.meta("source") == "crawl" => Unit
+    }
+
     // we should get 4 records now
     expectResult(4) {
       SYNC( coll.query() ).size
@@ -136,11 +161,18 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     // now drop leader role and wait for dataStore results to reload
     // but remove the "a" record
     coll.elector.leader = false
-    // wait for previous crawls to propogate
-    Thread.sleep(300)
+    coll.elector ! Elector.RunElection(Actor.self)
+    // wait for leadership change to propagate
+    Actor.self receive {
+      case Elector.ElectionResult(from, false) => Unit
+    }
+
     coll.dataStore.get.recordSet = coll.dataStore.get.recordSet.copy(records = coll.dataStore.get.recordSet.records.tail)
     coll.processor ! CollectionProcessor.Load(coll)
-    Thread.sleep(300)
+    // wait for load to propagate
+    Actor.self receive {
+      case Collection.UpdateOK(`coll`, d, meta) if d.recordSet.meta("source") == "load" => logger.debug(s"GOT: $d meta: $meta")
+    }
 
     expectResult(3) {
       SYNC( coll.query() ).size
