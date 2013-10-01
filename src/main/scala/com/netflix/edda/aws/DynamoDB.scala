@@ -148,6 +148,7 @@ object DynamoDB {
       )
     } catch {
       case e: InternalServerErrorException => {
+        logger.warn(s"$req error attempting to write $request to dynamodb: $e")
         // with this exception we have no idea if the write actually happened, so lets fetch the record and see if it matches 
         // what we just tried to write before rethrowing an exception
 
