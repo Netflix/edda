@@ -147,6 +147,21 @@ object DynamoDB {
         )
       )
     } catch {
+      case e: InternalServerErrorException => {
+        // with this exception we have no idea if the write actually happened, so lets fetch the record and see if it matches 
+        // what we just tried to write before rethrowing an exception
+
+        // first we need to figure out what the primary key is
+        // Note: this assumes only single key schema
+        val key = client.describeTable(new DescribeTableRequest().withTableName(tableName)).getTable().getKeySchema.asScala.head.getAttributeName()
+
+        val item = this.get(tableName, key, attributes(key).asInstanceOf[String])
+        // compare everthin in item to the arguments set in the attributes map
+        if( item.isEmpty || item.get.filterKeys(attributes.keySet) != attributes ) {
+          logger.error(s"$req failed to update dynamodb: $request", e)
+          throw e
+        }
+      }
       case e: Exception => {
         logger.error(s"$req failed to update dynamodb: $request", e)
         throw e
