@@ -913,15 +913,13 @@ class AwsCacheClusterCrawler(val name: String, val ctx: AwsCrawler.Context) exte
 class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeStacksRequest
   private[this] val logger = LoggerFactory.getLogger(getClass)
-  private[this] val threadPool = Executors.newFixedThreadPool(1)
+  private[this] val threadPool = Executors.newFixedThreadPool(10)
 
-<<<<<<< HEAD
   override def doCrawl() =  ctx.awsClient.beanstalk.describeEnvironments(request).getEnvironments.withResources.asScala.map(
     item => Record(item.getEnvironmentId, ctx.beanMapper(item))).toSeq
 }
-=======
   override def doCrawl() = {
-    val stacks = ctx.awsClient.cloudformation.describeStacks(request).getStacks.asScala
+    val environ = ctx.awsClient.beanstalk.describeEnvironments(request).getStacks.asScala
     val futures: Seq[java.util.concurrent.Future[Record]] = stacks.map(
       stack => {
         threadPool.submit(
@@ -948,8 +946,6 @@ class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) ex
     ).collect {
       case Some(rec) => rec
     }
->>>>>>> origin/cloudformation
-
     records
   }
 

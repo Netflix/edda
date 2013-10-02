@@ -800,3 +800,22 @@ class AwsCloudformationCollection(
   val crawler = new AwsCloudformationCrawler(name, ctx)
 }
 
+/** collection for AWS Elastic Beanstalk Environments
+  *
+  * root collection name: aws.beanstalks
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsCloudformationCrawler]]
+  *
+  * @param dsFactory function that creates new Datastore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+class AwsCloudformationCollection(
+                               dsFactory: String => Option[Datastore],
+                               val accountName: String,
+                               val elector: Elector,
+                               override val ctx: AwsCollection.Context) extends RootCollection("aws.stacks", accountName, ctx) {
+  val dataStore: Option[Datastore] = dsFactory(name)
+  val crawler = new AwsCloudformationCrawler(name, ctx)
+}
