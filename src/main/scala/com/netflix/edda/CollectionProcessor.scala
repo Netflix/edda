@@ -207,7 +207,7 @@ class CollectionProcessor(collection: Collection) extends Observable {
           } catch {
             case e: Exception => {
               updateErrorCounter.increment()
-              logger.error("$req$this failed to update", e)
+              logger.error(s"$req$this failed to update", e)
               throw e
             }
           } finally {
