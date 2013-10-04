@@ -75,6 +75,8 @@ import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
 import com.amazonaws.services.cloudformation.model.ListStackResourcesRequest
+import com.amazonaws.services.elasticbeanstalk.model.DescribeEnvironmentsRequest
+import com.amazonaws.services.elasticbeanstalk.model.DescribeEnvironmentResourcesRequest
 
 /** static namespace for out Context trait */
 object AwsCrawler {
@@ -913,13 +915,10 @@ class AwsCacheClusterCrawler(val name: String, val ctx: AwsCrawler.Context) exte
 class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeStacksRequest
   private[this] val logger = LoggerFactory.getLogger(getClass)
-  private[this] val threadPool = Executors.newFixedThreadPool(10)
+  private[this] val threadPool = Executors.newFixedThreadPool(1)
 
-  override def doCrawl() =  ctx.awsClient.beanstalk.describeEnvironments(request).getEnvironments.withResources.asScala.map(
-    item => Record(item.getEnvironmentId, ctx.beanMapper(item))).toSeq
-}
   override def doCrawl() = {
-    val environ = ctx.awsClient.beanstalk.describeEnvironments(request).getStacks.asScala
+    val stacks = ctx.awsClient.cloudformation.describeStacks(request).getStacks.asScala
     val futures: Seq[java.util.concurrent.Future[Record]] = stacks.map(
       stack => {
         threadPool.submit(
@@ -939,6 +938,49 @@ class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) ex
         catch {
           case e: Exception => {
             if (logger.isErrorEnabled) logger.error(this + "exception from Cloudformation listStackResources", e)
+            None
+          }
+        }
+      }
+    ).collect {
+      case Some(rec) => rec
+    }
+    records
+  }
+
+}
+
+/** crawler for Elastic Beanstalk Environments
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeEnvironmentsRequest
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  private[this] val threadPool = Executors.newFixedThreadPool(10)
+
+  override def doCrawl() = {
+    val environments = ctx.awsClient.beanstalk.describeEnvironments(request).getEnvironments.asScala
+    val futures: Seq[java.util.concurrent.Future[Record]] = environments.map(
+      environment => {
+        threadPool.submit(
+          new Callable[Record] {
+            def call() = {
+              val environmentResourcesRequest = new DescribeEnvironmentResourcesRequest().withEnvironmentId(environment.getEnvironmentId)
+              val environmentResources = ctx.awsClient.beanstalk.describeEnvironmentResources(environmentResourcesRequest).getEnvironmentResources.asScala.map(item => ctx.beanMapper(item)).toSeq
+              Record(environment.getEnvironmentName, new DateTime(environment.getDateCreated), ctx.beanMapper(environment).asInstanceOf[Map[String,Any]] ++ Map("resources" -> environmentResources))
+            }
+          }
+        )
+      }
+    )
+    val records = futures.map(
+      f => {
+        try Some(f.get)
+        catch {
+          case e: Exception => {
+            if (logger.isErrorEnabled) logger.error(this + "exception from beanstalk listEnvironmentResources", e)
             None
           }
         }
