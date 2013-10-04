@@ -976,11 +976,8 @@ class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends
               val environmentResourcesTriggers = environmentResourcesResult.getTriggers.asScala.map(item => ctx.beanMapper(item)).toSeq
               Record(environment.getEnvironmentName, new DateTime(environment.getDateCreated),
                  ctx.beanMapper(environment).asInstanceOf[Map[String,Any]]
-                  ++ Map("resources" -> Map("auto-scaling-group" -> environmentResourcesASG)
-                                     ++ Map("instances" -> environmentResourcesInstances)
-                                     ++ Map("launch-config" -> environmentResourcesLC)
-                                     ++ Map("elb" -> environmentResourcesELB)
-                                     ++ Map("triggers" -> environmentResourcesTriggers)
+                  ++ Map("resources" -> Map("auto-scaling-group" -> environmentResourcesASG, "instances" -> environmentResourcesInstances,
+                                            "launch-config" -> environmentResourcesLC, "elb" -> environmentResourcesELB, "triggers" -> environmentResourcesTriggers)
                      )
               )
             }
