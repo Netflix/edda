@@ -968,8 +968,21 @@ class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends
           new Callable[Record] {
             def call() = {
               val environmentResourcesRequest = new DescribeEnvironmentResourcesRequest().withEnvironmentId(environment.getEnvironmentId)
-              val environmentResources = ctx.awsClient.beanstalk.describeEnvironmentResources(environmentResourcesRequest).getEnvironmentResources.asScala.map(item => ctx.beanMapper(item)).toSeq
-              Record(environment.getEnvironmentName, new DateTime(environment.getDateCreated), ctx.beanMapper(environment).asInstanceOf[Map[String,Any]] ++ Map("resources" -> environmentResources))
+              val environmentResourcesResult = ctx.awsClient.beanstalk.describeEnvironmentResources(environmentResourcesRequest).getEnvironmentResources
+              val environmentResourcesASG = environmentResourcesResult.getAutoscalingGroups.asScala.map(item => ctx.beanMapper(item)).toSeq
+              val environmentResourcesInstances = environmentResourcesResult.getInstances.asScala.map(item => ctx.beanMapper(item)).toSeq
+              val environmentResourcesLC = environmentResourcesResult.getLaunchConfigurations.asScala.map(item => ctx.beanMapper(item)).toSeq
+              val environmentResourcesELB = environmentResourcesResult.getLoadBalancers.asScala.map(item => ctx.beanMapper(item)).toSeq
+              val environmentResourcesTriggers = environmentResourcesResult.getTriggers.asScala.map(item => ctx.beanMapper(item)).toSeq
+              Record(environment.getEnvironmentName, new DateTime(environment.getDateCreated),
+                 ctx.beanMapper(environment).asInstanceOf[Map[String,Any]]
+                  ++ Map("resources" -> Map("auto-scaling-group" -> environmentResourcesASG)
+                                     ++ Map("instances" -> environmentResourcesInstances)
+                                     ++ Map("launch-config" -> environmentResourcesLC)
+                                     ++ Map("elb" -> environmentResourcesELB)
+                                     ++ Map("triggers" -> environmentResourcesTriggers)
+                     )
+              )
             }
           }
         )
