@@ -125,7 +125,8 @@ object AwsCollectionBuilder {
       hostedRecords,
       new AwsDatabaseCollection(dsFactory, accountName, elector, ctx),
       new AwsCacheClusterCollection(dsFactory, accountName, elector, ctx),
-      new AwsCloudformationCollection(dsFactory, accountName, elector, ctx)
+      new AwsCloudformationCollection(dsFactory, accountName, elector, ctx),
+      new AwsBeanstalkCollection(dsFactory, accountName, elector, ctx)
     )
   }
 }
