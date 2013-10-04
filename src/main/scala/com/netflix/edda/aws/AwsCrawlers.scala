@@ -969,7 +969,7 @@ class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends
             def call() = {
               val environmentResourcesRequest = new DescribeEnvironmentResourcesRequest().withEnvironmentId(environment.getEnvironmentId)
               val environmentResourcesResult = ctx.awsClient.beanstalk.describeEnvironmentResources(environmentResourcesRequest).getEnvironmentResources
-              val environmentResourcesASG = environmentResourcesResult.getAutoscalingGroups.asScala.map(item => ctx.beanMapper(item)).toSeq
+              val environmentResourcesASG = environmentResourcesResult.getAutoScalingGroups.asScala.map(item => ctx.beanMapper(item)).toSeq
               val environmentResourcesInstances = environmentResourcesResult.getInstances.asScala.map(item => ctx.beanMapper(item)).toSeq
               val environmentResourcesLC = environmentResourcesResult.getLaunchConfigurations.asScala.map(item => ctx.beanMapper(item)).toSeq
               val environmentResourcesELB = environmentResourcesResult.getLoadBalancers.asScala.map(item => ctx.beanMapper(item)).toSeq
