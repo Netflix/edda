@@ -33,7 +33,7 @@ dependencies {
     compile 'com.sun.jersey:jersey-server:1.11'
     compile 'com.sun.jersey:jersey-servlet:1.11'
     compile 'org.slf4j:slf4j-api:1.6.4'
-    compile('com.amazonaws:aws-java-sdk:1.3.11') {
+    compile('com.amazonaws:aws-java-sdk:1.4.7') {
         exclude group:'org.codehaus.jackson'
     }
     compile 'joda-time:joda-time:2.0'
@@ -42,6 +42,7 @@ dependencies {
     compile 'org.codehaus.jackson:jackson-mapper-asl:1.9.2'
     compile 'commons-beanutils:commons-beanutils:1.8.2'
     compile 'commons-collections:commons-collections:3.2.1'
+    compile 'commons-io:commons-io:2.4'
     compile 'com.netflix.servo:servo-core:0.4.10'
     compile 'com.googlecode.java-diff-utils:diffutils:1.2.1'
 
@@ -50,7 +51,12 @@ dependencies {
     compile 'org.mongodb:mongo-java-driver:2.6.5'
     compile 'org.elasticsearch:elasticsearch:0.90.0'
     compile 'com.spatial4j:spatial4j:0.3'
+
+    // for some reason 'org.apache.httpcomponents:httpclient:4.2.1' is causing 
+    // scalac to generate 'S3ObjectInputStream.class is broken' erro
+    compile 'org.apache.httpcomponents:httpclient:4.1'
     
+    testCompile 'log4j:log4j:1.2.12'
     testCompile 'org.testng:testng:6.1.1'
     testCompile 'org.mockito:mockito-core:1.8.5'
     testCompile 'org.scalatest:scalatest_2.10:1.9.1'

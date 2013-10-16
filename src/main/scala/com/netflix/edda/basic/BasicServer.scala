@@ -24,6 +24,7 @@ import com.netflix.edda.CollectionManager
 import com.netflix.edda.Datastore
 import com.netflix.edda.Elector
 import com.netflix.edda.Utils
+import com.netflix.edda.RequestId
 
 import javax.servlet.http.HttpServlet
 
@@ -36,18 +37,13 @@ import org.slf4j.LoggerFactory
   */
 class BasicServer extends HttpServlet {
   private[this] val logger = LoggerFactory.getLogger(getClass)
+  implicit val req = RequestId("basicServer")
 
   override def init() {
 
     Utils.initConfiguration(System.getProperty("edda.properties","edda.properties"))
 
-    logger.info("Staring Server")
-
-    val datastoreClassName = Utils.getProperty("edda", "datastore.class", "", "com.netflix.edda.mongo.MongoDatastore").get
-    val datastoreClass = this.getClass.getClassLoader.loadClass(datastoreClassName)
-    val datastoreCtor = datastoreClass.getConstructor(classOf[String])
-
-    val dsFactory = (name: String) => Some(datastoreCtor.newInstance(name).asInstanceOf[Datastore])
+    logger.info(s"$req Staring Server")
 
     val electorClassName = Utils.getProperty("edda", "elector.class", "", "com.netflix.edda.mongo.MongoElector").get
     val electorClass = this.getClass.getClassLoader.loadClass(electorClassName)
@@ -56,19 +52,11 @@ class BasicServer extends HttpServlet {
 
     val bm = new BasicBeanMapper with AwsBeanMapper
 
-    val awsClientFactory = (account: String) => {
-      Utils.getProperty("edda", "aws.accessKey", account, "").get match {
-        case v if v.isEmpty => new AwsClient(Utils.getProperty("edda", "region", account, "").get)
-        case accessKey => new AwsClient(
-          accessKey,
-          Utils.getProperty("edda", "aws.secretKey", account, "").get,
-          Utils.getProperty("edda", "region", account, "").get)
-      }
-    }
+    val awsClientFactory = (account: String) => new AwsClient(account)
 
-    AwsCollectionBuilder.buildAll(BasicContext, awsClientFactory, bm, elector, dsFactory)
+    AwsCollectionBuilder.buildAll(BasicContext, awsClientFactory, bm, elector)
 
-    if (logger.isInfoEnabled) logger.info("Starting Collections")
+    if (logger.isInfoEnabled) logger.info(s"$req Starting Collections")
     CollectionManager.start()
 
     super.init()

@@ -16,18 +16,22 @@
 package com.netflix.edda.aws
 
 import scala.actors.Actor
-import scala.concurrent.ExecutionContext.Implicits.global
 
 import com.netflix.edda.StateMachine
 import com.netflix.edda.Crawler
 import com.netflix.edda.CrawlerState
 import com.netflix.edda.Observable
 import com.netflix.edda.Record
+import com.netflix.edda.RecordSet
+import com.netflix.edda.RequestId
 import com.netflix.edda.BeanMapper
 import com.netflix.edda.basic.BasicBeanMapper
 import com.netflix.edda.Utils
+import com.netflix.edda.ObserverExecutionContext
 
 import org.joda.time.DateTime
+
+import com.amazonaws.AmazonServiceException
 
 import com.amazonaws.services.ec2.model.DescribeAddressesRequest
 import com.amazonaws.services.ec2.model.DescribeImagesRequest
@@ -35,6 +39,7 @@ import com.amazonaws.services.ec2.model.DescribeInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeReservedInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest
 import com.amazonaws.services.ec2.model.DescribeSnapshotsRequest
+import com.amazonaws.services.ec2.model.DescribeSubnetsRequest
 import com.amazonaws.services.ec2.model.DescribeTagsRequest
 import com.amazonaws.services.ec2.model.DescribeVolumesRequest
 
@@ -151,7 +156,7 @@ abstract class AwsIterator extends Iterator[Seq[Record]] {
 class AwsAddressCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeAddressesRequest
 
-  override def doCrawl() =
+  override def doCrawl()(implicit req: RequestId) =
     ctx.awsClient.ec2.describeAddresses(request).getAddresses.asScala.map(
       item => Record(item.getPublicIp, ctx.beanMapper(item))).toSeq
 }
@@ -167,7 +172,7 @@ class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) 
   request.setMaxRecords(50)
 
   lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     var tagCount = 0
     val it = new AwsIterator() {
       def next() = {
@@ -184,8 +189,7 @@ class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) 
     if (tagCount == 0) {
       if (abortWithoutTags.get.toBoolean) {
         throw new java.lang.RuntimeException("no tags found for any record in " + name + ", ignoring crawl results")
-      } else if (logger.isWarnEnabled) logger.warn("no tags found for any record in " + name + ".  " +
-        "If you expect at least one tag then set: edda.crawler." + name + ".abortWithoutTags=true")
+      } else if (logger.isWarnEnabled) logger.warn(s"$req no tags found for any record in $name.  If you expect at least one tag then set: edda.crawler.$name.abortWithoutTags=true")
     }
     list
   }
@@ -201,7 +205,7 @@ class AwsScalingPolicyCrawler(val name: String, val ctx: AwsCrawler.Context) ext
   val request = new DescribePoliciesRequest
   request.setMaxRecords(50)
 
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     val it = new AwsIterator() {
       def next() = {
         val response = ctx.awsClient.asg.describePolicies(request.withNextToken(this.nextToken.get))
@@ -226,7 +230,7 @@ class AwsAlarmCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cra
   val request = new DescribeAlarmsRequest
   request.setMaxRecords(100)
 
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     val it = new AwsIterator() {
       def next() = {
         val response = ctx.awsClient.cw.describeAlarms(request.withNextToken(this.nextToken.get))
@@ -253,7 +257,7 @@ class AwsImageCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cra
   val request = new DescribeImagesRequest
   lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
 
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     var tagCount = 0
     val list = ctx.awsClient.ec2.describeImages(request).getImages.asScala.map(
       item => {
@@ -275,7 +279,7 @@ class AwsImageCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cra
 class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeLoadBalancersRequest
 
-  override def doCrawl() = ctx.awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions.asScala.map(
+  override def doCrawl()(implicit req: RequestId) = ctx.awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions.asScala.map(
     item => Record(item.getLoadBalancerName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))).toSeq
 }
 
@@ -296,10 +300,10 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
 
   import AwsInstanceHealthCrawler._
 
-  override def crawl() {}
+  override def crawl()(implicit req: RequestId) {}
 
   // we don't crawl, just get updates from crawler when it crawls
-  override def doCrawl() = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceHealthCrawler")
+  override def doCrawl()(implicit req: RequestId) = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceHealthCrawler")
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(10)
@@ -309,7 +313,7 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
     * @param elbRecords the records to crawl
     * @return the record set for the instanceHealth
     */
-  def doCrawl(elbRecords: Seq[Record]): Seq[Record] = {
+  def doCrawl(elbRecords: Seq[Record])(implicit req: RequestId): Seq[Record] = {
     val futures: Seq[java.util.concurrent.Future[Record]] = elbRecords.map(
       elb => {
         threadPool.submit(
@@ -335,7 +339,7 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
         catch {
           case e: Exception => {
             failed = true
-            if (logger.isErrorEnabled) logger.error(this + " exception from describeInstanceHealth", e)
+            if (logger.isErrorEnabled) logger.error(s"$req$this exception from describeInstanceHealth", e)
             None
           }
         }
@@ -345,7 +349,7 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
     }
 
     if (failed) {
-      throw new java.lang.RuntimeException("failed to crawl instance health")
+      throw new java.lang.RuntimeException(s"$this failed to crawl instance health")
     }
     records
   }
@@ -353,11 +357,13 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
   protected override def initState = addInitialState(super.initState, newLocalState(AwsInstanceHealthCrawlerState()))
 
   protected override def init() {
+    implicit val req = RequestId("init")
     import Utils._
-    Utils.NamedActor(this + " init") {
+    Utils.namedActor(this + " init") {
+      import ObserverExecutionContext._
       crawler.addObserver(this) onComplete {
         case scala.util.Failure(msg) => {
-          if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
+          if (logger.isErrorEnabled) logger.error(s"$req${Actor.self} failed to add observer $this to $crawler: $msg, retrying")
           this.init
         }
         case scala.util.Success(msg) => super.init
@@ -366,12 +372,13 @@ class AwsInstanceHealthCrawler(val name: String, val ctx: AwsCrawler.Context, va
   }
 
   protected def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
-    case (Crawler.CrawlResult(from, elbRecords), state) => {
+    case (gotMsg @ Crawler.CrawlResult(from, elbRecordSet), state) => {
+      implicit val req = gotMsg.req
       // this is blocking so we dont crawl in parallel
-      if (elbRecords ne localState(state).elbRecords) {
-        val newRecords = doCrawl(elbRecords)
-        Observable.localState(state).observers.foreach(_ ! Crawler.CrawlResult(this, newRecords))
-        setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), AwsInstanceHealthCrawlerState(elbRecords))
+      if (elbRecordSet.records ne localState(state).elbRecords) {
+        val newRecords = doCrawl(elbRecordSet.records)
+        Observable.localState(state).observers.foreach(_ ! Crawler.CrawlResult(this, RecordSet(newRecords, Map("source" -> "crawl", "req" -> req.id))))
+        setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), AwsInstanceHealthCrawlerState(elbRecordSet.records))
       } else state
     }
   }
@@ -389,7 +396,7 @@ class AwsLaunchConfigurationCrawler(val name: String, val ctx: AwsCrawler.Contex
   val request = new DescribeLaunchConfigurationsRequest
   request.setMaxRecords(50)
 
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     val it = new AwsIterator() {
       def next() = {
         val response = ctx.awsClient.asg.describeLaunchConfigurations(request.withNextToken(this.nextToken.get))
@@ -411,7 +418,7 @@ class AwsReservationCrawler(val name: String, val ctx: AwsCrawler.Context) exten
   val request = new DescribeInstancesRequest
 
   lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     var tagCount = 0
     val list = ctx.awsClient.ec2.describeInstances(request).getReservations.asScala.map(
       item => {
@@ -444,15 +451,15 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
-  override def crawl() {}
+  override def crawl()(implicit req: RequestId) {}
 
   // we dont crawl, just get updates from crawler when it crawls
-  override def doCrawl() = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceCrawler")
+  override def doCrawl()(implicit req: RequestId) = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceCrawler")
 
   def doCrawl(resRecords: Seq[Record]): Seq[Record] = {
     resRecords.flatMap(rec => {
       rec.data.asInstanceOf[Map[String, Any]].get("instances") match {
-        case instances: Option[Seq[Map[String, Any]]] => instances.get.map(
+        case Some(instances: Seq[_]) => instances.asInstanceOf[Seq[Map[String,Any]]].map(
           (inst: Map[String, Any]) => rec.copy(
             id = inst("instanceId").asInstanceOf[String],
             data = inst,
@@ -465,11 +472,13 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
   protected override def initState = addInitialState(super.initState, newLocalState(AwsInstanceCrawlerState()))
 
   protected override def init() {
+    implicit val req = RequestId("init")
     import Utils._
-    Utils.NamedActor(this + " init") {
+    Utils.namedActor(this + " init") {
+      import ObserverExecutionContext._
       crawler.addObserver(this) onComplete {
         case scala.util.Failure(msg) => {
-          if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
+          if (logger.isErrorEnabled) logger.error(s"$req{Actor.self} failed to add observer $this $crawler: $msg, retrying")
           this.init
         }
         case scala.util.Success(msg) => super.init
@@ -478,12 +487,13 @@ class AwsInstanceCrawler(val name: String, val ctx: AwsCrawler.Context, val craw
   }
 
   protected def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
-    case (Crawler.CrawlResult(from, reservations), state) => {
+    case (gotMsg @ Crawler.CrawlResult(from, reservationSet), state) => {
+      implicit val req = gotMsg.req
       // this is blocking so we dont crawl in parallel
-      if (reservations ne localState(state).reservationRecords) {
-        val newRecords = doCrawl(reservations)
-        Observable.localState(state).observers.foreach(_ ! Crawler.CrawlResult(this, newRecords))
-        setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), AwsInstanceCrawlerState(reservations))
+      if (reservationSet.records ne localState(state).reservationRecords) {
+        val newRecords = doCrawl(reservationSet.records)
+        Observable.localState(state).observers.foreach(_ ! Crawler.CrawlResult(this, RecordSet(newRecords, Map("source" -> "crawl", "req" -> req.id))))
+        setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), AwsInstanceCrawlerState(reservationSet.records))
       } else state
     }
   }
@@ -500,7 +510,7 @@ class AwsSecurityGroupCrawler(val name: String, val ctx: AwsCrawler.Context) ext
   val request = new DescribeSecurityGroupsRequest
   lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
 
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     var tagCount = 0
     val list = ctx.awsClient.ec2.describeSecurityGroups(request).getSecurityGroups.asScala.map(
       item => {
@@ -523,7 +533,7 @@ class AwsSnapshotCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
   val request = new DescribeSnapshotsRequest
   lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
 
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     var tagCount = 0
     val list = ctx.awsClient.ec2.describeSnapshots(request).getSnapshots.asScala.map(
       item => {
@@ -545,7 +555,7 @@ class AwsSnapshotCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
 class AwsTagCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeTagsRequest
 
-  override def doCrawl() = ctx.awsClient.ec2.describeTags(request).getTags.asScala.map(
+  override def doCrawl()(implicit req: RequestId) = ctx.awsClient.ec2.describeTags(request).getTags.asScala.map(
     item => Record(item.getKey + "|" + item.getResourceType + "|" + item.getResourceId, ctx.beanMapper(item))).toSeq
 }
 
@@ -558,7 +568,7 @@ class AwsVolumeCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
   val request = new DescribeVolumesRequest
   lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
 
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     var tagCount = 0
     val list = ctx.awsClient.ec2.describeVolumes(request).getVolumes.asScala.map(
       item => {
@@ -580,7 +590,7 @@ class AwsVolumeCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
 class AwsBucketCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new ListBucketsRequest
 
-  override def doCrawl() = ctx.awsClient.s3.listBuckets(request).asScala.map(
+  override def doCrawl()(implicit req: RequestId) = ctx.awsClient.s3.listBuckets(request).asScala.map(
     item => Record(item.getName, new DateTime(item.getCreationDate), ctx.beanMapper(item))).toSeq
 }
 
@@ -594,7 +604,7 @@ class AwsIamUserCrawler(val name: String, val ctx: AwsCrawler.Context) extends C
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(10)
 
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     val users = ctx.awsClient.identitymanagement.listUsers(request).getUsers.asScala
     val futures: Seq[java.util.concurrent.Future[Record]] = users.map(
       user => {
@@ -613,12 +623,14 @@ class AwsIamUserCrawler(val name: String, val ctx: AwsCrawler.Context) extends C
         )
       }
     )
+    var failed = false
     val records = futures.map(
       f => {
         try Some(f.get)
         catch {
           case e: Exception => {
-            if (logger.isErrorEnabled) logger.error(this + "exception from IAM user sub requests", e)
+            if (logger.isErrorEnabled) logger.error(s"$req$this exception from IAM user sub requests", e)
+            failed = true
             None
           }
         }
@@ -627,6 +639,9 @@ class AwsIamUserCrawler(val name: String, val ctx: AwsCrawler.Context) extends C
       case Some(rec) => rec
     }
 
+    if (failed) {
+      throw new java.lang.RuntimeException(s"$this failed to crawl resource record sets")
+    }
     records
   }
 
@@ -642,7 +657,7 @@ class AwsIamGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(10)
 
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     val groups = ctx.awsClient.identitymanagement.listGroups(request).getGroups.asScala
     val futures: Seq[java.util.concurrent.Future[Record]] = groups.map(
       group => {
@@ -657,12 +672,14 @@ class AwsIamGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
         )
       }
     )
+    var failed = false
     val records = futures.map(
       f => {
         try Some(f.get)
         catch {
           case e: Exception => {
-            if (logger.isErrorEnabled) logger.error(this + "exception from IAM listGroupPolicies", e)
+            if (logger.isErrorEnabled) logger.error(s"$req$this exception from IAM listGroupPolicies", e)
+            failed = true
             None
           }
         }
@@ -671,6 +688,9 @@ class AwsIamGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
       case Some(rec) => rec
     }
 
+    if (failed) {
+      throw new java.lang.RuntimeException(s"$this failed to crawl resource record sets")
+    }
     records
   }
 
@@ -684,7 +704,7 @@ class AwsIamGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
 class AwsIamRoleCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new ListRolesRequest
 
-  override def doCrawl() = ctx.awsClient.identitymanagement.listRoles(request).getRoles.asScala.map(
+  override def doCrawl()(implicit req: RequestId) = ctx.awsClient.identitymanagement.listRoles(request).getRoles.asScala.map(
     item => Record(item.getRoleName, new DateTime(item.getCreateDate), ctx.beanMapper(item))).toSeq
 }
 
@@ -696,7 +716,7 @@ class AwsIamRoleCrawler(val name: String, val ctx: AwsCrawler.Context) extends C
 class AwsIamVirtualMFADeviceCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new ListVirtualMFADevicesRequest
 
-  override def doCrawl() = ctx.awsClient.identitymanagement.listVirtualMFADevices(request).getVirtualMFADevices.asScala.map(
+  override def doCrawl()(implicit req: RequestId) = ctx.awsClient.identitymanagement.listVirtualMFADevices(request).getVirtualMFADevices.asScala.map(
     item => Record(item.getSerialNumber.split('/').last, new DateTime(item.getEnableDate), ctx.beanMapper(item))).toSeq
 }
 
@@ -713,7 +733,7 @@ class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) exten
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(10)
 
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     val queues = ctx.awsClient.sqs.listQueues(request).getQueueUrls.asScala
     val futures: Seq[java.util.concurrent.Future[Record]] = queues.map(
       queueUrl => {
@@ -734,12 +754,28 @@ class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) exten
         )
       }
     )
+    var failed: Boolean = false
     val records = futures.map(
       f => {
         try Some(f.get)
         catch {
-          case e: Exception => {
-            if (logger.isErrorEnabled) logger.error(this + "exception from SQS getQueueAttributes", e)
+          case e: java.util.concurrent.ExecutionException => {
+            e.getCause match {
+              case e: AmazonServiceException if e.getErrorCode == "AWS.SimpleQueueService.NonExistentQueue" => {
+                // this happens constantly, dont log it.  There is a large time delta between queues being deleted
+                // but still showing up in the ListQueuesResult
+                None
+              }
+              case e: Throwable => {
+                if (logger.isErrorEnabled) logger.error(s"$req$this exception from SQS getQueueAttributes", e)
+                failed = true
+                None
+              }
+            }
+          }
+          case e: Throwable => {
+            if (logger.isErrorEnabled) logger.error(s"$req$this exception from SQS getQueueAttributes", e)
+            failed = true
             None
           }
         }
@@ -748,6 +784,9 @@ class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) exten
       case Some(rec) => rec
     }
 
+    if (failed) {
+      throw new java.lang.RuntimeException(s"$this failed to crawl resource record sets")
+    }
     records
   }
 }
@@ -760,7 +799,7 @@ class AwsSimpleQueueCrawler(val name: String, val ctx: AwsCrawler.Context) exten
 class AwsReservedInstanceCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeReservedInstancesRequest
 
-  override def doCrawl() = ctx.awsClient.ec2.describeReservedInstances(request).getReservedInstances.asScala.map(
+  override def doCrawl()(implicit req: RequestId) = ctx.awsClient.ec2.describeReservedInstances(request).getReservedInstances.asScala.map(
     item => Record(item.getReservedInstancesId, new DateTime(item.getStart), ctx.beanMapper(item))).toSeq
 }
 
@@ -773,7 +812,7 @@ class AwsReservedInstanceCrawler(val name: String, val ctx: AwsCrawler.Context) 
 class AwsHostedZoneCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new ListHostedZonesRequest
 
-  override def doCrawl() =  ctx.awsClient.route53.listHostedZones(request).getHostedZones.asScala.map(
+  override def doCrawl()(implicit req: RequestId) =  ctx.awsClient.route53.listHostedZones(request).getHostedZones.asScala.map(
       item => Record(item.getName, ctx.beanMapper(item))).toSeq
 }
 
@@ -793,10 +832,10 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
 
   import AwsHostedRecordCrawler._
 
-  override def crawl() {}
+  override def crawl()(implicit req: RequestId) {}
 
   // we dont crawl, just get updates from crawler when it crawls
-  override def doCrawl() = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on HostedRecordCrawler")
+  override def doCrawl()(implicit req: RequestId) = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on HostedRecordCrawler")
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(10)
@@ -805,7 +844,7 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
     * @param zones the records to crawl
     * @return the record set for the resourceRecordSet
     */
-  def doCrawl(zones: Seq[Record]): Seq[Record] = {
+  def doCrawl(zones: Seq[Record])(implicit req: RequestId): Seq[Record] = {
 
     val futures: Seq[java.util.concurrent.Future[Seq[Record]]] = zones.map(
       zone => {
@@ -839,7 +878,7 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
         catch {
           case e: Exception => {
             failed = true
-            if (logger.isErrorEnabled) logger.error(this + "exception from listResourceRecordSets", e)
+            if (logger.isErrorEnabled) logger.error(s"$req$this exception from listResourceRecordSets", e)
             None
           }
         }
@@ -849,7 +888,7 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
     }).flatten
 
     if (failed) {
-      throw new java.lang.RuntimeException("failed to crawl resource record sets")
+      throw new java.lang.RuntimeException(s"$this failed to crawl resource record sets")
     }
     records
   }
@@ -857,11 +896,13 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
   protected override def initState = addInitialState(super.initState, newLocalState(AwsHostedRecordCrawlerState()))
 
   protected override def init() {
+    implicit val req = RequestId("init")
     import Utils._
-    Utils.NamedActor(this + " init") {
+    Utils.namedActor(this + " init") {
+      import ObserverExecutionContext._
       crawler.addObserver(this) onComplete {
         case scala.util.Failure(msg) => {
-          if (logger.isErrorEnabled) logger.error(Actor.self + " failed to add observer " + this + " to " + crawler + ": " + msg + ", retrying")
+          if (logger.isErrorEnabled) logger.error(s"$req${Actor.self} failed to add observer $this to $crawler: $msg, retrying")
           this.init
         }
         case scala.util.Success(msg) => super.init
@@ -870,12 +911,13 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
   }
 
   protected def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
-    case (Crawler.CrawlResult(from, hostedZones), state) => {
+    case (gotMsg @ Crawler.CrawlResult(from, hostedZoneSet), state) => {
+      implicit val req = gotMsg.req
       // this is blocking so we dont crawl in parallel
-      if (hostedZones ne localState(state).hostedZones) {
-        val newRecords = doCrawl(hostedZones)
-        Observable.localState(state).observers.foreach(_ ! Crawler.CrawlResult(this, newRecords))
-        setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), AwsHostedRecordCrawlerState(hostedZones))
+      if (hostedZoneSet.records ne localState(state).hostedZones) {
+        val newRecords = doCrawl(hostedZoneSet.records)
+        Observable.localState(state).observers.foreach(_ ! Crawler.CrawlResult(this, RecordSet(newRecords, Map("source" -> "crawl", "req" -> req.id))))
+        setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), AwsHostedRecordCrawlerState(hostedZoneSet.records))
       } else state
     }
   }
@@ -891,7 +933,7 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
 class AwsDatabaseCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeDBInstancesRequest
 
-  override def doCrawl() =  ctx.awsClient.rds.describeDBInstances(request).getDBInstances.asScala.map(
+  override def doCrawl()(implicit req: RequestId) =  ctx.awsClient.rds.describeDBInstances(request).getDBInstances.asScala.map(
     item => Record(item.getDBInstanceIdentifier, ctx.beanMapper(item))).toSeq
 }
 
@@ -903,8 +945,31 @@ class AwsDatabaseCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
 class AwsCacheClusterCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeCacheClustersRequest
 
-  override def doCrawl() = ctx.awsClient.elasticache.describeCacheClusters(request).getCacheClusters.asScala.map(
+  override def doCrawl()(implicit req: RequestId) = ctx.awsClient.elasticache.describeCacheClusters(request).getCacheClusters.asScala.map(
     item => Record(item.getCacheClusterId, ctx.beanMapper(item))).toSeq
+}
+
+/** crawler for Subnets
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsSubnetCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeSubnetsRequest
+  lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
+
+  override def doCrawl()(implicit req: RequestId) = {
+    var tagCount = 0
+    val list = ctx.awsClient.ec2.describeSubnets(request).getSubnets.asScala.map(
+      item => {
+        tagCount += item.getTags.size
+        Record(item.getSubnetId, ctx.beanMapper(item))
+      }).toSeq
+    if (tagCount == 0 && abortWithoutTags.get.toBoolean) {
+      throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
+    }
+    list
+  }
 }
 
 /** crawler for Cloudformation Stacks
@@ -917,7 +982,11 @@ class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) ex
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(1)
 
+<<<<<<< HEAD
   override def doCrawl() = {
+=======
+  override def doCrawl()(implicit req: RequestId) = {
+>>>>>>> master
     val stacks = ctx.awsClient.cloudformation.describeStacks(request).getStacks.asScala
     val futures: Seq[java.util.concurrent.Future[Record]] = stacks.map(
       stack => {
@@ -945,6 +1014,7 @@ class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) ex
     ).collect {
       case Some(rec) => rec
     }
+<<<<<<< HEAD
     records
   }
 
@@ -998,6 +1068,8 @@ class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends
     ).collect {
       case Some(rec) => rec
     }
+=======
+>>>>>>> master
     records
   }
 

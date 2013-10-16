@@ -17,11 +17,12 @@ package com.netflix.edda
 
 import scala.actors.Actor
 import scala.actors.TIMEOUT
-import scala.concurrent.ExecutionContext.Implicits.global
 
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 import com.netflix.servo.monitor.Monitors
+import com.netflix.servo.DefaultMonitorRegistry
 
 import org.slf4j.LoggerFactory
 
@@ -35,12 +36,12 @@ case class CrawlerState(records: Seq[Record] = Seq[Record]())
 object Crawler extends StateMachine.LocalState[CrawlerState] {
 
   /** Message sent to Observers */
-  case class CrawlResult(from: Actor, newRecords: Seq[Record]) extends StateMachine.Message {
-    override def toString = "CrawlResult(newRecords=" + newRecords.size + ")"
+  case class CrawlResult(from: Actor, newRecordSet: RecordSet)(implicit req: RequestId) extends StateMachine.Message {
+    override def toString = s"CrawlResult(req=$req, newRecords=${newRecordSet.records.size} meta=${newRecordSet.meta})"
   }
 
   /** Message to start a crawl action */
-  case class Crawl(from: Actor) extends StateMachine.Message
+  case class Crawl(from: Actor)(implicit req: RequestId) extends StateMachine.Message
 
 }
 
@@ -57,23 +58,25 @@ abstract class Crawler extends Observable {
   lazy val enabled = Utils.getProperty("edda.crawler", "enabled", name, "true")
 
   /** start a crawl if the crawler is enabled */
-  def crawl() {
+  def crawl()(implicit req: RequestId) {
     if (enabled.get.toBoolean) {
       val msg = Crawl(Actor.self)
-      if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+      if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} sending: $msg -> $this")
       this ! msg
     }
   }
 
   /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Crawler is not enabled */
-  override def addObserver(actor: Actor): scala.concurrent.Future[StateMachine.Message] = {
+  override def addObserver(actor: Actor)(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
+    import ObserverExecutionContext._
     if (enabled.get.toBoolean) super.addObserver(actor) else scala.concurrent.future {
       Observable.OK(Actor.self)
     }
   }
 
   /** see [[com.netflix.edda.Observable.delObserver()]].  Overridden to be a NoOp when Crawler is not enabled */
-  override def delObserver(actor: Actor): scala.concurrent.Future[StateMachine.Message] = {
+  override def delObserver(actor: Actor)(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
+    import ObserverExecutionContext._
     if (enabled.get.toBoolean) super.delObserver(actor) else scala.concurrent.future {
       Observable.OK(Actor.self)
     }
@@ -88,7 +91,7 @@ abstract class Crawler extends Observable {
   private[this] val errorCounter = Monitors.newCounter("crawl.errors")
 
   /** abstract routine for subclasses to implement the actual crawl logic */
-  protected def doCrawl(): Seq[Record]
+  protected def doCrawl()(implicit req: RequestId): Seq[Record]
 
   /** initilize the initial Crawler state */
   protected override def initState = addInitialState(super.initState, newLocalState(CrawlerState()))
@@ -96,12 +99,14 @@ abstract class Crawler extends Observable {
   /** init just registers metrics for Servo */
   protected override def init() {
     Monitors.registerObject("edda.crawler." + name, this)
+    DefaultMonitorRegistry.getInstance().register(Monitors.newThreadPoolMonitor(s"edda.crawler.$name.threadpool", this.pool.asInstanceOf[ThreadPoolExecutor]))
     super.init
   }
 
   /** handle Crawl Messages to the StateMachine */
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
-    case (Crawl(from), state) => {
+    case (gotMsg @ Crawl(from), state) => {
+      implicit val req = gotMsg.req
       // this is blocking so we don't crawl in parallel
 
       // in case we are crawling slower than expected
@@ -122,12 +127,12 @@ abstract class Crawler extends Observable {
         stopwatch.stop()
       }
 
-      if (logger.isInfoEnabled) logger.info("{} Crawled {} records in {} sec", toObjects(
-        this, newRecords.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000D -> "%.2f"))
+      if (logger.isInfoEnabled) logger.info("{} {} Crawled {} records in {} sec", toObjects(
+        req, this, newRecords.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000D -> "%.2f"))
       crawlCounter.increment(newRecords.size)
       Observable.localState(state).observers.foreach(o => {
-          val msg = Crawler.CrawlResult(this, newRecords)
-          if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + o)
+          val msg = Crawler.CrawlResult(this, RecordSet(newRecords, Map("source" -> "crawl", "req" -> req.id)))
+          if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $o")
           o ! msg
       })
       setLocalState(state, CrawlerState(records = newRecords))
