@@ -982,11 +982,7 @@ class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) ex
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(1)
 
-<<<<<<< HEAD
-  override def doCrawl() = {
-=======
   override def doCrawl()(implicit req: RequestId) = {
->>>>>>> master
     val stacks = ctx.awsClient.cloudformation.describeStacks(request).getStacks.asScala
     val futures: Seq[java.util.concurrent.Future[Record]] = stacks.map(
       stack => {
@@ -1014,7 +1010,6 @@ class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) ex
     ).collect {
       case Some(rec) => rec
     }
-<<<<<<< HEAD
     records
   }
 
@@ -1030,7 +1025,7 @@ class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(3)
 
-  override def doCrawl() = {
+  override def doCrawl()(implicit req: RequestId) = {
     val environments = ctx.awsClient.beanstalk.describeEnvironments(request).getEnvironments.asScala
     val futures: Seq[java.util.concurrent.Future[Record]] = environments.map(
       environment => {
@@ -1068,8 +1063,6 @@ class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends
     ).collect {
       case Some(rec) => rec
     }
-=======
->>>>>>> master
     records
   }
 
