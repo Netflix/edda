@@ -127,7 +127,7 @@ object AwsCollectionBuilder {
       new AwsDatabaseCollection(accountName, elector, ctx),
       new AwsCacheClusterCollection(accountName, elector, ctx),
       new AwsSubnetCollection(accountName, elector, ctx),
-      new AwsCloudformationCollection(accountName, elector, ctx)
+      new AwsCloudformationCollection(accountName, elector, ctx),
       new AwsBeanstalkCollection(accountName, elector, ctx)
     )
   }
