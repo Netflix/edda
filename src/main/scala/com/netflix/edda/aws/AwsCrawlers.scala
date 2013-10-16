@@ -958,7 +958,7 @@ class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) ex
 class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   val request = new DescribeEnvironmentsRequest
   private[this] val logger = LoggerFactory.getLogger(getClass)
-  private[this] val threadPool = Executors.newFixedThreadPool(10)
+  private[this] val threadPool = Executors.newFixedThreadPool(3)
 
   override def doCrawl() = {
     val environments = ctx.awsClient.beanstalk.describeEnvironments(request).getEnvironments.asScala
@@ -990,7 +990,7 @@ class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends
         try Some(f.get)
         catch {
           case e: Exception => {
-            if (logger.isErrorEnabled) logger.error(this + "exception from beanstalk listEnvironmentResources", e)
+            if (logger.isErrorEnabled) logger.error(this + "exception from beanstalk describeEnvironmentResources", e)
             None
           }
         }
