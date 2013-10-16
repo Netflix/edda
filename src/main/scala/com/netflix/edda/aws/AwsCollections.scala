@@ -124,17 +124,11 @@ object AwsCollectionBuilder {
       new GroupAutoScalingGroups(asg, inst, elector, ctx),
       hostedZones,
       hostedRecords,
-<<<<<<< HEAD
-      new AwsDatabaseCollection(dsFactory, accountName, elector, ctx),
-      new AwsCacheClusterCollection(dsFactory, accountName, elector, ctx),
-      new AwsCloudformationCollection(dsFactory, accountName, elector, ctx),
-      new AwsBeanstalkCollection(dsFactory, accountName, elector, ctx)
-=======
       new AwsDatabaseCollection(accountName, elector, ctx),
       new AwsCacheClusterCollection(accountName, elector, ctx),
       new AwsSubnetCollection(accountName, elector, ctx),
       new AwsCloudformationCollection(accountName, elector, ctx)
->>>>>>> master
+      new AwsBeanstalkCollection(accountName, elector, ctx)
     )
   }
 }
@@ -815,10 +809,8 @@ class AwsCloudformationCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsBeanstalkCollection(
-                               dsFactory: String => Option[Datastore],
                                val accountName: String,
                                val elector: Elector,
                                override val ctx: AwsCollection.Context) extends RootCollection("aws.beanstalk.environments", accountName, ctx) {
-  val dataStore: Option[Datastore] = dsFactory(name)
   val crawler = new AwsBeanstalkCrawler(name, ctx)
 }
