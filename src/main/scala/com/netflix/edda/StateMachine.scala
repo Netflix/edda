@@ -17,6 +17,7 @@ package com.netflix.edda
 
 import scala.actors.Actor
 import scala.actors.TIMEOUT
+import scala.actors.scheduler.ExecutorScheduler
 
 import org.slf4j.LoggerFactory
 
@@ -24,6 +25,11 @@ import java.util.concurrent.Callable
 
 import com.netflix.servo.monitor.MonitorConfig
 import com.netflix.servo.monitor.BasicGauge
+import com.netflix.servo.monitor.Monitors
+
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.Executors
+
 
 /** companion for [[com.netflix.edda.StateMachine]] holding base message type for
   * all state machine transition messages.
@@ -36,21 +42,22 @@ object StateMachine {
   type State = Map[String, Any]
 
   /** all messages to a StateMachine need to extend Message */
-  trait Message {
+  abstract class Message()(implicit requestId: RequestId) {
+    def req: RequestId = requestId
     def from: Actor
   }
 
   /** message to Stop the StateMachine */
-  case class Stop(from: Actor) extends Message {}
+  case class Stop(from: Actor)(implicit req: RequestId) extends Message {}
 
   /** trait to determin if message is an error type */
   trait ErrorMessage extends Message {}
 
   /** sent in case the message does not extend Message trait */
-  case class InvalidMessageError(from: Actor, reason: String, message: Any) extends ErrorMessage
+  case class InvalidMessageError(from: Actor, reason: String, message: Any)(implicit req: RequestId) extends ErrorMessage
 
   /** sent in the case there are no matching case clauses for the the incoming message */
-  case class UnknownMessageError(from: Actor, reason: String, message: Any) extends ErrorMessage
+  case class UnknownMessageError(from: Actor, reason: String, message: Any)(implicit req: RequestId) extends ErrorMessage
 
   /** keep track of a local state for each subclass of the StateMachine. For the inheritance of
     * Collection->Queryable->Observable->StateMachine we could have separate states
@@ -101,6 +108,10 @@ class StateMachine extends Actor {
     if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
     this ! msg
   }
+  
+  def threadPoolSize = 4
+  val pool = Executors.newFixedThreadPool(threadPoolSize)
+  override val scheduler = ExecutorScheduler(pool, false)
 
   /** subclasses need to overload this routine when local state is required:
     * {{{
@@ -111,9 +122,9 @@ class StateMachine extends Actor {
   protected def initState: State = Map()
 
   /** stop the state machine */
-  def stop() {
+  def stop()(implicit req: RequestId) {
     val msg = Stop(Actor.self)
-    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
+    if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} sending: $msg -> $this")
     this ! msg
   }
 
@@ -172,29 +183,31 @@ class StateMachine extends Actor {
         var keepLooping = true
         Actor.self.loopWhile(keepLooping) {
           Actor.self.react {
-            case msg @ Stop(from) => {
-              if (logger.isDebugEnabled) logger.debug(this + " received: " + msg + " from " + sender)
+            case gotMsg @ Stop(from) => {
+              implicit val req = gotMsg.req
+              if (logger.isDebugEnabled) logger.debug(s"$req$this received: $gotMsg from $sender")
               keepLooping = false
             }
-            case message: Message => {
-              if (!transitions.isDefinedAt(message, state)) {
-                if (logger.isErrorEnabled) logger.error("Unknown Message " + message + " sent from " + sender)
-                val msg = UnknownMessageError(this, "Unknown Message " + message, message) 
-                if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + sender)
+            case gotMsg : Message => {
+              implicit val req = gotMsg.req
+              if (!transitions.isDefinedAt(gotMsg, state)) {
+                if (logger.isErrorEnabled) logger.error(s"$req Unknown Message $gotMsg sent from $sender")
+                val msg = UnknownMessageError(this, "Unknown Message " + gotMsg, gotMsg) 
+                if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $sender")
                 sender ! msg
               }
-              if (logger.isDebugEnabled) logger.debug(this + " received: " + message + " from " + sender)
+              if (logger.isDebugEnabled) logger.debug(s"$req$this received: $gotMsg from $sender")
               try {
-                state = transitions(message, state)
+                state = transitions(gotMsg, state)
               } catch {
                 case e: Exception => {
-                  if (logger.isErrorEnabled) logger.error("failed to handle event " + message, e)
+                  if (logger.isErrorEnabled) logger.error(s"$req failed to handle event $gotMsg", e)
                 }
               }
             }
             case message => {
               if (logger.isErrorEnabled) logger.error("Invalid Message " + message + " sent from " + sender)
-              val msg = InvalidMessageError(this, "Invalid Message " + message, message) 
+              val msg = InvalidMessageError(this, "Invalid Message " + message, message)(RequestId()) 
               if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + sender)
               sender ! msg
             }

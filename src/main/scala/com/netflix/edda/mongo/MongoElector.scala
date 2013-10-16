@@ -17,6 +17,7 @@ package com.netflix.edda.mongo
 
 import com.netflix.edda.Elector
 import com.netflix.edda.Utils
+import com.netflix.edda.RequestId
 
 import org.slf4j.LoggerFactory
 
@@ -43,7 +44,7 @@ class MongoElector extends Elector {
 
   /** select the leader record from MongoDB to determine if we are the leader */
   override
-  def isLeader: Boolean = {
+  def isLeader()(implicit req: RequestId): Boolean = {
     val data = mongo.findOne("leader")
     if (data != null) {
       val rec = MongoDatastore.mongoToRecord(data)
@@ -63,7 +64,7 @@ class MongoElector extends Elector {
     * updates mongo first we will "lose" will not be the leader.
     * @return
     */
-  protected override def runElection(): Boolean = {
+  protected override def runElection()(implicit req: RequestId): Boolean = {
     val now = DateTime.now
     var leader = instance
 
@@ -130,7 +131,7 @@ class MongoElector extends Elector {
       }
     }
 
-    if (logger.isInfoEnabled) logger.info("Leader [" + instance + "]: " + isLeader + " [" + leader + "]")
+    if (logger.isInfoEnabled) logger.info(s"$req Leader [$instance]: $isLeader [$leader]")
     isLeader
   }
 

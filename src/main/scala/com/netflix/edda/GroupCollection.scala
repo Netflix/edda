@@ -36,7 +36,7 @@ trait GroupCollection extends Collection {
     * we have group.autoScalingGroups collection which modified results from the aws.autoScalingGroups
     * Crawler.  If aws.autoScalingGroups crawler is not run or not enabled, then the group collection will be stale.
     */
-  override protected def allowCrawl = false
+  override protected[edda] def allowCrawl = false
 
   implicit def recordOrdering: Ordering[Record] = Ordering.fromLessThan(_.stime isBefore _.stime)
   implicit def timeOrdering: Ordering[DateTime] = Ordering.fromLessThan(_ isAfter _)
@@ -46,7 +46,7 @@ trait GroupCollection extends Collection {
     * to return a single document for all the revisions with the lastest revision of every instance in the queryied
     * timeframe.  See [[com.netflix.edda.Queryable.query()]]
     */
-  override def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record] = {
+  override def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State)(implicit req: RequestId): Seq[Record] = {
     // if they have specified a subset of keys, then we need to make
     // sure "id" is in there so we can group
     val requiredKeys = if (keys.isEmpty) keys else (keys + "id")

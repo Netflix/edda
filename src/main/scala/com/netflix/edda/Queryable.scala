@@ -17,7 +17,6 @@ package com.netflix.edda
 
 import scala.actors.Actor
 import scala.actors.TIMEOUT
-import scala.concurrent.ExecutionContext.Implicits.global
 
 import com.netflix.servo.monitor.Monitors
 import org.slf4j.LoggerFactory
@@ -26,15 +25,15 @@ import org.slf4j.LoggerFactory
 object Queryable {
 
   /** Message to to query the StateMachine */
-  case class Query(from: Actor, query: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean) extends StateMachine.Message
+  case class Query(from: Actor, query: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean)(implicit req: RequestId) extends StateMachine.Message
 
   /** response Message from a Query Message */
-  case class QueryResult(from: Actor, records: Seq[Record]) extends StateMachine.Message {
-    override def toString = "QueryResult(records=" + records.size + ")"
+  case class QueryResult(from: Actor, records: Seq[Record])(implicit req: RequestId) extends StateMachine.Message {
+    override def toString = s"QueryResult(req=$req, records=${records.size})"
   }
 
   /** response Message from a Query Message */
-  case class QueryError(from: Actor, error: Any) extends StateMachine.Message
+  case class QueryError(from: Actor, error: Any)(implicit req: RequestId) extends StateMachine.Message
 }
 
 /** this class add a query routine and messages to the StateMachine that supports the query routine.
@@ -62,24 +61,25 @@ abstract class Queryable extends Observable {
    * @param replicaOk boolean flag to specify if is ok for the query to be sent to a data replica in the case of a primary/secondary datastore set.
    * @return the records that match the query criteria
    */
-  def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false): scala.concurrent.Future[Seq[Record]] = {
-    val msg = Query(Actor.self, queryMap, limit, live, keys, replicaOk)
-    if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this + " with " + queryTimeout + "ms timeout")
+  def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(implicit req: RequestId): scala.concurrent.Future[Seq[Record]] = {
+    import QueryExecutionContext._
     val p = scala.concurrent.promise[Seq[Record]]
-    Actor.actor {
+    Utils.namedActor(this + " query client") {
+      val msg = Query(Actor.self, queryMap, limit, live, keys, replicaOk)
+      if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} sending: $msg -> $this with ${queryTimeout}ms timeout")
       val stopwatch = queryTimer.start()
       this ! msg
       Actor.self.reactWithin(queryTimeout) {
         case msg @ QueryResult(from, results) => {
           stopwatch.stop()
           queryCounter.increment()
-          if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg + " from " + sender)
+          if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} received: $msg from $sender")
           p success results
         }
         case msg @ TIMEOUT => {
           stopwatch.stop()
           queryErrorCounter.increment()
-          if (logger.isDebugEnabled) logger.debug(Actor.self + " received: " + msg)
+          if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} received: $msg")
           p failure new java.util.concurrent.TimeoutException("query failed  after 60000ms timeout")
         }
       }
@@ -88,7 +88,7 @@ abstract class Queryable extends Observable {
   }
 
   /** abstract routine to perform the raw query operation for whatever Datastore used. */
-  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State): Seq[Record]
+  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State)(implicit req: RequestId): Seq[Record]
 
   /** helper routine to truncate records to the specified limit if more than request records are available */
   protected def firstOf(limit: Int, records: Seq[Record]): Seq[Record] = {
@@ -97,16 +97,17 @@ abstract class Queryable extends Observable {
 
   /** handle Query Message for StateMachine */
   private def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
-    case (Query(from, queryMap, limit, live, keys, replicaOk), state) => {
+    case (gotMsg @ Query(from, queryMap, limit, live, keys, replicaOk), state) => {
+      implicit val req = gotMsg.req
       val replyTo = sender
-      // Utils.NamedActor(this + " Query processor") {
+      import QueryExecutionContext._
       scala.concurrent.future {
         val msg = QueryResult(this, doQuery(queryMap, limit, live, keys, replicaOk, state))
-        if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + replyTo)
+        if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $replyTo")
         replyTo ! msg
       } onFailure {
-        case err: Throwable => logger.error(this + " query processor failed", err)
-        case err => logger.error(this + " query processor failed: " + err )
+        case err: Throwable => logger.error(s"$req$this query processor failed", err)
+        case err => logger.error(s"$req$this query processor failed: $err")
       }
       state
     }

@@ -17,6 +17,8 @@ package com.netflix.edda
 
 import org.joda.time.DateTime
 
+case class RecordSet(records: Seq[Record] = Seq(), meta: Map[String,Any] = Map())
+
 /** companion Record object to allow easier Record construction */
 object Record {
   /** create record with new id and data */

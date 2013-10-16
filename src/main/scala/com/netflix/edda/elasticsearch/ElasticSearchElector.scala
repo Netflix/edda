@@ -18,6 +18,7 @@ package com.netflix.edda.elasticsearch
 import com.netflix.edda.Elector
 import com.netflix.edda.Utils
 import com.netflix.edda.Record
+import com.netflix.edda.RequestId
 
 import org.slf4j.LoggerFactory
 
@@ -42,8 +43,11 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
   val leaderTimeout = Utils.getProperty("edda.elector", "leaderTimeout", "elasticsearch", "5000")
 
   private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get.replaceAll("[.]","_")
-  private def writeConsistency = WriteConsistencyLevel.fromString( Utils.getProperty("edda", "elasticsearch.writeConsistency", monitorIndexName, "quorum").get )
-  private def replicationType  = ReplicationType.fromString( Utils.getProperty("edda", "elasticsearch.replicationType", monitorIndexName, "async").get )
+
+  private val writeConsistencyProp = Utils.getProperty("edda", "elasticsearch.writeConsistency", monitorIndexName, "quorum")
+  private def writeConsistency = WriteConsistencyLevel.fromString( writeConsistencyProp.get )
+  private val replicationTypeProp = Utils.getProperty("edda", "elasticsearch.replicationType", monitorIndexName, "async")
+  private def replicationType  = ReplicationType.fromString( replicationTypeProp.get )
 
   private val docType = "leader"
 
@@ -64,7 +68,7 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
 
   /** select the leader record from ElasticSearch to determine if we are the leader */
   override
-  def isLeader: Boolean = {
+  def isLeader()(implicit req: RequestId): Boolean = {
     if( inited ) {
       val response = client.prepareGet(monitorIndexName, docType, "leader").setPreference("_primary").execute().actionGet()
       if( response != null && response.isExists ) {
@@ -85,7 +89,7 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
     * updates elasticsearch first we will "lose" will not be the leader.
     * @return
     */
-  protected override def runElection(): Boolean = {
+  protected override def runElection()(implicit req: RequestId): Boolean = {
     if( !inited ) {
       return false
     }
@@ -101,7 +105,7 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      if (logger.isInfoEnabled) logger.info(this + " get leader lapse: " + lapse + "ms")
+      if (logger.isInfoEnabled) logger.info(s"$req$this get leader lapse: ${lapse}ms")
     }
     if( response == null || !response.isExists ) {
       val t0 = System.nanoTime()
@@ -119,13 +123,13 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
           isLeader = true
       } catch {
         case e: Exception => {
-          if (logger.isErrorEnabled) logger.error("failed to create leader record: " + e.getMessage)
+          if (logger.isErrorEnabled) logger.error(s"$req failed to create leader record: ${e.getMessage}")
           isLeader = false
         }
       } finally {
         val t1 = System.nanoTime()
         val lapse = (t1 - t0) / 1000000;
-        if (logger.isInfoEnabled) logger.info(this + " create leader lapse: " + lapse + "ms")
+        if (logger.isInfoEnabled) logger.info(s"$req$this create leader lapse: ${lapse}ms")
       }
     } else {
       val leaderRec = esToRecord(response.getSource)
@@ -147,13 +151,13 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
           isLeader = true
         } catch {
           case e: Exception => {
-            if (logger.isErrorEnabled) logger.error("failed to update mtime for leader record: " + e.getMessage)
+            if (logger.isErrorEnabled) logger.error(s"$req failed to update mtime for leader record: ${e.getMessage}")
             isLeader = false
           }
         } finally {
           val t1 = System.nanoTime()
           val lapse = (t1 - t0) / 1000000;
-          if (logger.isInfoEnabled) logger.info(this + " index leader (update mtime) lapse: " + lapse + "ms")
+          if (logger.isInfoEnabled) logger.info(s"$req$this index leader (update mtime) lapse: ${lapse}ms")
         }
       } else {
         val timeout = DateTime.now().plusMillis(-1 * (pollCycle.get.toInt + leaderTimeout.get.toInt))
@@ -183,18 +187,18 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
               actionGet()
           } catch {
             case e: Exception => {
-              if (logger.isErrorEnabled) logger.error("failed to update leader for leader record: " + e.getMessage)
+              if (logger.isErrorEnabled) logger.error(s"$req failed to update leader for leader record: ${e.getMessage}")
               isLeader = false
             }
           } finally {
             val t1 = System.nanoTime()
             val lapse = (t1 - t0) / 1000000;
-            if (logger.isInfoEnabled) logger.info(this + " index leader + archive old leader lapse: " + lapse + "ms")
+            if (logger.isInfoEnabled) logger.info(s"$req$this index leader + archive old leader lapse: ${lapse}ms")
           }
         }
       }
     }
-    if (logger.isInfoEnabled) logger.info("Leader [" + instance + "]: " + isLeader + " [" + leader + "]")
+    if (logger.isInfoEnabled) logger.info(s"$req Leader [$instance]: $isLeader [$leader]")
     isLeader
   }
 

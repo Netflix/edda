@@ -17,9 +17,14 @@ package com.netflix.edda
 
 import scala.actors.Actor
 import scala.actors.DaemonActor
+import scala.actors.IScheduler
+import scala.actors.Scheduler
 import scala.actors.Exit
 
 import java.io.ByteArrayOutputStream
+import java.io.ByteArrayInputStream
+import java.util.zip.GZIPOutputStream
+import java.util.zip.GZIPInputStream
 import java.util.Date
 import java.util.Properties
 import java.text.SimpleDateFormat
@@ -42,6 +47,8 @@ import com.netflix.config.DynamicPropertyFactory
 import com.netflix.config.FixedDelayPollingScheduler
 import com.netflix.config.sources.URLConfigurationSource
 import com.netflix.config.DynamicConfiguration
+
+import org.apache.commons.io.IOUtils
 
 /** singleton object for various helper functions */
 object Utils {
@@ -114,6 +121,41 @@ object Utils {
         case None => RETRY.apply(action)
       }
     }
+
+    @annotation.tailrec
+    def apply[T](n: Int)(action: => T): T = {
+      {
+        try {
+          action
+        } catch {
+          case e: Exception => {
+            if (logger.isErrorEnabled) logger.error("caught retryable exception [" + n + "]:" + e, e)
+            e
+          }
+        }
+      } match {
+        case err: Exception if n > 1 => {
+          Thread.sleep(100);
+          RETRY.apply(n-1)(action)
+        }
+        case err: Exception => throw err
+        case t => t.asInstanceOf[T]
+      }
+    }
+
+  }
+
+
+  trait ActorExceptionHandler extends DaemonActor {
+    var handlers: PartialFunction[Exception,Unit] = Map()
+    /** add a partial function to allow for specific exception
+     * handling when needed
+     * @param pf PartialFunction to handle exception types
+     */
+    def addExceptionHandler(pf: PartialFunction[Exception,Unit]): ActorExceptionHandler = {
+      handlers = pf orElse handlers 
+      this
+    }
   }
 
   /** class used to assist logging and allow for abstracted exception handling
@@ -121,30 +163,20 @@ object Utils {
     * @param name name of actor that is seen when logging
     * @param body closure run as the actors "act" routine
     */
-  case class NamedActor(name: String)(body: => Unit) extends DaemonActor {
-    override def toString = name
+  def namedActor(name: String)(body: => Unit): ActorExceptionHandler = {
+    val a = new ActorExceptionHandler {
+      override def toString = name
+      override def act() = body
 
-    override def act() {
-      body
+      /** setup exceptionHandler to use the custom handlers modified
+       * with addExceptionHandler
+       */
+      override def exceptionHandler = handlers
+      // dont use parantScheduler use global pool
+      override final val scheduler: IScheduler = Scheduler
     }
-
-    var handlers: PartialFunction[Exception,Unit] = Map()
-
-    /** add a partial function to allow for specific exception
-      * handling when needed
-      * @param pf PartialFunction to handle exception types
-      */
-    def addExceptionHandler(pf: PartialFunction[Exception,Unit]): NamedActor = {
-        handlers = pf orElse handlers 
-        this
-    }
-
-    /** setup exceptionHandler to use the custom handlers modified
-      * with addExceptionHandler
-      */
-    override def exceptionHandler = handlers
-
-    start()
+    a.start()
+    a
   }
 
   /** allow for hierarchical properties
@@ -178,10 +210,18 @@ object Utils {
     Range(1, parts.size + 1).reverse.map(
       ix => parts.sliding(ix).map( prefix + "." + _.mkString(".") + "." + propName )
     ).flatten collectFirst {
-      case prop: String if Option(DynamicProperty.getInstance(prop).getString()).isDefined => DynamicPropertyFactory.getInstance().getStringProperty(prop, defaultProperty)
+      case prop: String if Option(DynamicProperty.getInstance(prop).getString()).isDefined => {
+        logger.debug(s"using property $prop for $prefix.$nameContext.$propName [${DynamicPropertyFactory.getInstance().getStringProperty(prop, defaultProperty).get}]")
+        DynamicPropertyFactory.getInstance().getStringProperty(prop, defaultProperty)
+      }
     } match {
       case Some(v) => v
-      case None => DynamicPropertyFactory.getInstance().getStringProperty(prefix + "." + propName, defaultProperty)
+      case None => {
+        val prop = prefix + "." + propName
+        val fullProp = if( nameContext.isEmpty ) prop else s"$prefix.$nameContext.$propName"
+        logger.debug(s"using property $prefix.$propName for $fullProp [${DynamicPropertyFactory.getInstance().getStringProperty(prop, defaultProperty).get}]")
+        DynamicPropertyFactory.getInstance().getStringProperty(prop, defaultProperty)
+      }
     }
   }
 
@@ -247,6 +287,7 @@ object Utils {
       case v: Char => gen.writeString("" + v)
       case v: String => gen.writeString(v)
       case v: Date => gen.writeNumber(v.getTime)
+      case v: Record => writeJson(gen,v.toMap,fmt)
       case v: DateTime => gen.writeNumber(v.getMillis)
       case v: Map[_, _] => {
         gen.writeStartObject()
@@ -376,6 +417,43 @@ object Utils {
       )
       val eddaConfig = new DynamicConfiguration(source, scheduler)
       composite.addConfiguration(eddaConfig, "eddaConfig")
+    }
+  }
+    
+  def uuid = java.util.UUID.randomUUID.toString
+
+  def compress( in: String ): Array[Byte] = {
+    var out = new ByteArrayOutputStream()
+    var gzip = new GZIPOutputStream(out)
+    gzip.write(in.getBytes("UTF-8"))
+    gzip.close()
+    out.toByteArray()
+  }
+
+  def decompress( in: Array[Byte] ): String = {
+    val gis = new GZIPInputStream(new ByteArrayInputStream(in));
+    IOUtils.toString(gis, "UTF-8")
+  }
+
+  def makeHistoryDatastore(name: String): Option[Datastore] = {
+    Utils.getProperty("edda", "datastore.class", name, "com.netflix.edda.mongo.MongoDatastore").get match {
+      case datastoreClassName: String if datastoreClassName != "" => {
+        val datastoreClass = this.getClass.getClassLoader.loadClass(datastoreClassName)
+        val datastoreCtor = datastoreClass.getConstructor(classOf[String]) 
+        Some(datastoreCtor.newInstance(name).asInstanceOf[Datastore])
+      }
+      case _ => None
+    }
+  }
+
+  def makeCurrentDatastore(name: String): Option[Datastore] = {
+    Utils.getProperty("edda", "datastore.current.class", name, "").get match {
+      case datastoreClassName: String if datastoreClassName != "" => {
+        val datastoreClass = this.getClass.getClassLoader.loadClass(datastoreClassName)
+        val datastoreCtor = datastoreClass.getConstructor(classOf[String]) 
+        Some(datastoreCtor.newInstance(name).asInstanceOf[Datastore])
+      }
+      case _ => None
     }
   }
 }

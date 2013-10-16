@@ -30,6 +30,7 @@ import com.netflix.edda.CollectionManager
 import com.netflix.edda.Record
 import com.netflix.edda.Utils
 import com.netflix.edda.Queryable
+import com.netflix.edda.RequestId
 
 import org.codehaus.jackson.JsonEncoding.UTF8
 import org.codehaus.jackson.util.DefaultPrettyPrinter
@@ -53,6 +54,8 @@ class CollectionResource {
   private val collectionPathRx = """^([^:;]+?)(?:/?)((?:;[^/;]*(?:=[^/;]+)?)*)""".r
   private val fieldSelectorsRx = """(.*?)(:\(.*\))?$""".r
 
+  implicit var reqId = RequestId("startup")
+
   /** generate json error response */
   private def fail(message: String, status: Response.Status): Response = {
     val output = new ByteArrayOutputStream()
@@ -68,6 +71,7 @@ class CollectionResource {
       status(status).
       `type`(MediaType.APPLICATION_JSON).
       entity(output.toString("UTF-8")).
+      header("X-Request-Id", reqId.id).
       build()
   }
 
@@ -250,6 +254,7 @@ class CollectionResource {
       } else builder.`type`(MediaType.APPLICATION_JSON)
 
       builder.entity(baos.toString("UTF-8"))
+      builder.header("X-Request-Id", reqId.id)
       builder.build()
     }
 
@@ -357,7 +362,7 @@ class CollectionResource {
       } else details.id
       makeQuery(details) + ("id" -> idQuery)
     } else makeQuery(details)
-    if (logger.isInfoEnabled) logger.info(coll + " query: " + Utils.toJson(query))
+    if (logger.isInfoEnabled) logger.info(reqId.toString + coll + " query: " + Utils.toJson(query))
     val keys: Set[String] = if (details.expand) details.fields else Set("id")
     // unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
     try {
@@ -370,7 +375,7 @@ class CollectionResource {
       )
     } catch {
       case e: Exception => {
-        logger.error(coll + " query failed " + query, e)
+        logger.error(reqId.toString + coll + " query failed " + query, e)
         fail("query failed: " + e.getMessage(), Response.Status.INTERNAL_SERVER_ERROR)
         Seq()
       }
@@ -381,27 +386,38 @@ class CollectionResource {
   @GET
   @Path("{paths: .+}")
   def getCollection(@Context req: HttpServletRequest): Response = {
+    
+    val t0 = System.nanoTime()
     // +4 for length("/v2/")
     val realPath = req.getRequestURI.drop(req.getContextPath.length + req.getServletPath.length + 4)
-    val fieldSelectorsRx(path,exprStr) = realPath
-    path match {
-      case collectionPathRx(collPath, matrixStr) => {
-        val name = collPath.replace('/', '.')
-        val (collName, id) =
-          if (CollectionManager.names().contains(name)) {
-            (name, null)
+    reqId = RequestId()
+    logger.info(reqId.toString + "GET " + realPath)
+    try {
+      val fieldSelectorsRx(path,exprStr) = realPath
+      path match {
+        case collectionPathRx(collPath, matrixStr) => {
+          val name = collPath.replace('/', '.')
+          val (collName, id) =
+            if (CollectionManager.names().contains(name)) {
+              (name, null)
+            } else {
+              val parts = collPath.split('/')
+              (parts.init mkString ".", parts.last)
+            }
+          val details = ReqDetails(req, id, matrixStr, exprStr)
+          if (details.id == null && details.diff != None) {
+            fail("_diff argument requires use of resource id: " + req.getServletPath + collName + "/<id>", Response.Status.BAD_REQUEST)
           } else {
-            val parts = collPath.split('/')
-            (parts.init mkString ".", parts.last)
+            dispatch(collName, details)
           }
-        val details = ReqDetails(req, id, matrixStr, exprStr)
-        if (details.id == null && details.diff != None) {
-          fail("_diff argument requires use of resource id: " + req.getServletPath + collName + "/<id>", Response.Status.BAD_REQUEST)
-        } else {
-          dispatch(collName, details)
         }
+        case _ => fail("invalid path: " + path, Response.Status.BAD_REQUEST)
       }
-      case _ => fail("invalid path: " + path, Response.Status.BAD_REQUEST)
+    } finally {
+      val t1 = System.nanoTime()
+      val lapse = (t1 - t0) / 1000000;
+      if (logger.isInfoEnabled) logger.info(reqId.toString + "EXIT " + realPath  + " lapse " + lapse + "ms")
     }
   }
+    
 }
