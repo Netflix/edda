@@ -929,10 +929,25 @@ class AwsHostedRecordCrawler(val name: String, val ctx: AwsCrawler.Context, val 
   * @param ctx context to provide beanMapper
   */
 class AwsDatabaseCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  private[this] val logger = LoggerFactory.getLogger(getClass)
   val request = new DescribeDBInstancesRequest
+  request.setMaxRecords(50)
 
-  override def doCrawl()(implicit req: RequestId) =  ctx.awsClient.rds.describeDBInstances(request).getDBInstances.asScala.map(
-    item => Record(item.getDBInstanceIdentifier, ctx.beanMapper(item))).toSeq
+  override def doCrawl()(implicit req: RequestId) = {
+    val it = new AwsIterator() {
+      def next() = {
+        // annoying, describeDBInstances has withMarker and getMarker instead if withToken and getNextToken
+        val response = ctx.awsClient.rds.describeDBInstances(request.withMarker(this.nextToken.get))
+        this.nextToken = Option(response.getMarker)
+        response.getDBInstances.asScala.map(
+          item => {
+            Record(item.getDBInstanceIdentifier, ctx.beanMapper(item))
+          }).toList
+      }
+    }
+    val list = it.toList.flatten
+    list
+  }
 }
 
 /** crawler for ElastiCache Clusters
