@@ -422,8 +422,8 @@ class CollectionResource {
 
   /** allow browsing of collections to enable RESTful discovery */
   @GET
-  @Path("/browse")
-  def browse(@Context req: HttpServletRequest): Response = {
+  @Path("/index")
+  def index(@Context req: HttpServletRequest): Response = {
     val t0 = System.nanoTime()
     // +4 for length("/v2/")
     val realPath = req.getRequestURI.drop(req.getContextPath.length + req.getServletPath.length + 4)
@@ -443,6 +443,8 @@ class CollectionResource {
       if (logger.isInfoEnabled) logger.info(reqId.toString + "EXIT " + realPath  + " lapse " + lapse + "ms")
     }
   }
+
+  /** TODO: replace this with a templating engine */
   def buildCollectionUrls(): String = {
     val prefix = "<html><body>Collections<br/>"
     
