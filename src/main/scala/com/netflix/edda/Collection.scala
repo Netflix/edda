@@ -379,7 +379,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
         val oldRec = oldMap(pair._1)
         val newRec = pair._2
         if (newStateTimeForChange(newRec, oldRec)) {
-          pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec.copy(ctime = oldRec.ctime, ftime = oldRec.ftime)
+          pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec.copy(ctime = oldRec.ctime, ftime = oldRec.ftime))
         } else {
           pair._1 -> Collection.RecordUpdate(oldRec.copy(mtime = now, ltime = now), newRec.copy(ctime = oldRec.ctime, ftime = oldRec.ftime, stime = oldRec.stime))
         }

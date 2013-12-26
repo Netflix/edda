@@ -115,7 +115,7 @@ object ElasticSearchDatastore {
   }
 
   private val dateTimeNoMillisRx       = """^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ$""".r
-  private val dateTimeRx = """^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(?:[.]\d\d?\d?)Z$""".r
+  private val dateTimeRx =               """^\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(?:[.]\d\d?\d?)Z$""".r
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
   /** converts a ElasticSearch java object to a corresponding Scala basic object */
