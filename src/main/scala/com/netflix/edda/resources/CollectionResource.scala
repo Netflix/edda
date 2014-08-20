@@ -21,6 +21,7 @@ import javax.servlet.http.HttpServletRequest
 import javax.ws.rs.{GET, Path}
 import javax.ws.rs.core.{Response, Context, MediaType}
 import java.io.ByteArrayOutputStream
+import java.net.URLDecoder
 
 import com.netflix.edda.web.FieldSelectorParser
 import com.netflix.edda.web.FieldSelectorExpr
@@ -148,9 +149,14 @@ class CollectionResource {
   /** companion object to handle matrix arguments */
   object ReqDetails {
     def apply(req: HttpServletRequest, id: String, matrixStr: String, exprStr: String): ReqDetails = {
-      val args: Map[String, String] = Utils.parseMatrixArguments(matrixStr)
-      val expr = if (exprStr == null) MatchAnyExpr
-      else FieldSelectorParser.parse(exprStr)
+      val dmatrixStr = if (matrixStr == null) null
+      else URLDecoder.decode(matrixStr, "UTF-8")
+      val dexprStr = if (exprStr == null) null
+      else URLDecoder.decode(exprStr, "UTF-8")
+
+      val args: Map[String, String] = Utils.parseMatrixArguments(dmatrixStr)
+      val expr = if (dexprStr == null) MatchAnyExpr
+      else FieldSelectorParser.parse(dexprStr)
 
       val metaArgs = args.filter(t => t._1.head == '_')
       val matrixArgs = args.filter(t => t._1.head != '_')
