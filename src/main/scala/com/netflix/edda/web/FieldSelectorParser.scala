@@ -138,7 +138,6 @@ object FieldSelectorParser {
 }
 
 class FieldSelectorParser extends RegexParsers {
-
   def expression: Parser[FieldSelectorExpr] = flattenExpr | keySelectExpr
 
   def keySelectExpr = ":(" ~> repsep(subExpr, ",") <~ ")" ^^ (values => {
@@ -164,7 +163,7 @@ class FieldSelectorParser extends RegexParsers {
 
   def invRegexExpr = "!~" ~> regexLiteral ^^ (value => RegexExpr(value, invert = true))
 
-  def id = regex("[a-zA-Z0-9_\\.\\-]*".r)
+  def id = regex("[a-zA-Z0-9_\\.\\-]*[\\s]*[a-zA-Z0-9_\\.\\-]*".r)
 
   def literalExpr =
     stringLiteral |
