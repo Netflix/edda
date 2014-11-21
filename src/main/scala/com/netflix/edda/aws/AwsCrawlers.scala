@@ -77,6 +77,7 @@ import java.util.concurrent.Callable
 
 import org.slf4j.LoggerFactory
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
+import com.amazonaws.services.rds.model.DescribeDBSecurityGroupsRequest
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
 import com.amazonaws.services.cloudformation.model.ListStackResourcesRequest
@@ -1026,5 +1027,29 @@ class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) ex
 
     records
   }
+}
 
+/** crawler for RDS Security Group
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsDBSecurityGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeDBSecurityGroupsRequest
+  request.setMaxRecords(50)
+
+  override def doCrawl()(implicit req: RequestId) = {
+    val it = new AwsIterator() {
+      def next() = {
+        val response = ctx.awsClient.rds.describeDBSecurityGroups(request.withMarker(this.nextToken.get))
+        this.nextToken = Option(response.getMarker)
+        response.getDBSecurityGroups.asScala.map(
+          item => {
+            Record(item.getDBSecurityGroupName, ctx.beanMapper(item))
+          }).toList
+      }
+    }
+    val list = it.toList.flatten
+    list
+  }
 }

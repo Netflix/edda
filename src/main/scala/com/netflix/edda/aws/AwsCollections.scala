@@ -127,7 +127,8 @@ object AwsCollectionBuilder {
       new AwsDatabaseCollection(accountName, elector, ctx),
       new AwsCacheClusterCollection(accountName, elector, ctx),
       new AwsSubnetCollection(accountName, elector, ctx),
-      new AwsCloudformationCollection(accountName, elector, ctx)
+      new AwsCloudformationCollection(accountName, elector, ctx),
+      new AwsDBSecurityGroupCollection(accountName, elector, ctx)
     )
   }
 }
@@ -792,6 +793,7 @@ class AwsSubnetCollection(
                              override val ctx: AwsCollection.Context) extends RootCollection("aws.subnets", accountName, ctx) {
   val crawler = new AwsSubnetCrawler(name, ctx)
 }
+
 /** collection for AWS Cloudformation Stacks
   *
   * root collection name: aws.stacks
@@ -807,5 +809,22 @@ class AwsCloudformationCollection(
                                val elector: Elector,
                                override val ctx: AwsCollection.Context) extends RootCollection("aws.stacks", accountName, ctx) {
   val crawler = new AwsCloudformationCrawler(name, ctx)
+}
+
+/** collection for AWS RDS Security Groups
+  *
+  * root collection name: aws.dbSecurityGroups
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsDBSecurityGroupCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+class AwsDBSecurityGroupCollection(
+                                   val accountName: String,
+                                   val elector: Elector,
+                                   override val ctx: AwsCollection.Context) extends RootCollection("aws.dbSecurityGroups", accountName, ctx) {
+  val crawler = new AwsDBSecurityGroupCrawler(name, ctx)
 }
 
