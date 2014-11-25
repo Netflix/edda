@@ -127,7 +127,8 @@ object AwsCollectionBuilder {
       new AwsDatabaseCollection(accountName, elector, ctx),
       new AwsCacheClusterCollection(accountName, elector, ctx),
       new AwsSubnetCollection(accountName, elector, ctx),
-      new AwsCloudformationCollection(accountName, elector, ctx)
+      new AwsCloudformationCollection(accountName, elector, ctx),
+      new AwsBeanstalkCollection(accountName, elector, ctx)
     )
   }
 }
@@ -809,3 +810,20 @@ class AwsCloudformationCollection(
   val crawler = new AwsCloudformationCrawler(name, ctx)
 }
 
+/** collection for AWS Elastic Beanstalk Environments
+  *
+  * root collection name: aws.beanstalks
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsBeanstalkCrawler]]
+  *
+  * @param dsFactory function that creates new Datastore object from collection name
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+class AwsBeanstalkCollection(
+                               val accountName: String,
+                               val elector: Elector,
+                               override val ctx: AwsCollection.Context) extends RootCollection("aws.beanstalk.environments", accountName, ctx) {
+  val crawler = new AwsBeanstalkCrawler(name, ctx)
+}

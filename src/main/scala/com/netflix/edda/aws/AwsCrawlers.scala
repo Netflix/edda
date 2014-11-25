@@ -80,6 +80,8 @@ import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
 import com.amazonaws.services.cloudformation.model.ListStackResourcesRequest
+import com.amazonaws.services.elasticbeanstalk.model.DescribeEnvironmentsRequest
+import com.amazonaws.services.elasticbeanstalk.model.DescribeEnvironmentResourcesRequest
 
 /** static namespace for out Context trait */
 object AwsCrawler {
@@ -1023,7 +1025,59 @@ class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) ex
     ).collect {
       case Some(rec) => rec
     }
+    records
+  }
 
+}
+
+/** crawler for Elastic Beanstalk Environments
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsBeanstalkCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeEnvironmentsRequest
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  private[this] val threadPool = Executors.newFixedThreadPool(3)
+
+  override def doCrawl()(implicit req: RequestId) = {
+    val environments = ctx.awsClient.beanstalk.describeEnvironments(request).getEnvironments.asScala
+    val futures: Seq[java.util.concurrent.Future[Record]] = environments.map(
+      environment => {
+        threadPool.submit(
+          new Callable[Record] {
+            def call() = {
+              val environmentResourcesRequest = new DescribeEnvironmentResourcesRequest().withEnvironmentId(environment.getEnvironmentId)
+              val environmentResourcesResult = ctx.awsClient.beanstalk.describeEnvironmentResources(environmentResourcesRequest).getEnvironmentResources
+              val environmentResourcesASG = environmentResourcesResult.getAutoScalingGroups.asScala.map(item => ctx.beanMapper(item)).toSeq
+              val environmentResourcesInstances = environmentResourcesResult.getInstances.asScala.map(item => ctx.beanMapper(item)).toSeq
+              val environmentResourcesLC = environmentResourcesResult.getLaunchConfigurations.asScala.map(item => ctx.beanMapper(item)).toSeq
+              val environmentResourcesELB = environmentResourcesResult.getLoadBalancers.asScala.map(item => ctx.beanMapper(item)).toSeq
+              val environmentResourcesTriggers = environmentResourcesResult.getTriggers.asScala.map(item => ctx.beanMapper(item)).toSeq
+              Record(environment.getEnvironmentName, new DateTime(environment.getDateCreated),
+                 ctx.beanMapper(environment).asInstanceOf[Map[String,Any]]
+                  ++ Map("resources" -> Map("auto-scaling-group" -> environmentResourcesASG, "instances" -> environmentResourcesInstances,
+                                            "launch-config" -> environmentResourcesLC, "elb" -> environmentResourcesELB, "triggers" -> environmentResourcesTriggers)
+                     )
+              )
+            }
+          }
+        )
+      }
+    )
+    val records = futures.map(
+      f => {
+        try Some(f.get)
+        catch {
+          case e: Exception => {
+            if (logger.isErrorEnabled) logger.error(this + "exception from beanstalk describeEnvironmentResources", e)
+            None
+          }
+        }
+      }
+    ).collect {
+      case Some(rec) => rec
+    }
     records
   }
 

@@ -34,6 +34,7 @@ import com.amazonaws.services.rds.AmazonRDSClient
 import com.amazonaws.services.elasticache.AmazonElastiCacheClient
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
+import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
 
 object AwsClient {
   def mkCredentialProvider(accessKey: String, secretKey: String): AWSCredentialsProvider = {
@@ -169,6 +170,12 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
    def cloudformation = {
     val client = new AmazonCloudFormationClient(provider)
     client.setEndpoint("cloudformation." + region + ".amazonaws.com")
+    client
+   }
+
+   def beanstalk = {
+    val client = new AWSElasticBeanstalkClient(provider)
+    client.setEndpoint("elasticbeanstalk." + region + ".amazonaws.com")
     client
    }
 }
