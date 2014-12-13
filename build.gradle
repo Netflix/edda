@@ -74,6 +74,10 @@ dependencies {
     compile 'org.scala-lang:scala-actors:2.10.3'
 }
 
+compileScala {
+    scalaCompileOptions.additionalParameters = ["-feature"]
+}
+
 test << {
     ant.taskdef(name: 'scalatest', classname: 'org.scalatest.tools.ScalaTestAntTask', classpath: classpath.asPath)
     ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false') {

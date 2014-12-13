@@ -522,7 +522,7 @@ class AwsSimpleQueueCollection(
                                 override val ctx: AwsCollection.Context) extends RootCollection("view.simpleQueues", accountName, ctx) {
   val crawler = new AwsSimpleQueueCrawler(name, ctx)
 
-  /** this is overriden from [[com.netflix.edda.aws.Collection]] because there are several
+  /** this is overriden from com.netflix.edda.aws.Collection because there are several
     * keys like ApproximateNumberOfMessages that are changing constantly.  We want to record
     * those changes, but not create new document revisions if the only changes are Approx* values
     */
@@ -583,17 +583,17 @@ class GroupAutoScalingGroups(
   val instanceQuery = Map(
     "data.state.name" -> Map("$nin" -> Seq("pending", "shutting-down", "terminating", "terminated")))
 
-  /** The crawler is really a [[com.netflix.edda.aws.AwsAutoScalingGroupCrawler]] so we have to
+  /** The crawler is really a com.netflix.edda.aws.AwsAutoScalingGroupCrawler so we have to
     * translate the ASG records into what the group.autoScalingGroup records should look like
     *
     * @param newRecords the new ASG records from the crawler
     * @param oldRecords these are the previous generation of group.autoScalingGroup records
-    * @return the [[com.netflix.edda.Collection.Delta]] modified from [[com.netflix.edda.GroupCollection.groupDelta]]
+    * @return the [[com.netflix.edda.Collection.Delta]] modified from com.netflix.edda.GroupCollection.groupDelta
     */
   override protected[edda] def delta(newRecordSet: RecordSet, oldRecordSet: RecordSet)(implicit req: RequestId): Collection.Delta = {
     // newRecords will be from the ASG crawler, we need to convert it
     // to the Group records then call groupDelta
-    
+
     val slotMap = groupSlots(oldRecordSet.records)
     val records = try {
       scala.concurrent.Await.result(
@@ -611,7 +611,7 @@ class GroupAutoScalingGroups(
     }
     val instanceMap = records.map(rec => rec.id -> rec).toMap
     val oldMap = oldRecordSet.records.map(rec => rec.id -> rec).toMap
-    
+
     val modNewRecords = newRecordSet.records.map(
       asgRec => {
         val newInstances = assignSlots(
@@ -619,12 +619,12 @@ class GroupAutoScalingGroups(
           "instanceId",
           slotMap("instances"))
         val asgData = asgRec.data.asInstanceOf[Map[String, Any]]
-        
+
         val ctime = oldMap.get(asgRec.id) match {
           case Some(rec) => rec.ctime
           case None => asgRec.ctime
         }
-        
+
         val data = Map(
           "desiredCapacity" -> asgData.get("desiredCapacity").getOrElse(null),
           "instances" -> newInstances,
@@ -634,7 +634,7 @@ class GroupAutoScalingGroups(
           "minSize" -> asgData.get("minSize").getOrElse(null),
           "name" -> asgRec.id,
           "start" -> ctime)
-        
+
         asgRec.copy(data = data)
       })
     super.delta(RecordSet(modNewRecords,newRecordSet.meta), oldRecordSet)
@@ -667,7 +667,7 @@ class GroupAutoScalingGroups(
             Map("ltime" -> Map("$gt" -> DateTime.now.minusDays(2)))
           )
         )
-        
+
         val recs = dataStore.get.query(query, limit=0, keys=Set("data.instances.instanceId", "data.instances.slot", "stime"), replicaOk=false)
 
         recs.foreach( rec => {
@@ -745,7 +745,7 @@ class AwsDatabaseCollection(
                                override val ctx: AwsCollection.Context) extends RootCollection("aws.databases", accountName, ctx) {
   val crawler = new AwsDatabaseCrawler(name, ctx)
 
-  /** this is overriden from [[com.netflix.edda.aws.Collection]] because we want to record
+  /** this is overriden from com.netflix.edda.aws.Collection because we want to record
     * changes, but not create new document revisions if the only changes are to latestRestorableTime values
     */
   override protected
@@ -808,4 +808,3 @@ class AwsCloudformationCollection(
                                override val ctx: AwsCollection.Context) extends RootCollection("aws.stacks", accountName, ctx) {
   val crawler = new AwsCloudformationCrawler(name, ctx)
 }
-

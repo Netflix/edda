@@ -46,6 +46,8 @@ import org.elasticsearch.client.transport.TransportClient
 import org.elasticsearch.common.transport.InetSocketTransportAddress
 import org.elasticsearch.rest.RestStatus
 
+import scala.language.postfixOps
+
 // /** helper object to store common ElasticSearch related routines */
 object ElasticSearchDatastore {
 
@@ -332,7 +334,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
     }
   }
 
-  /** perform query on data store, see [[com.netflix.edda.Queryable.query()]] */
+  /** perform query on data store, see [[com.netflix.edda.Queryable.query]] */
   def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean)(implicit req: RequestId): Seq[Record] = {
     // if query is for "null" ltime, then use the .live index alias
     val (alias, query) = if( queryMap.contains("ltime") && queryMap("ltime") == null ) {
@@ -439,7 +441,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
 
     try {
       while (keepLooping) {
-        scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(scanCursorDuration.get.toInt)).execute().actionGet() 
+        scrollResp = client.prepareSearchScroll(scrollResp.getScrollId()).setScroll(new TimeValue(scanCursorDuration.get.toInt)).execute().actionGet()
         // get shard failures
         if( scrollResp.getFailedShards() > 0 ) {
           val failures = scrollResp.getShardFailures()
@@ -464,7 +466,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
             }
           }
         })
-        
+
         //Break condition: No hits are returned
         if (scrollResp.getHits().hits().length == 0) {
           keepLooping = false
