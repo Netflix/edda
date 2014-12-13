@@ -44,7 +44,7 @@ trait GroupCollection extends Collection {
   /** special query where we merge multiple query results for the same record ids into one record.  For
     * autoScalingGroups there will be "instances", if there are many revisions to these instances we want
     * to return a single document for all the revisions with the lastest revision of every instance in the queryied
-    * timeframe.  See [[com.netflix.edda.Queryable.query()]]
+    * timeframe.  See [[com.netflix.edda.Queryable.query]]
     */
   override def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State)(implicit req: RequestId): Seq[Record] = {
     // if they have specified a subset of keys, then we need to make

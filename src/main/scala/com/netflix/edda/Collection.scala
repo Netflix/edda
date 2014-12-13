@@ -162,7 +162,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   // )
   // override def scheduler = fjScheduler
 
-  /** see [[com.netflix.edda.Queryable.query()]].  Overridden to return Nil when Collection is not enabled */
+  /** see [[com.netflix.edda.Queryable.query]].  Overridden to return Nil when Collection is not enabled */
   override def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(implicit req: RequestId): scala.concurrent.Future[Seq[Record]] = {
     import QueryExecutionContext._
     if (enabled.get.toBoolean) super.query(queryMap, limit, live || liveOverride.get.toBoolean, keys, replicaOk) else scala.concurrent.future {
@@ -170,7 +170,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
   }
 
-  /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Collection is not enabled */
+  /** see [[com.netflix.edda.Observable.addObserver]].  Overridden to be a NoOp when Collection is not enabled */
   override def addObserver(actor: Actor)(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
     import ObserverExecutionContext._
     if (enabled.get.toBoolean) super.addObserver(actor) else scala.concurrent.future {
@@ -178,7 +178,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
     }
   }
 
-  /** see [[com.netflix.edda.Observable.delObserver()]].  Overridden to be a NoOp when Collection is not enabled */
+  /** see [[com.netflix.edda.Observable.delObserver]].  Overridden to be a NoOp when Collection is not enabled */
   override def delObserver(actor: Actor)(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
     import ObserverExecutionContext._
     if (enabled.get.toBoolean) super.delObserver(actor) else scala.concurrent.future {

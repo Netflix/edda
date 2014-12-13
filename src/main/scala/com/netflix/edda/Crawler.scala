@@ -66,7 +66,7 @@ abstract class Crawler extends Observable {
     }
   }
 
-  /** see [[com.netflix.edda.Observable.addObserver()]].  Overridden to be a NoOp when Crawler is not enabled */
+  /** see [[com.netflix.edda.Observable.addObserver]].  Overridden to be a NoOp when Crawler is not enabled */
   override def addObserver(actor: Actor)(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
     import ObserverExecutionContext._
     if (enabled.get.toBoolean) super.addObserver(actor) else scala.concurrent.future {
@@ -74,7 +74,7 @@ abstract class Crawler extends Observable {
     }
   }
 
-  /** see [[com.netflix.edda.Observable.delObserver()]].  Overridden to be a NoOp when Crawler is not enabled */
+  /** see [[com.netflix.edda.Observable.delObserver]].  Overridden to be a NoOp when Crawler is not enabled */
   override def delObserver(actor: Actor)(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
     import ObserverExecutionContext._
     if (enabled.get.toBoolean) super.delObserver(actor) else scala.concurrent.future {

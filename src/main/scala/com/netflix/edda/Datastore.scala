@@ -22,7 +22,7 @@ trait Datastore {
   /** setup data store connections */
   def init()
 
-  /** perform query on data store, see [[com.netflix.edda.Queryable.query()]] */
+  /** perform query on data store, see [[com.netflix.edda.Queryable.query]] */
   def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean)(implicit req: RequestId): Seq[Record]
 
   /** load records from data store, used at Collection start-up to prime in-memory cache and to refresh
