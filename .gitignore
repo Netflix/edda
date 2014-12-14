@@ -45,6 +45,7 @@ Thumbs.db
 */target
 /build
 */build
+/cobertura.ser
 
 # IntelliJ specific files/directories
 out
