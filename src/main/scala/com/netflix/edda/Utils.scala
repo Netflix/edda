@@ -456,4 +456,15 @@ object Utils {
       case _ => None
     }
   }
+
+  def makeAwsClient(account: String): com.netflix.edda.aws.AwsClient = {
+    Utils.getProperty("edda", "aws.client.class", account, "com.netflix.edda.aws.AwsClient").get match {
+      case className: String if className != "" => {
+        val clientClass = this.getClass.getClassLoader.loadClass(className)
+        val clientCtor = clientClass.getConstructor(classOf[String])
+        clientCtor.newInstance(account).asInstanceOf[com.netflix.edda.aws.AwsClient]
+      }
+      case error => throw new java.lang.RuntimeException(s"Unable to load aws client from '$error'")
+    }
+  }
 }

@@ -52,7 +52,7 @@ class BasicServer extends HttpServlet {
 
     val bm = new BasicBeanMapper with AwsBeanMapper
 
-    val awsClientFactory = (account: String) => new AwsClient(account)
+    val awsClientFactory = (account: String) => Utils.makeAwsClient(account)
 
     AwsCollectionBuilder.buildAll(BasicContext, awsClientFactory, bm, elector)
 
