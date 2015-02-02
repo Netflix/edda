@@ -21,6 +21,7 @@ import com.amazonaws.auth.AWSCredentials
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
+import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider
 
 import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
@@ -36,14 +37,19 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
 
 object AwsClient {
-  def mkCredentialProvider(accessKey: String, secretKey: String): AWSCredentialsProvider = {
-    if( accessKey.isEmpty ) {
+  def mkCredentialProvider(accessKey: String, secretKey: String, arn: String): AWSCredentialsProvider = {
+    val provider = if( accessKey.isEmpty ) {
       new DefaultAWSCredentialsProviderChain()
     } else {
       new AWSCredentialsProvider() {
         def getCredentials = new BasicAWSCredentials(accessKey, secretKey)
         def refresh = {}
       }
+    }
+    if (arn.isEmpty) {
+        provider
+    } else {
+        new STSAssumeRoleSessionCredentialsProvider(provider, arn, "edda")
     }
   }
 }
@@ -71,7 +77,8 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
     this(
       AwsClient.mkCredentialProvider(
         Utils.getProperty("edda", "aws.accessKey", account, "").get,
-        Utils.getProperty("edda", "aws.secretKey", account, "").get
+        Utils.getProperty("edda", "aws.secretKey", account, "").get,
+        Utils.getProperty("edda", "aws.assumeRoleArn", account, "").get
       ),
       Utils.getProperty("edda", "region", account, "").get
     )
@@ -83,7 +90,7 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
     * @param region used to select endpoint for AWS service
     */
   def this(accessKey: String, secretKey: String, region: String) =
-    this(AwsClient.mkCredentialProvider(accessKey,secretKey), region)
+    this(AwsClient.mkCredentialProvider(accessKey,secretKey, ""), region)
 
 
   /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/ec2/AmazonEC2Client.html com.amazonaws.services.ec2.AmazonEC2Client]] object */
