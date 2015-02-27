@@ -33,7 +33,9 @@ dependencies {
     compile 'com.sun.jersey:jersey-server:1.11'
     compile 'com.sun.jersey:jersey-servlet:1.11'
     compile 'org.slf4j:slf4j-api:1.6.4'
-    compile('com.amazonaws:aws-java-sdk:1.4.7') {
+    compile 'org.eclipse.jetty:jetty-server:9.2.6.v20141205'
+    compile 'org.eclipse.jetty:jetty-servlet:9.2.6.v20141205'
+    compile('com.amazonaws:aws-java-sdk:1.9.6') {
         exclude group:'org.codehaus.jackson'
     }
     compile 'joda-time:joda-time:2.0'
@@ -59,20 +61,24 @@ dependencies {
     testCompile 'log4j:log4j:1.2.12'
     testCompile 'org.testng:testng:6.1.1'
     testCompile 'org.mockito:mockito-core:1.8.5'
-    testCompile 'org.scalatest:scalatest_2.10:1.9.1'
-
+    testCompile 'org.scalatest:scalatest_2.11:3.0.0-SNAP3'
+    
     runtime 'org.slf4j:slf4j-log4j12:1.6.1'
 
     providedCompile 'javax.servlet:servlet-api:2.5'
 
     // Libraries needed to run the scala tools
-    scalaTools 'org.scala-lang:scala-compiler:2.10.3'
-    scalaTools 'org.scala-lang:scala-library:2.10.3'
+    scalaTools 'org.scala-lang:scala-compiler:2.11.5'
+    scalaTools 'org.scala-lang:scala-library:2.11.5'
 
     // Libraries needed for scala api
-    compile 'org.scala-lang:scala-library:2.10.3'
-    compile 'org.scala-lang:scala-actors:2.10.3'
+    compile 'org.scala-lang:scala-library:2.11.5'
+    compile 'org.scala-lang:scala-actors:2.11.5'
+    //add parsers
+    compile 'org.scala-lang.modules:scala-parser-combinators_2.11:1.0.2'
 }
+
+compileJava {}
 
 compileScala {
     scalaCompileOptions.additionalParameters = ["-feature"]
@@ -80,8 +86,9 @@ compileScala {
 
 test << {
     ant.taskdef(name: 'scalatest', classname: 'org.scalatest.tools.ScalaTestAntTask', classpath: classpath.asPath)
-    ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false') {
-    // ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false', suite: 'com.netflix.edda.UtilsTest') {
+    ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false') 
+    {
+     //ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false', suite: 'com.netflix.edda.UtilsTest') {
         reporter(type: 'stdout')
     }
 }
