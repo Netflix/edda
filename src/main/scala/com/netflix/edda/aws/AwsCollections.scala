@@ -131,7 +131,9 @@ object AwsCollectionBuilder {
       hostedRecords,
       new AwsDatabaseCollection(accountName, elector, ctx),
       new AwsCacheClusterCollection(accountName, elector, ctx),
+      new AwsAvailabilityZoneCollection(accountName, elector, ctx),
       new AwsSubnetCollection(accountName, elector, ctx),
+      new AwsVPCCollection(accountName, elector, ctx),
       new AwsCloudformationCollection(accountName, elector, ctx)
     )
   }
@@ -197,6 +199,18 @@ class AwsAddressCollection(
                             val elector: Elector,
                             override val ctx: AwsCollection.Context) extends RootCollection("aws.addresses", accountName, ctx) {
   val crawler = new AwsAddressCrawler(name, ctx)
+}
+
+/** collection for AWS Availability Zones
+ *  
+ *  root collection name aws.availabilityzones
+ *  see crawler details [[com.netflix.edda.aws.AwsAvailabilityZoneCrawler ]]
+ * 
+ */
+class AwsAvailabilityZoneCollection(val accountName: String,
+                                    val elector: Elector,
+                                    override val ctx: AwsCollection.Context) extends RootCollection("aws.availabilityzones", accountName, ctx){
+  val crawler = new AwsAvailabilityZoneCrawler(name, ctx)
 }
 
 /** collection for AWS AutoScalingGroups
@@ -877,6 +891,20 @@ class AwsSubnetCollection(
                              val elector: Elector,
                              override val ctx: AwsCollection.Context) extends RootCollection("aws.subnets", accountName, ctx) {
   val crawler = new AwsSubnetCrawler(name, ctx)
+}
+
+
+/** collection for AWS VPCs
+ * 
+ *  root collection name: aws.vpcs
+ *  
+ *  see crawler details [[com.netflix.edda.aws.AwsVPCCrawler]]
+ */
+class AwsVPCCollection(val accountName: String,
+                             val elector: Elector,
+                             override val ctx: AwsCollection.Context) extends RootCollection("aws.vpcs", accountName, ctx){
+  val crawler = new AwsVPCCrawler(name, ctx)
+  
 }
 /** collection for AWS Cloudformation Stacks
   *

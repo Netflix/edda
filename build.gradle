@@ -35,6 +35,7 @@ dependencies {
     compile 'org.slf4j:slf4j-api:1.6.4'
     compile 'org.eclipse.jetty:jetty-server:9.2.6.v20141205'
     compile 'org.eclipse.jetty:jetty-servlet:9.2.6.v20141205'
+    compile 'org.eclipse.jetty:jetty-servlets:9.2.6.v20141205'
     compile('com.amazonaws:aws-java-sdk:1.9.6') {
         exclude group:'org.codehaus.jackson'
     }
@@ -99,5 +100,9 @@ import nl.javadude.gradle.plugins.license.License
 tasks.withType(License).each { licenseTask ->
     licenseTask.exclude '**/*.json'
     licenseTask.exclude '**/*.properties'
+}
+
+jettyRun {
+ webXml = file('src/main/webapp/WEB-INF/web.xml')
 }
 

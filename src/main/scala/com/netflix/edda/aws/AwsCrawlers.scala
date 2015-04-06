@@ -36,6 +36,7 @@ import com.amazonaws.AmazonServiceException
 
 import com.amazonaws.services.ec2.model.DescribeAddressesRequest
 import com.amazonaws.services.ec2.model.DescribeImagesRequest
+import com.amazonaws.services.ec2.model.DescribeAvailabilityZonesRequest
 import com.amazonaws.services.ec2.model.DescribeInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeReservedInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest
@@ -43,6 +44,7 @@ import com.amazonaws.services.ec2.model.DescribeSnapshotsRequest
 import com.amazonaws.services.ec2.model.DescribeSubnetsRequest
 import com.amazonaws.services.ec2.model.DescribeTagsRequest
 import com.amazonaws.services.ec2.model.DescribeVolumesRequest
+import com.amazonaws.services.ec2.model.DescribeVpcsRequest
 import com.amazonaws.services.ec2.model.Reservation
 
 
@@ -202,6 +204,26 @@ class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) 
   }
 }
 
+/** crawler for Availability Zones
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+
+class AwsAvailabilityZoneCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeAvailabilityZonesRequest
+  lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
+
+  override def doCrawl()(implicit req: RequestId) = {
+    
+    val list = ctx.awsClient.ec2.describeAvailabilityZones(request).getAvailabilityZones.asScala.map(
+      item => {
+        Record(item.getZoneName(), ctx.beanMapper(item))
+      }).toSeq
+    
+    list
+  }
+}
 /** crawler for ASG Policies
   *
   * @param name name of collection we are crawling for
@@ -775,6 +797,29 @@ class AwsVolumeCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
   }
 }
 
+/** crawler for Virtual Private Clouds
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+
+class AwsVPCCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeVpcsRequest
+
+  lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
+
+  override def doCrawl()(implicit req: RequestId) = {
+    
+    val list = ctx.awsClient.ec2.describeVpcs(request).getVpcs.asScala.map(
+      item => {
+    
+        Record(item.getVpcId(), ctx.beanMapper(item))
+      }).toSeq
+    
+    list
+  }
+}
+
 /** crawler for S3 Buckets
   *
   * @param name name of collection we are crawling for
@@ -1162,7 +1207,7 @@ class AwsCacheClusterCrawler(val name: String, val ctx: AwsCrawler.Context) exte
   * @param name name of collection we are crawling for
   * @param ctx context to provide beanMapper
   */
-class AwsSubnetCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+class AwsSubnetCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {  
   val request = new DescribeSubnetsRequest
   lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
 
