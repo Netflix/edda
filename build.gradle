@@ -63,6 +63,19 @@ compileScala {
     scalaCompileOptions.additionalParameters = ["-feature"]
 }
 
+configurations {
+    scaladocconf
+}
+
+task scaladocJar(type: Jar, dependsOn: project.tasks.scaladoc) {
+    classifier = 'scaladoc'
+    from project.tasks.scaladoc.destinationDir
+}
+
+import nebula.plugin.publishing.component.CustomComponentPlugin
+
+CustomComponentPlugin.addArtifact(project, 'scaladocconf', scaladocJar)
+
 test << {
     ant.taskdef(name: 'scalatest', classname: 'org.scalatest.tools.ScalaTestAntTask', classpath: classpath.asPath)
     ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false') {
