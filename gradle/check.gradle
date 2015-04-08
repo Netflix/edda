@@ -6,10 +6,11 @@ checkstyle {
 }
 
 // FindBugs
-//apply plugin: 'findbugs'
-//findbugs {
-//    ignoreFailures = true
-//}
+apply plugin: 'findbugs'
+findbugs {
+    toolVersion = "3.0.1"
+    ignoreFailures = true
+}
 
 // PMD
 apply plugin: 'pmd'
