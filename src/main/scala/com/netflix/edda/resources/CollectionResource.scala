@@ -70,7 +70,7 @@ class CollectionResource {
     Response.
       status(status).
       `type`(MediaType.APPLICATION_JSON).
-      entity(output.toString("UTF-8")).
+      entity(output.toString("UTF-8")).      
       header("X-Request-Id", reqId.id).
       build()
   }
@@ -255,6 +255,9 @@ class CollectionResource {
 
       builder.entity(baos.toString("UTF-8"))
       builder.header("X-Request-Id", reqId.id)
+      //CORS
+      builder.header("Access-Control-Allow-Origin", "*")
+      builder.header("Access-Control-Allow-Methods", "GET")      
       builder.build()
     }
 

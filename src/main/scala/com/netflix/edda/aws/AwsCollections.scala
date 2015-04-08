@@ -97,19 +97,24 @@ object AwsCollectionBuilder {
     val elb = new AwsLoadBalancerCollection(accountName, elector, ctx)
     val asg = new AwsAutoScalingGroupCollection(accountName, elector, ctx)
     val inst = new AwsInstanceCollection(res.crawler, accountName, elector, ctx)
+    val cpu = new AwsCloudWatchCPUCollection(res.crawler,accountName, elector, ctx)
     val hostedZones = new AwsHostedZoneCollection(accountName, elector, ctx)
     val hostedRecords = new AwsHostedRecordCollection(hostedZones.crawler, accountName, elector, ctx)
     Seq(
       new AwsAddressCollection(accountName, elector, ctx),
       asg,
       new AwsScalingPolicyCollection(accountName, elector, ctx),
-      new AwsAlarmCollection(accountName, elector, ctx),
+      new AwsAlarmCollection(accountName, elector, ctx), 
+      new AwsCloudWatchMetricCollection(accountName, elector, ctx),     
+      new AwsCloudWatchStatusCheckFailedCollection(accountName, elector, ctx),      
+      new AwsCloudWatchEstimatedChargesCollection(accountName, elector, ctx),
       new AwsImageCollection(accountName, elector, ctx),
       elb,
       new AwsInstanceHealthCollection(elb.crawler, accountName, elector, ctx),
       new AwsLaunchConfigurationCollection(accountName, elector, ctx),
       res,
       inst,
+      cpu,
       new AwsSecurityGroupCollection(accountName, elector, ctx),
       new AwsSnapshotCollection(accountName, elector, ctx),
       new AwsTagCollection(accountName, elector, ctx),
@@ -126,7 +131,9 @@ object AwsCollectionBuilder {
       hostedRecords,
       new AwsDatabaseCollection(accountName, elector, ctx),
       new AwsCacheClusterCollection(accountName, elector, ctx),
+      new AwsAvailabilityZoneCollection(accountName, elector, ctx),
       new AwsSubnetCollection(accountName, elector, ctx),
+      new AwsVPCCollection(accountName, elector, ctx),
       new AwsCloudformationCollection(accountName, elector, ctx)
     )
   }
@@ -194,6 +201,18 @@ class AwsAddressCollection(
   val crawler = new AwsAddressCrawler(name, ctx)
 }
 
+/** collection for AWS Availability Zones
+ *  
+ *  root collection name aws.availabilityzones
+ *  see crawler details [[com.netflix.edda.aws.AwsAvailabilityZoneCrawler ]]
+ * 
+ */
+class AwsAvailabilityZoneCollection(val accountName: String,
+                                    val elector: Elector,
+                                    override val ctx: AwsCollection.Context) extends RootCollection("aws.availabilityzones", accountName, ctx){
+  val crawler = new AwsAvailabilityZoneCrawler(name, ctx)
+}
+
 /** collection for AWS AutoScalingGroups
   *
   * root collection name: aws.autoScalingGroups
@@ -244,6 +263,87 @@ class AwsAlarmCollection(
                                      override val ctx: AwsCollection.Context) extends RootCollection("aws.alarms", accountName, ctx) {
   val crawler = new AwsAlarmCrawler(name, ctx)
 }
+
+/** collection for AWS CloudWatch Metric 
+ * 
+ * * root collection name: aws.cloudwatchmetrics
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsCloudWatchMetricCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+ */
+class AwsCloudWatchMetricCollection(
+                                      val accountName: String,
+                                      val elector: Elector,
+                                      override val ctx: AwsCollection.Context) extends RootCollection("aws.cloudwatchmetrics", accountName, ctx){
+  
+  val crawler = new AwsCloudWatchMetricCrawler(name, ctx)
+}
+
+
+
+
+/** collection for AWS CloudWatch CPUUtilization Metrics 
+ * 
+ * * root collection name: aws.cloudwatchcpu
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsCloudWatchCPUCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+ */ 
+class AwsCloudWatchCPUCollection(val resCrawler: AwsReservationCrawler,
+                             val accountName: String,
+                             val elector: Elector,
+                             override val ctx: AwsCollection.Context) extends RootCollection("aws.cloudwatchcpu", accountName, ctx) {
+                               
+        // we dont actually crawl, the resCrawler triggers our crawl events
+  override val allowCrawl = false
+  val crawler = new AwsCloudWatchCPUCrawler(name, ctx, resCrawler)
+                               
+  
+}
+
+/** collection for AWS CloudWatch EstimatedCharges Metrics 
+ * 
+ * * root collection name: aws.cloudwatchestimatedcharges
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsCloudWatchEstimatedChargesCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+ */ 
+class AwsCloudWatchEstimatedChargesCollection(val accountName: String,
+                                      val elector: Elector,
+                                      override val ctx: AwsCollection.Context) extends RootCollection("aws.cloudwatchestimatedcharges", accountName, ctx){
+  
+  val crawler = new AwsCloudWatchEstimatedChargesCrawler(name, ctx)
+}
+
+/** collection for AWS CloudWatch StatusCheckFailed Metrics 
+ * 
+ * * root collection name: aws.cloudwatchstatuscheckfailed
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsCloudWatchStatusCheckFailedCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+ */ 
+class AwsCloudWatchStatusCheckFailedCollection(val accountName: String,
+                                      val elector: Elector,
+                                      override val ctx: AwsCollection.Context) extends RootCollection("aws.cloudwatchstatuscheckfailed", accountName, ctx){
+  
+  val crawler = new AwsCloudWatchStatusCheckFailedCrawler(name, ctx)  
+}
+    
+
+
+
 
 /** collection for AWS Images
   *
@@ -791,6 +891,20 @@ class AwsSubnetCollection(
                              val elector: Elector,
                              override val ctx: AwsCollection.Context) extends RootCollection("aws.subnets", accountName, ctx) {
   val crawler = new AwsSubnetCrawler(name, ctx)
+}
+
+
+/** collection for AWS VPCs
+ * 
+ *  root collection name: aws.vpcs
+ *  
+ *  see crawler details [[com.netflix.edda.aws.AwsVPCCrawler]]
+ */
+class AwsVPCCollection(val accountName: String,
+                             val elector: Elector,
+                             override val ctx: AwsCollection.Context) extends RootCollection("aws.vpcs", accountName, ctx){
+  val crawler = new AwsVPCCrawler(name, ctx)
+  
 }
 /** collection for AWS Cloudformation Stacks
   *

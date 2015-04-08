@@ -30,11 +30,13 @@ import com.netflix.edda.Utils
 import com.netflix.edda.ObserverExecutionContext
 
 import org.joda.time.DateTime
+import java.util.Date
 
 import com.amazonaws.AmazonServiceException
 
 import com.amazonaws.services.ec2.model.DescribeAddressesRequest
 import com.amazonaws.services.ec2.model.DescribeImagesRequest
+import com.amazonaws.services.ec2.model.DescribeAvailabilityZonesRequest
 import com.amazonaws.services.ec2.model.DescribeInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeReservedInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest
@@ -42,6 +44,10 @@ import com.amazonaws.services.ec2.model.DescribeSnapshotsRequest
 import com.amazonaws.services.ec2.model.DescribeSubnetsRequest
 import com.amazonaws.services.ec2.model.DescribeTagsRequest
 import com.amazonaws.services.ec2.model.DescribeVolumesRequest
+import com.amazonaws.services.ec2.model.DescribeVpcsRequest
+import com.amazonaws.services.ec2.model.Reservation
+
+
 
 import com.amazonaws.services.identitymanagement.model.ListUsersRequest
 import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest
@@ -58,6 +64,11 @@ import com.amazonaws.services.sqs.model.ListQueuesRequest
 import com.amazonaws.services.sqs.model.GetQueueAttributesRequest
 
 import com.amazonaws.services.cloudwatch.model.DescribeAlarmsRequest
+import com.amazonaws.services.cloudwatch.model.ListMetricsRequest
+import com.amazonaws.services.cloudwatch.model.ListMetricsResult
+import com.amazonaws.services.cloudwatch.model.GetMetricStatisticsRequest
+import com.amazonaws.services.cloudwatch.model.GetMetricStatisticsResult
+import com.amazonaws.services.cloudwatch.model.Dimension
 
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
 import com.amazonaws.services.autoscaling.model.DescribeLaunchConfigurationsRequest
@@ -193,6 +204,26 @@ class AwsAutoScalingGroupCrawler(val name: String, val ctx: AwsCrawler.Context) 
   }
 }
 
+/** crawler for Availability Zones
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+
+class AwsAvailabilityZoneCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeAvailabilityZonesRequest
+  lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
+
+  override def doCrawl()(implicit req: RequestId) = {
+    
+    val list = ctx.awsClient.ec2.describeAvailabilityZones(request).getAvailabilityZones.asScala.map(
+      item => {
+        Record(item.getZoneName(), ctx.beanMapper(item))
+      }).toSeq
+    
+    list
+  }
+}
 /** crawler for ASG Policies
   *
   * @param name name of collection we are crawling for
@@ -218,7 +249,7 @@ class AwsScalingPolicyCrawler(val name: String, val ctx: AwsCrawler.Context) ext
   }
 }
 
-/** crawler for CLoudWatch Alarms
+/** crawler for CloudWatch Alarms
   *
   * @param name name of collection we are crawling for
   * @param ctx context to provide beanMapper
@@ -242,6 +273,192 @@ class AwsAlarmCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cra
     it.toList.flatten
   }
 }
+
+/** crawler for CloudWatch Metrics (list of metrics available to get data on)
+ *  
+ * @param name of collection we are crawling for
+ * @param ctx context to provide beanMapper
+ */
+class AwsCloudWatchMetricCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler{
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val request = new ListMetricsRequest  
+  
+  override def doCrawl()(implicit req: RequestId) = {
+    val it = new AwsIterator() {
+      def next() = {
+        //this will list Metrics available
+        val response = ctx.awsClient.cw.listMetrics(request.withNextToken(this.nextToken.get))
+        this.nextToken = Option(response.getNextToken)
+        response.getMetrics.asScala.map(
+          item => {
+            Record(item.getMetricName, ctx.beanMapper(item))
+          }).toList
+      }      
+    }
+    it.toList.flatten
+  }
+}
+
+/** crawler new for CloudWatch CPU Metrics 
+ *  @param name of collection we are crawling for
+ *  @param ctx context to provide beanMapper
+ *  @param crawler crawler passed in to get updateds from
+ */
+class AwsCloudWatchCPUCrawler(val name: String, val ctx: AwsCrawler.Context, val crawler: Crawler) extends Crawler {
+  
+  import AwsInstanceCrawler._
+
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+
+  override def crawl()(implicit req: RequestId) {}
+  
+  // we dont crawl, just get updates from crawler when it crawls
+  override def doCrawl()(implicit req: RequestId) = throw new java.lang.UnsupportedOperationException("doCrawl() should not be called on InstanceCrawler")
+  
+   def doCrawl(resRecords: Seq[Record]) = {
+    val instances = resRecords.flatMap( rec => {
+      rec.data.asInstanceOf[Map[String, Any]].get("instances") match {
+        case Some(instances: Seq[_]) => instances.asInstanceOf[Seq[Map[String,Any]]].map(
+          (inst: Map[String, Any]) => rec.copy(
+            id = inst("instanceId").asInstanceOf[String],
+            data = inst,
+            ctime = inst("launchTime").asInstanceOf[DateTime]))
+        case other => throw new java.lang.RuntimeException("failed to crawl instances from reservation, got: " + other)
+      }
+    })
+    
+    val list = scala.collection.mutable.ListBuffer.empty[Record]
+    for(e <- instances)
+     {
+       val twoMinutes = 1000 * 60 * 2  
+       
+       val request = new GetMetricStatisticsRequest().withStartTime(new Date(new Date().getTime() - twoMinutes))
+                             .withNamespace("AWS/EC2")
+                             .withPeriod(60)
+                             .withDimensions(new Dimension().withName("InstanceId").withValue(e.id.toString()))
+                             .withMetricName("CPUUtilization")
+                             .withStatistics("Maximum", "Minimum", "Average", "SampleCount")
+                             .withEndTime(new Date())
+       
+       val response = ctx.awsClient.cw.getMetricStatistics(request)
+       
+       
+       list.append(Record(e.id.toString(), ctx.beanMapper(response)))
+      }
+     list.toList
+  }
+  
+  protected override def initState = addInitialState(super.initState, newLocalState(AwsInstanceCrawlerState()))
+
+  protected override def init() {
+    implicit val req = RequestId("init")
+    import Utils._
+    Utils.namedActor(this + " init") {
+      import ObserverExecutionContext._
+      crawler.addObserver(this) onComplete {
+        case scala.util.Failure(msg) => {
+          if (logger.isErrorEnabled) logger.error(s"$req{Actor.self} failed to add observer $this $crawler: $msg, retrying")
+          this.init
+        }
+        case scala.util.Success(msg) => super.init
+      }
+    }
+  }
+
+  protected def localTransitions: PartialFunction[(Any, StateMachine.State), StateMachine.State] = {
+    case (gotMsg @ Crawler.CrawlResult(from, reservationSet), state) => {
+      implicit val req = gotMsg.req
+      // this is blocking so we dont crawl in parallel
+      if (reservationSet.records ne localState(state).reservationRecords) {
+        val newRecords = doCrawl(reservationSet.records)
+        Observable.localState(state).observers.foreach(_ ! Crawler.CrawlResult(this, RecordSet(newRecords, Map("source" -> "crawl", "req" -> req.id))))
+        setLocalState(Crawler.setLocalState(state, CrawlerState(newRecords)), AwsInstanceCrawlerState(reservationSet.records))
+      } else state
+    }
+  }
+
+  override protected def transitions = localTransitions orElse super.transitions
+}
+
+
+/** crawler for CloudWatch StatusCheckFailed Metrics
+ * 
+ * @param name of collection we are crawling for
+ * @param ctx context to provide beanMapper
+ */
+class AwsCloudWatchStatusCheckFailedCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler{
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val instanceRequest = new DescribeInstancesRequest
+  
+  override def doCrawl()(implicit req: RequestId) = {
+     
+     val reservations = ctx.awsClient.ec2.describeInstances(instanceRequest).getReservations()
+     
+     val instances = scala.collection.mutable.ListBuffer.empty[String]
+     
+     reservations.asScala.map(
+       item => { item.getInstances().asScala.map(
+              subItem => {
+                 subItem.getInstanceId()
+                 instances.append(subItem.getInstanceId())
+              }  
+             )
+           }    
+     )
+          
+     val list = scala.collection.mutable.ListBuffer.empty[Record]
+     for(e <- instances)
+     {
+       val twoMinutes = 1000 * 60 * 2    
+       val twentyFourHours = 1000 * 60 * 60 * 24
+       val request = new GetMetricStatisticsRequest().withStartTime(new Date(new Date().getTime() - twoMinutes))
+                             .withNamespace("AWS/EC2")
+                             .withPeriod(60)
+                             .withDimensions(new Dimension().withName("InstanceId").withValue(e.toString()))
+                             .withMetricName("StatusCheckFailed")
+                             .withStatistics("Maximum", "Minimum", "Average", "SampleCount")
+                             .withEndTime(new Date())
+       
+       val response = ctx.awsClient.cw.getMetricStatistics(request)
+       //val dataPoints = response.getDatapoints
+       
+       list.append(Record(e.toString(), ctx.beanMapper(response)))
+      }
+     list.toList
+    }    
+}
+
+
+
+/** crawler for EstimatedCharges
+ * @param name of collection we are crawling for
+ * @param ctx context to provide beanMapper
+ */
+class AwsCloudWatchEstimatedChargesCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler{
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val instanceRequest = new DescribeInstancesRequest
+  
+  override def doCrawl()(implicit req: RequestId) = {
+     
+     def uuid = java.util.UUID.randomUUID.toString
+     
+     val list = scala.collection.mutable.ListBuffer.empty[Record]
+     val twentyFourHours = 1000 * 60 * 60 * 24
+     val request = new GetMetricStatisticsRequest().withStartTime(new Date(new Date().getTime() - twentyFourHours))
+                             .withNamespace("AWS/Billing")
+                             .withPeriod(86400)
+                             .withDimensions(new Dimension().withName("Currency").withValue("USD"))
+                             .withMetricName("EstimatedCharges")
+                             .withStatistics("Maximum")
+                             .withEndTime(new Date())
+       
+     val response = ctx.awsClient.cw.getMetricStatistics(request)
+     list.append(Record(uuid, ctx.beanMapper(response)))
+     
+     list.toList
+    }    
+}
+
 
 /** crawler for Images
   *
@@ -576,6 +793,29 @@ class AwsVolumeCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
     if (tagCount == 0 && abortWithoutTags.get.toBoolean) {
       throw new java.lang.RuntimeException("no tags found for " + name + ", ignoring crawl results")
     }
+    list
+  }
+}
+
+/** crawler for Virtual Private Clouds
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+
+class AwsVPCCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeVpcsRequest
+
+  lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
+
+  override def doCrawl()(implicit req: RequestId) = {
+    
+    val list = ctx.awsClient.ec2.describeVpcs(request).getVpcs.asScala.map(
+      item => {
+    
+        Record(item.getVpcId(), ctx.beanMapper(item))
+      }).toSeq
+    
     list
   }
 }
@@ -967,7 +1207,7 @@ class AwsCacheClusterCrawler(val name: String, val ctx: AwsCrawler.Context) exte
   * @param name name of collection we are crawling for
   * @param ctx context to provide beanMapper
   */
-class AwsSubnetCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+class AwsSubnetCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {  
   val request = new DescribeSubnetsRequest
   lazy val abortWithoutTags = Utils.getProperty("edda.crawler", "abortWithoutTags", name, "false")
 
