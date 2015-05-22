@@ -1,31 +1,20 @@
+plugins {
+    id 'nebula.netflixoss' version '2.2.9'
+    id 'scala'
+    id 'war'
+    id 'jetty'
+}
+
 // Establish version and status
 ext.githubProjectName = rootProject.name // Change if github project name is not the same as the root project's name
 group = "com.netflix.${githubProjectName}"
 
-buildscript {
-    repositories {
-        mavenLocal()
-        mavenCentral() // maven { url 'http://jcenter.bintray.com' }
-    }
-    apply from: file('gradle/buildscript.gradle'), to: buildscript 
+repositories {
+    jcenter()
 }
 
-allprojects {
-    repositories { 
-        mavenCentral() // maven { url: 'http://jcenter.bintray.com' }
-    }
-}
+sourceCompatibility = 1.6
 
-apply from: file('gradle/convention.gradle')
-apply from: file('gradle/maven.gradle')
-apply from: file('gradle/check.gradle')
-apply from: file('gradle/license.gradle')
-apply from: file('gradle/release.gradle')
-
-apply plugin: 'war'
-apply plugin: 'jetty'
-apply plugin: 'eclipse'
-apply plugin: 'idea'
 
 dependencies {
     compile 'javax.ws.rs:jsr311-api:1.1.1'
@@ -65,10 +54,6 @@ dependencies {
 
     providedCompile 'javax.servlet:servlet-api:2.5'
 
-    // Libraries needed to run the scala tools
-    scalaTools 'org.scala-lang:scala-compiler:2.10.3'
-    scalaTools 'org.scala-lang:scala-library:2.10.3'
-
     // Libraries needed for scala api
     compile 'org.scala-lang:scala-library:2.10.3'
     compile 'org.scala-lang:scala-actors:2.10.3'
@@ -77,6 +62,19 @@ dependencies {
 compileScala {
     scalaCompileOptions.additionalParameters = ["-feature"]
 }
+
+configurations {
+    scaladocconf
+}
+
+task scaladocJar(type: Jar, dependsOn: project.tasks.scaladoc) {
+    classifier = 'scaladoc'
+    from project.tasks.scaladoc.destinationDir
+}
+
+import nebula.plugin.publishing.component.CustomComponentPlugin
+
+CustomComponentPlugin.addArtifact(project, 'scaladocconf', scaladocJar)
 
 test << {
     ant.taskdef(name: 'scalatest', classname: 'org.scalatest.tools.ScalaTestAntTask', classpath: classpath.asPath)
