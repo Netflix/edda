@@ -106,3 +106,7 @@ jettyRun {
  webXml = file('src/main/webapp/WEB-INF/web.xml')
 }
 
+httpPort = 8080
+stopPort = 9080
+stopKey  = "stopKey"
+
