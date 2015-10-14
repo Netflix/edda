@@ -39,7 +39,7 @@ dependencies {
     compile('com.amazonaws:aws-java-sdk:1.9.6') {
         exclude group:'org.codehaus.jackson'
     }
-    compile 'joda-time:joda-time:2.0'
+    compile 'joda-time:joda-time:2.2'
     compile 'org.joda:joda-convert:1.2'
     compile 'org.codehaus.jackson:jackson-core-asl:1.9.2'
     compile 'org.codehaus.jackson:jackson-mapper-asl:1.9.2'
