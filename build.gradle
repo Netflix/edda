@@ -22,7 +22,7 @@ dependencies {
     compile 'com.sun.jersey:jersey-server:1.11'
     compile 'com.sun.jersey:jersey-servlet:1.11'
     compile 'org.slf4j:slf4j-api:1.6.4'
-    compile('com.amazonaws:aws-java-sdk:1.9.40') {
+    compile('com.amazonaws:aws-java-sdk:1.10.60') {
         exclude group:'org.codehaus.jackson'
     }
     compile 'joda-time:joda-time:2.0'

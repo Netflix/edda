@@ -42,7 +42,7 @@ import org.joda.time.DateTime
 case class State(location: String, mtime: DateTime)
 
 class S3CurrentDatastore(val name: String) extends Datastore {
-  
+
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
   lazy val account = {
@@ -63,11 +63,9 @@ class S3CurrentDatastore(val name: String) extends Datastore {
   // of sync with the datastore
   val writeDynamo = {
     val client = new AwsClient(account).dynamo
-    val config = new com.amazonaws.ClientConfiguration().withMaxErrorRetry(0)
-    client.setConfiguration(config)
     client
   }
-  
+
 
   lazy val tableName = Utils.getProperty("edda", "s3current.table", name, "edda-s3current-collection-index").get
   lazy val readCap   = Utils.getProperty("edda", "s3current.readCapacity", name, "1").get.toLong
