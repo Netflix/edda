@@ -89,6 +89,7 @@ class BasicBeanMapperTest extends FunSuite {
           "instanceId" -> "i-0123456789",
           "healthStatus" -> "Healthy",
           "availabilityZone" -> "us-east-1c",
+          "protectedFromScaleIn" -> null,
           "lifecycleState" -> "InService",
           "class" -> "com.amazonaws.services.autoscaling.model.Instance",
           "launchConfigurationName" -> "launchConfigName"
@@ -103,6 +104,7 @@ class BasicBeanMapperTest extends FunSuite {
       "desiredCapacity" -> 2,
       "class" -> "com.amazonaws.services.autoscaling.model.AutoScalingGroup",
       "enabledMetrics" -> List(),
+      "newInstancesProtectedFromScaleIn" -> null,
       "maxSize" -> 2,
       "availabilityZones" -> List("us-east-1c"),
       "autoScalingGroupName" -> "asgName",
