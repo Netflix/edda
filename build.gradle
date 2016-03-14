@@ -82,6 +82,7 @@ test << {
     // ant.scalatest(runpath: testClassesDir, haltonfailure: 'true', fork: 'false', suite: 'com.netflix.edda.UtilsTest') {
         reporter(type: 'stdout')
     }
+    jvmArgs "-XX:MaxPermSize=512m"
 }
 
 test.outputs.upToDateWhen { false }
