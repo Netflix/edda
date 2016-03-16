@@ -62,6 +62,8 @@ object AwsClient {
   */
 class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
 
+  var account = ""
+
   /** uses [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/auth/AWSCredentials.html com.amazonaws.auth.AWSCredentials]] to create AWSCredentialsProvider
     *
     * @param credentials used to connect to AWS services
@@ -92,6 +94,15 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
   def this(accessKey: String, secretKey: String, region: String) =
     this(AwsClient.mkCredentialProvider(accessKey,secretKey, ""), region)
 
+
+  /** generate a resource arn */
+  def arn(resourceAPI: String, resourceType: String, resourceName: String): String = {
+    "arn:aws:" + resourceAPI + ":" + region + ":" + account + ":" + resourceType + ":" + resourceName
+  }
+
+  def setAccountNum(accountNumber: String) {
+    this.account = accountNumber
+  }
 
   /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/ec2/AmazonEC2Client.html com.amazonaws.services.ec2.AmazonEC2Client]] object */
   def ec2 = {
