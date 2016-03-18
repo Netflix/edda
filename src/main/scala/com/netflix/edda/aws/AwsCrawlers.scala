@@ -130,6 +130,8 @@ trait AwsBeanMapper extends BeanMapper {
       flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
     case obj : com.amazonaws.services.autoscaling.model.TagDescription =>
       flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
+    case obj : com.amazonaws.services.rds.model.Tag =>
+      flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
   }
   this.addObjMapper(tagObjMapper)
 
