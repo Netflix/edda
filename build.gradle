@@ -102,11 +102,24 @@ tasks.withType(License).each { licenseTask ->
     licenseTask.exclude '**/*.properties'
 }
 
+task cleanupGradleLog << {
+ println 'cleanupGradleLog task!'
+ def gradle = project.getGradle()
+ new File("${gradle.getGradleUserHomeDir().getAbsolutePath()}/daemon/${gradle.getGradleVersion()}").listFiles().each{
+  if(it.getName().endsWith('out.log')){
+    logger.debug("Cleaning up log file $it")
+    it.delete()
+  }
+ }
+}
+
 jettyRun {
  webXml = file('src/main/webapp/WEB-INF/web.xml')
 }
 
-httpPort = 8080
-stopPort = 9080
+tasks.jettyRun.dependsOn(cleanupGradleLog)
+
+httpPort = 9080
+stopPort = 9090
 stopKey  = "stopKey"
 
