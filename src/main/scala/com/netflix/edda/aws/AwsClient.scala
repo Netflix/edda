@@ -157,7 +157,7 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
 
    def rds = {
      val client = new AmazonRDSClient(provider)
-     client.setEndpoint("rds.amazonaws.com")
+     client.setEndpoint("rds." + region + ".amazonaws.com")
      client
    }
 
