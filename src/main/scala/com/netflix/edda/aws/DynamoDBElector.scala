@@ -48,8 +48,6 @@ class DynamoDBElector extends Elector {
   val readDynamo = new AwsClient(account).dynamo
   val writeDynamo = {
     val client = new AwsClient(account).dynamo
-    val config = new com.amazonaws.ClientConfiguration().withMaxErrorRetry(0)
-    client.setConfiguration(config)
     client
   }
 

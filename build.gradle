@@ -22,7 +22,7 @@ dependencies {
     compile 'com.sun.jersey:jersey-server:1.11'
     compile 'com.sun.jersey:jersey-servlet:1.11'
     compile 'org.slf4j:slf4j-api:1.6.4'
-    compile('com.amazonaws:aws-java-sdk:1.6.12') {
+    compile('com.amazonaws:aws-java-sdk:1.10.60') {
         exclude group:'org.codehaus.jackson'
     }
     compile 'joda-time:joda-time:2.0'
@@ -41,10 +41,10 @@ dependencies {
     compile 'org.elasticsearch:elasticsearch:0.90.3'
     compile 'com.spatial4j:spatial4j:0.3'
 
-    // for some reason 'org.apache.httpcomponents:httpclient:4.2.1' is causing 
+    // for some reason 'org.apache.httpcomponents:httpclient:4.2.1' is causing
     // scalac to generate 'S3ObjectInputStream.class is broken' erro
     compile 'org.apache.httpcomponents:httpclient:4.1'
-    
+
     testCompile 'log4j:log4j:1.2.12'
     testCompile 'org.testng:testng:6.1.1'
     testCompile 'org.mockito:mockito-core:1.8.5'
