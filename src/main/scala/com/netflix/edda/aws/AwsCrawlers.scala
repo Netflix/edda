@@ -83,6 +83,7 @@ import java.util.concurrent.Callable
 
 import org.slf4j.LoggerFactory
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
+import com.amazonaws.services.rds.model.DescribeDBSubnetGroupsRequest
 import com.amazonaws.services.rds.model.ListTagsForResourceRequest
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
@@ -1054,6 +1055,19 @@ class AwsDatabaseCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
     }
     buffer.toList
   }
+}
+
+/** crawler for Subnets
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsDatabaseSubnetCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  override def doCrawl()(implicit req: RequestId) =
+    ctx.awsClient.rds.describeDBSubnetGroups().getDBSubnetGroups.asScala.map(
+      item => {
+        Record(item.getDBSubnetGroupName, ctx.beanMapper(item))
+      })
 }
 
 /** crawler for ElastiCache Clusters
