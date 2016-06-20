@@ -62,6 +62,8 @@ import com.amazonaws.services.cloudwatch.model.DescribeAlarmsRequest
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
 import com.amazonaws.services.autoscaling.model.DescribeLaunchConfigurationsRequest
 import com.amazonaws.services.autoscaling.model.DescribePoliciesRequest
+import com.amazonaws.services.autoscaling.model.DescribeScalingActivitiesRequest
+import com.amazonaws.services.autoscaling.model.DescribeScheduledActionsRequest
 
 import com.amazonaws.services.elasticloadbalancing.model.DescribeLoadBalancersRequest
 import com.amazonaws.services.elasticloadbalancing.model.DescribeInstanceHealthRequest
@@ -211,6 +213,56 @@ class AwsScalingPolicyCrawler(val name: String, val ctx: AwsCrawler.Context) ext
         response.getScalingPolicies.asScala.map(
           item => {
             Record(item.getPolicyName, ctx.beanMapper(item))
+          }).toList
+      }
+    }
+    it.toList.flatten
+  }
+}
+
+/** crawler for ASG Activities
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsScalingActivitiesCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val request = new DescribeScalingActivitiesRequest
+  request.setMaxRecords(50)
+
+  override def doCrawl()(implicit req: RequestId) = {
+    val it = new AwsIterator() {
+      def next() = {
+        val response = ctx.awsClient.asg.describeScalingActivities(request.withNextToken(this.nextToken.get))
+        this.nextToken = Option(response.getNextToken)
+        response.getActivities.asScala.map(
+          item => {
+            Record(item.getActivityId, ctx.beanMapper(item))
+          }).toList
+      }
+    }
+    it.toList.flatten
+  }
+}
+
+/** crawler for ASG Scheduled Actions
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsScheduledActionsCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val request = new DescribeScheduledActionsRequest
+  request.setMaxRecords(50)
+
+  override def doCrawl()(implicit req: RequestId) = {
+    val it = new AwsIterator() {
+      def next() = {
+        val response = ctx.awsClient.asg.describeScheduledActions(request.withNextToken(this.nextToken.get))
+        this.nextToken = Option(response.getNextToken)
+        response.getScheduledUpdateGroupActions.asScala.map(
+          item => {
+            Record(item.getScheduledActionARN, ctx.beanMapper(item))
           }).toList
       }
     }

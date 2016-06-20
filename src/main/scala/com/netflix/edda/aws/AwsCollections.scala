@@ -127,7 +127,9 @@ object AwsCollectionBuilder {
       new AwsDatabaseCollection(accountName, elector, ctx),
       new AwsCacheClusterCollection(accountName, elector, ctx),
       new AwsSubnetCollection(accountName, elector, ctx),
-      new AwsCloudformationCollection(accountName, elector, ctx)
+      new AwsCloudformationCollection(accountName, elector, ctx),
+			new AwsScalingActivitiesCollection(accountName, elector, ctx),
+			new AwsScheduledActionsCollection(accountName, elector, ctx)
     )
   }
 }
@@ -244,6 +246,40 @@ class AwsAlarmCollection(
                                      override val ctx: AwsCollection.Context) extends RootCollection("aws.alarms", accountName, ctx) {
   val crawler = new AwsAlarmCrawler(name, ctx)
 }
+
+/** collection for AWS AutoScaling Activities
+ *
+ * root collection name: aws.scalingActivities
+ *
+ * see crawler details [[com.netflix.edda.aws.AwsScalingActivitiesCrawler]]
+ *
+ * @param accountName account name to be prefixed to collection name
+ * @param elector Elector to determine leadership
+ * @param ctx context for AWS clients objects
+ */
+ class AwsScalingActivitiesCollection(
+                                val accountName: String,
+                                val elector: Elector,
+                                override val ctx: AwsCollection.Context) extends RootCollection("aws.scalingActivities", accountName, ctx) {
+   val crawler = new AwsScalingActivitiesCrawler(name, ctx)
+ }
+
+ /** collection for AWS AutoScaling Scheduled Actions
+  *
+  * root collection name: aws.scheduledActions
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsScheduledActionsCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+  class AwsScheduledActionsCollection(
+                                 val accountName: String,
+                                 val elector: Elector,
+                                 override val ctx: AwsCollection.Context) extends RootCollection("aws.scheduledActions", accountName, ctx) {
+    val crawler = new AwsScheduledActionsCrawler(name, ctx)
+  }
 
 /** collection for AWS Images
   *
