@@ -42,6 +42,7 @@ import com.amazonaws.services.ec2.model.DescribeSnapshotsRequest
 import com.amazonaws.services.ec2.model.DescribeSubnetsRequest
 import com.amazonaws.services.ec2.model.DescribeTagsRequest
 import com.amazonaws.services.ec2.model.DescribeVolumesRequest
+import com.amazonaws.services.ec2.model.DescribeVpcsRequest
 
 import com.amazonaws.services.identitymanagement.model.ListUsersRequest
 import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest
@@ -269,6 +270,25 @@ class AwsScheduledActionsCrawler(val name: String, val ctx: AwsCrawler.Context) 
     it.toList.flatten
   }
 }
+
+/** crawler for ASG VPCs
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsVpcCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val request = new DescribeVpcsRequest
+
+  override def doCrawl()(implicit req: RequestId) = {
+    val response = ctx.awsClient.ec2.describeVpcs()
+    response.getVpcs.asScala.map(
+      item => {
+        Record(item.getVpcId, ctx.beanMapper(item))
+      }).toList
+  }
+}
+
 
 /** crawler for CLoudWatch Alarms
   *

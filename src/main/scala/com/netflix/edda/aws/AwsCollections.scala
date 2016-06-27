@@ -129,7 +129,8 @@ object AwsCollectionBuilder {
       new AwsSubnetCollection(accountName, elector, ctx),
       new AwsCloudformationCollection(accountName, elector, ctx),
 			new AwsScalingActivitiesCollection(accountName, elector, ctx),
-			new AwsScheduledActionsCollection(accountName, elector, ctx)
+			new AwsScheduledActionsCollection(accountName, elector, ctx),
+			new AwsVpcCollection(accountName, elector, ctx)
     )
   }
 }
@@ -280,6 +281,23 @@ class AwsAlarmCollection(
                                  override val ctx: AwsCollection.Context) extends RootCollection("aws.scheduledActions", accountName, ctx) {
     val crawler = new AwsScheduledActionsCrawler(name, ctx)
   }
+
+/** collection for AWS VPCs
+  *
+  * root collection name: aws.vpcs
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsVpcCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+*/
+class AwsVpcCollection(
+                 val accountName: String,
+                 val elector: Elector,
+                 override val ctx: AwsCollection.Context) extends RootCollection("aws.vpcs", accountName, ctx) {
+                 val crawler = new AwsVpcCrawler(name, ctx)
+}
 
 /** collection for AWS Images
   *
