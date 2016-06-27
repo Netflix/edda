@@ -130,7 +130,8 @@ object AwsCollectionBuilder {
       new AwsCloudformationCollection(accountName, elector, ctx),
 			new AwsScalingActivitiesCollection(accountName, elector, ctx),
 			new AwsScheduledActionsCollection(accountName, elector, ctx),
-			new AwsVpcCollection(accountName, elector, ctx)
+			new AwsVpcCollection(accountName, elector, ctx),
+			new AwsReservedInstancesOfferingCollection(accountName, elector, ctx)
     )
   }
 }
@@ -297,6 +298,23 @@ class AwsVpcCollection(
                  val elector: Elector,
                  override val ctx: AwsCollection.Context) extends RootCollection("aws.vpcs", accountName, ctx) {
                  val crawler = new AwsVpcCrawler(name, ctx)
+}
+
+/** collection for AWS Reserved Instance Offerings
+  *
+  * root collection name: aws.vpcs
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsReservedInstancesOfferingCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+*/
+class AwsReservedInstancesOfferingCollection(
+                 val accountName: String,
+                 val elector: Elector,
+                 override val ctx: AwsCollection.Context) extends RootCollection("aws.reservedInstancesOfferings", accountName, ctx) {
+                 val crawler = new AwsReservedInstancesOfferingCrawler(name, ctx)
 }
 
 /** collection for AWS Images

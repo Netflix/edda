@@ -37,6 +37,7 @@ import com.amazonaws.services.ec2.model.DescribeAddressesRequest
 import com.amazonaws.services.ec2.model.DescribeImagesRequest
 import com.amazonaws.services.ec2.model.DescribeInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeReservedInstancesRequest
+import com.amazonaws.services.ec2.model.DescribeReservedInstancesOfferingsRequest
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest
 import com.amazonaws.services.ec2.model.DescribeSnapshotsRequest
 import com.amazonaws.services.ec2.model.DescribeSubnetsRequest
@@ -873,6 +874,17 @@ class AwsReservedInstanceCrawler(val name: String, val ctx: AwsCrawler.Context) 
     item => Record(item.getReservedInstancesId, new DateTime(item.getStart), ctx.beanMapper(item))).toSeq
 }
 
+/** crawler for ReservedInstancesOfferings
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsReservedInstancesOfferingCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeReservedInstancesOfferingsRequest
+
+  override def doCrawl()(implicit req: RequestId) = ctx.awsClient.ec2.describeReservedInstancesOfferings(request).getReservedInstancesOfferings.asScala.map(
+    item => Record(item.getReservedInstancesOfferingId, ctx.beanMapper(item))).toSeq
+}
 
 /** crawler for Route53 Hosted Zones (DNS records)
   *
