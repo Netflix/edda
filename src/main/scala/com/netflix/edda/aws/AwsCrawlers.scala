@@ -37,11 +37,13 @@ import com.amazonaws.services.ec2.model.DescribeAddressesRequest
 import com.amazonaws.services.ec2.model.DescribeImagesRequest
 import com.amazonaws.services.ec2.model.DescribeInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeReservedInstancesRequest
+import com.amazonaws.services.ec2.model.DescribeReservedInstancesOfferingsRequest
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest
 import com.amazonaws.services.ec2.model.DescribeSnapshotsRequest
 import com.amazonaws.services.ec2.model.DescribeSubnetsRequest
 import com.amazonaws.services.ec2.model.DescribeTagsRequest
 import com.amazonaws.services.ec2.model.DescribeVolumesRequest
+import com.amazonaws.services.ec2.model.DescribeVpcsRequest
 
 import com.amazonaws.services.identitymanagement.model.ListUsersRequest
 import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest
@@ -62,6 +64,8 @@ import com.amazonaws.services.cloudwatch.model.DescribeAlarmsRequest
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
 import com.amazonaws.services.autoscaling.model.DescribeLaunchConfigurationsRequest
 import com.amazonaws.services.autoscaling.model.DescribePoliciesRequest
+import com.amazonaws.services.autoscaling.model.DescribeScalingActivitiesRequest
+import com.amazonaws.services.autoscaling.model.DescribeScheduledActionsRequest
 
 import com.amazonaws.services.elasticloadbalancing.model.DescribeLoadBalancersRequest
 import com.amazonaws.services.elasticloadbalancing.model.DescribeInstanceHealthRequest
@@ -217,6 +221,75 @@ class AwsScalingPolicyCrawler(val name: String, val ctx: AwsCrawler.Context) ext
     it.toList.flatten
   }
 }
+
+/** crawler for ASG Activities
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsScalingActivitiesCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val request = new DescribeScalingActivitiesRequest
+  request.setMaxRecords(50)
+
+  override def doCrawl()(implicit req: RequestId) = {
+    val it = new AwsIterator() {
+      def next() = {
+        val response = ctx.awsClient.asg.describeScalingActivities(request.withNextToken(this.nextToken.get))
+        this.nextToken = Option(response.getNextToken)
+        response.getActivities.asScala.map(
+          item => {
+            Record(item.getActivityId, ctx.beanMapper(item))
+          }).toList
+      }
+    }
+    it.toList.flatten
+  }
+}
+
+/** crawler for ASG Scheduled Actions
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsScheduledActionsCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val request = new DescribeScheduledActionsRequest
+  request.setMaxRecords(50)
+
+  override def doCrawl()(implicit req: RequestId) = {
+    val it = new AwsIterator() {
+      def next() = {
+        val response = ctx.awsClient.asg.describeScheduledActions(request.withNextToken(this.nextToken.get))
+        this.nextToken = Option(response.getNextToken)
+        response.getScheduledUpdateGroupActions.asScala.map(
+          item => {
+            Record(item.getScheduledActionARN, ctx.beanMapper(item))
+          }).toList
+      }
+    }
+    it.toList.flatten
+  }
+}
+
+/** crawler for ASG VPCs
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsVpcCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val request = new DescribeVpcsRequest
+
+  override def doCrawl()(implicit req: RequestId) = {
+    val response = ctx.awsClient.ec2.describeVpcs()
+    response.getVpcs.asScala.map(
+      item => {
+        Record(item.getVpcId, ctx.beanMapper(item))
+      }).toList
+  }
+}
+
 
 /** crawler for CLoudWatch Alarms
   *
@@ -801,6 +874,17 @@ class AwsReservedInstanceCrawler(val name: String, val ctx: AwsCrawler.Context) 
     item => Record(item.getReservedInstancesId, new DateTime(item.getStart), ctx.beanMapper(item))).toSeq
 }
 
+/** crawler for ReservedInstancesOfferings
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsReservedInstancesOfferingCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeReservedInstancesOfferingsRequest
+
+  override def doCrawl()(implicit req: RequestId) = ctx.awsClient.ec2.describeReservedInstancesOfferings(request).getReservedInstancesOfferings.asScala.map(
+    item => Record(item.getReservedInstancesOfferingId, ctx.beanMapper(item))).toSeq
+}
 
 /** crawler for Route53 Hosted Zones (DNS records)
   *

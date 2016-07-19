@@ -127,7 +127,11 @@ object AwsCollectionBuilder {
       new AwsDatabaseCollection(accountName, elector, ctx),
       new AwsCacheClusterCollection(accountName, elector, ctx),
       new AwsSubnetCollection(accountName, elector, ctx),
-      new AwsCloudformationCollection(accountName, elector, ctx)
+      new AwsCloudformationCollection(accountName, elector, ctx),
+			new AwsScalingActivitiesCollection(accountName, elector, ctx),
+			new AwsScheduledActionsCollection(accountName, elector, ctx),
+			new AwsVpcCollection(accountName, elector, ctx),
+			new AwsReservedInstancesOfferingCollection(accountName, elector, ctx)
     )
   }
 }
@@ -243,6 +247,74 @@ class AwsAlarmCollection(
                                      val elector: Elector,
                                      override val ctx: AwsCollection.Context) extends RootCollection("aws.alarms", accountName, ctx) {
   val crawler = new AwsAlarmCrawler(name, ctx)
+}
+
+/** collection for AWS AutoScaling Activities
+ *
+ * root collection name: aws.scalingActivities
+ *
+ * see crawler details [[com.netflix.edda.aws.AwsScalingActivitiesCrawler]]
+ *
+ * @param accountName account name to be prefixed to collection name
+ * @param elector Elector to determine leadership
+ * @param ctx context for AWS clients objects
+ */
+ class AwsScalingActivitiesCollection(
+                                val accountName: String,
+                                val elector: Elector,
+                                override val ctx: AwsCollection.Context) extends RootCollection("aws.scalingActivities", accountName, ctx) {
+   val crawler = new AwsScalingActivitiesCrawler(name, ctx)
+ }
+
+ /** collection for AWS AutoScaling Scheduled Actions
+  *
+  * root collection name: aws.scheduledActions
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsScheduledActionsCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+  class AwsScheduledActionsCollection(
+                                 val accountName: String,
+                                 val elector: Elector,
+                                 override val ctx: AwsCollection.Context) extends RootCollection("aws.scheduledActions", accountName, ctx) {
+    val crawler = new AwsScheduledActionsCrawler(name, ctx)
+  }
+
+/** collection for AWS VPCs
+  *
+  * root collection name: aws.vpcs
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsVpcCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+*/
+class AwsVpcCollection(
+                 val accountName: String,
+                 val elector: Elector,
+                 override val ctx: AwsCollection.Context) extends RootCollection("aws.vpcs", accountName, ctx) {
+                 val crawler = new AwsVpcCrawler(name, ctx)
+}
+
+/** collection for AWS Reserved Instance Offerings
+  *
+  * root collection name: aws.vpcs
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsReservedInstancesOfferingCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+*/
+class AwsReservedInstancesOfferingCollection(
+                 val accountName: String,
+                 val elector: Elector,
+                 override val ctx: AwsCollection.Context) extends RootCollection("aws.reservedInstancesOfferings", accountName, ctx) {
+                 val crawler = new AwsReservedInstancesOfferingCrawler(name, ctx)
 }
 
 /** collection for AWS Images
