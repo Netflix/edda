@@ -1,8 +1,10 @@
-language: java
+language: scala
+scala:
+- 2.10.3
 jdk:
 - oraclejdk8
-sudo: false
-install: true
+sudo: required
+dist: trusty
 script: "./buildViaTravis.sh"
 env:
   global:
@@ -12,4 +14,5 @@ env:
   - secure: wPGXmyanN7NxZvAB0QcCJau7+XJsK2EdWKRH6GwWy11Gwp/sLY3+a+O1wdmjgg1juzFFJXzUq5BHCF20WrZqnd4k14YeblEu3kOr1qcTQ1QpOQGzmjEqX+cwmAhVVdfpo3kfwUd56LJxIFagm7p6ZH7Dx/0huMp1kqcmkL9e+R8=
 cache:
   directories:
-  - "$HOME/.gradle/caches"
+  - "$HOME/.sbt"
+  - "$HOME/.ivy2"
