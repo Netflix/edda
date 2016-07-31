@@ -1,9 +1,8 @@
+[![Build Status](https://travis-ci.org/Netflix/edda.svg)](https://travis-ci.org/Netflix/edda/builds)
+
 ## DESCRIPTION
 
 Edda is a Service to track changes in your cloud deployments.
-
-## CloudBees build status
-[![Build Status](https://netflixoss.ci.cloudbees.com/job/edda-master/badge/icon)](https://netflixoss.ci.cloudbees.com/job/edda-master/)
 
 ## DETAILS
 
@@ -15,7 +14,7 @@ Please see the [wiki](https://github.com/Netflix/edda/wiki).
 
 ## LICENSE
 
-Copyright 2012 Netflix, Inc.
+Copyright 2012-2016 Netflix, Inc.
 
 Licensed under the Apache License, Version 2.0 (the “License”); you may not use this file except in
 compliance with the License. You may obtain a copy of the License at
