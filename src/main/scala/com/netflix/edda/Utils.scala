@@ -106,7 +106,7 @@ object Utils {
     */
   object RETRY {
     @annotation.tailrec
-    def apply[T](action: => T): T = {
+    final def apply[T](action: => T): T = {
       {
         try {
           Some(action)
@@ -123,7 +123,7 @@ object Utils {
     }
 
     @annotation.tailrec
-    def apply[T](n: Int)(action: => T): T = {
+    final def apply[T](n: Int)(action: => T): T = {
       {
         try {
           action
