@@ -6,10 +6,10 @@ object BuildSettings {
   val compilerFlags = Seq(
     "-deprecation",
     "-unchecked",
-    //"-Xexperimental",
-    //"-Xlint:_,-infer-any",
-    //"-feature",
-    "-target:jvm-1.6")
+    "-Xexperimental",
+    "-Xlint:_,-infer-any",
+    "-feature",
+    "-target:jvm-1.8")
 
   lazy val checkLicenseHeaders = taskKey[Unit]("Check the license headers for all source files.")
   lazy val formatLicenseHeaders = taskKey[Unit]("Fix the license headers for all source files.")
@@ -24,10 +24,10 @@ object BuildSettings {
 
   lazy val buildSettings = baseSettings ++ Seq(
     organization := "com.netflix.edda",
-    scalaVersion := "2.10.3",
+    scalaVersion := "2.11.8",
     scalacOptions ++= BuildSettings.compilerFlags,
     crossPaths := true,
-    crossScalaVersions := Seq("2.10.3"),
+    crossScalaVersions := Seq("2.11.8"),
     sourcesInBase := false,
     exportJars := true,   // Needed for one-jar, with multi-project
     externalResolvers := BuildSettings.resolvers,
