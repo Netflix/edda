@@ -35,8 +35,6 @@ lazy val edda = project.in(file("."))
     "javax.servlet"                  % "servlet-api"              % "2.5"   % "provided",
 
     "log4j"                          % "log4j"                    % log4j   % "test",
-    "org.mockito"                    % "mockito-core"             % "1.8.5" % "test",
-    "org.testng"                     % "testng"                   % "6.1.1" % "test",
     "org.scalatest"                 %% "scalatest"                % "2.2.6" % "test",
     "org.slf4j"                      % "slf4j-log4j12"            % slf4j   % "test"
   ))
