@@ -27,6 +27,7 @@ import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient
+import com.amazonaws.services.identitymanagement.model.GetUserRequest
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.sqs.AmazonSQSClient
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
@@ -98,6 +99,22 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
   /** generate a resource arn */
   def arn(resourceAPI: String, resourceType: String, resourceName: String): String = {
     "arn:aws:" + resourceAPI + ":" + region + ":" + account + ":" + resourceType + ":" + resourceName
+  }
+
+  def getAccountNum(): String = {
+    val r = """^.*arn:aws:[a-z]+::([0-9]{12}):.*$""".r
+    try {
+        val arn = identitymanagement.getUser.getUser.getArn
+        r.findFirstMatchIn(arn).get.group(1)
+    } catch {
+        case e: Throwable => {
+            r.findFirstMatchIn(e.getMessage).map(m => m.group(1)).getOrElse("")
+        }
+    }
+  }
+
+  def loadAccountNum() {
+    this.setAccountNum(this.getAccountNum)
   }
 
   def setAccountNum(accountNumber: String) {
