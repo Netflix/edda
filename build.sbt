@@ -34,8 +34,9 @@ lazy val edda = project.in(file("."))
 
     "javax.servlet"                  % "servlet-api"              % "2.5"   % "provided",
 
-    "log4j"                          % "log4j"                    % log4j   % "test",
-    "org.scalatest"                 %% "scalatest"                % "2.2.6" % "test",
-    "org.slf4j"                      % "slf4j-log4j12"            % slf4j   % "test"
+    "log4j"                          % "log4j"                    % log4j,
+    "org.slf4j"                      % "slf4j-log4j12"            % slf4j,
+
+    "org.scalatest"                 %% "scalatest"                % "2.2.6" % "test"
   ))
 
