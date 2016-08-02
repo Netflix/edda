@@ -100,8 +100,10 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
 
   /** generate a resource arn */
   def arn(resourceAPI: String, resourceType: String, resourceName: String): String = {
-    "arn:aws:" + resourceAPI + ":" + region + ":" + account + ":" + resourceType + ":" + resourceName
+    "arn:aws:" + resourceAPI + ":" + region + ":" + account + ":" + resourceType + arnSeperator(resourceType) + resourceName
   }
+
+  def arnSeperator(t:String): String = if (t == "loadbalancer") { "/"; } else { ":"; }
 
   def getAccountNum(): String = {
     var stsClient = new AWSSecurityTokenServiceClient()
