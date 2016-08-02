@@ -1,5 +1,5 @@
 
-val aws        = "1.10.60"
+val aws        = "1.11.22"
 val jackson    = "1.9.2"
 val jersey     = "1.11"
 val log4j      = "1.2.12"

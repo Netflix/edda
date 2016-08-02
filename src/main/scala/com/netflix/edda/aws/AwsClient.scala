@@ -22,12 +22,12 @@ import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
 import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider
+import com.amazonaws.auth.profile.ProfileCredentialsProvider
 
 import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient
-import com.amazonaws.services.identitymanagement.model.GetUserRequest
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.sqs.AmazonSQSClient
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
@@ -36,6 +36,8 @@ import com.amazonaws.services.rds.AmazonRDSClient
 import com.amazonaws.services.elasticache.AmazonElastiCacheClient
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient
+import com.amazonaws.services.securitytoken.model.GetCallerIdentityRequest
 
 object AwsClient {
   def mkCredentialProvider(accessKey: String, secretKey: String, arn: String): AWSCredentialsProvider = {
@@ -102,15 +104,8 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
   }
 
   def getAccountNum(): String = {
-    val r = """^.*arn:aws:[a-z]+::([0-9]{12}):.*$""".r
-    try {
-        val arn = identitymanagement.getUser.getUser.getArn
-        r.findFirstMatchIn(arn).get.group(1)
-    } catch {
-        case e: Throwable => {
-            r.findFirstMatchIn(e.getMessage).map(m => m.group(1)).getOrElse("")
-        }
-    }
+    var stsClient = new AWSSecurityTokenServiceClient()
+    stsClient.getCallerIdentity(new GetCallerIdentityRequest()).getAccount()
   }
 
   def loadAccountNum() {

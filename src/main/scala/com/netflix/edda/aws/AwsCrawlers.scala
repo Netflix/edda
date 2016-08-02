@@ -47,7 +47,6 @@ import com.amazonaws.services.ec2.model.DescribeTagsRequest
 import com.amazonaws.services.ec2.model.DescribeVolumesRequest
 import com.amazonaws.services.ec2.model.DescribeVpcsRequest
 
-import com.amazonaws.services.identitymanagement.model.GetUserRequest
 import com.amazonaws.services.identitymanagement.model.ListUsersRequest
 import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest
 import com.amazonaws.services.identitymanagement.model.ListGroupsForUserRequest
