@@ -28,7 +28,6 @@ import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient
-import com.amazonaws.services.identitymanagement.model.GetUserRequest
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.sqs.AmazonSQSClient
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
