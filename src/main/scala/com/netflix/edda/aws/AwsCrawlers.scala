@@ -17,6 +17,7 @@ package com.netflix.edda.aws
 
 import scala.actors.Actor
 import scala.collection.JavaConversions._
+import scala.collection.mutable.ListBuffer
 
 import com.netflix.edda.StateMachine
 import com.netflix.edda.Crawler
@@ -46,7 +47,6 @@ import com.amazonaws.services.ec2.model.DescribeTagsRequest
 import com.amazonaws.services.ec2.model.DescribeVolumesRequest
 import com.amazonaws.services.ec2.model.DescribeVpcsRequest
 
-import com.amazonaws.services.identitymanagement.model.GetUserRequest
 import com.amazonaws.services.identitymanagement.model.ListUsersRequest
 import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest
 import com.amazonaws.services.identitymanagement.model.ListGroupsForUserRequest
@@ -87,8 +87,6 @@ import com.amazonaws.services.rds.model.ListTagsForResourceRequest
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
 import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
 import com.amazonaws.services.cloudformation.model.ListStackResourcesRequest
-
-import scala.collection.mutable.ListBuffer
 
 /** static namespace for out Context trait */
 object AwsCrawler {
@@ -1037,27 +1035,13 @@ class AwsDatabaseCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
       }
     }
 
-    var account = ""
-    val r = """^.*arn:aws:[a-z]+::([0-9]{12}):.*$""".r
-    try {
-        val userRequest = new GetUserRequest()
-        val iam = ctx.awsClient.identitymanagement.getUser(userRequest).getUser().getArn()
-        var account = (for (r(a) <- r.findFirstIn(iam.toString)) yield a).getOrElse("")
-        ctx.awsClient.setAccountNum(account)
-    } catch {
-        case e: Exception => {
-            val msg = e.getMessage
-            var account = (for (r(a) <- r.findFirstIn(msg)) yield a).getOrElse("")
-            ctx.awsClient.setAccountNum(account)
-        }
-    }
+    ctx.awsClient.loadAccountNum()
 
     val initial = it.toList.flatten
     var buffer = new ListBuffer[Record]()
     for (rec <- initial) {
         val data = rec.toMap("data").asInstanceOf[Map[String,String]]
-        val arn = ctx.awsClient.arn("rds", "db",data("DBInstanceIdentifier"))
-        val arnMap = Map("arn" -> arn)
+        val arn = ctx.awsClient.arn("rds", "db", data("DBInstanceIdentifier"))
 
         val request = new ListTagsForResourceRequest().withResourceName(arn)
         val response = ctx.awsClient.rds.listTagsForResource(request)
@@ -1065,12 +1049,10 @@ class AwsDatabaseCrawler(val name: String, val ctx: AwsCrawler.Context) extends 
           item => {
             ctx.beanMapper(item)
           }).toList
-        val tags = Map("tags" -> responseList)
 
-        buffer += rec.append(arnMap).append(tags)
+        buffer += rec.copy(data = data.asInstanceOf[Map[String,Any]] ++ Map("arn" -> arn, "tags" -> responseList))
     }
-    val list = buffer.toList
-    list
+    buffer.toList
   }
 }
 

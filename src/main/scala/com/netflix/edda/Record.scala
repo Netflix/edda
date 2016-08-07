@@ -81,12 +81,6 @@ class Record(
               val data: Any,
               val tags: Map[String, Any]) {
 
-  /** append data **/
-  def append(newdata: Map[String,Any]): Record = {
-    val a = data.asInstanceOf[Map[String,Any]] ++ newdata
-    return new Record(id, ftime, ctime, stime, ltime, mtime, a, tags)
-  }
-
   /** copy to behave similar to case class */
   def copy(
             id: String = id,

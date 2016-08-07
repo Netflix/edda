@@ -22,6 +22,7 @@ import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
 import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider
+import com.amazonaws.auth.profile.ProfileCredentialsProvider
 
 import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
@@ -35,6 +36,8 @@ import com.amazonaws.services.rds.AmazonRDSClient
 import com.amazonaws.services.elasticache.AmazonElastiCacheClient
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
 import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient
+import com.amazonaws.services.securitytoken.model.GetCallerIdentityRequest
 
 object AwsClient {
   def mkCredentialProvider(accessKey: String, secretKey: String, arn: String): AWSCredentialsProvider = {
@@ -98,6 +101,15 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
   /** generate a resource arn */
   def arn(resourceAPI: String, resourceType: String, resourceName: String): String = {
     "arn:aws:" + resourceAPI + ":" + region + ":" + account + ":" + resourceType + ":" + resourceName
+  }
+
+  def getAccountNum(): String = {
+    var stsClient = new AWSSecurityTokenServiceClient()
+    stsClient.getCallerIdentity(new GetCallerIdentityRequest()).getAccount()
+  }
+
+  def loadAccountNum() {
+    this.setAccountNum(this.getAccountNum)
   }
 
   def setAccountNum(accountNumber: String) {
