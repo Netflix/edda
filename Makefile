@@ -37,3 +37,8 @@ coverage:
 license:
 	$(SBT) formatLicenseHeaders
 
+test:
+	$(SBT) test
+
+war:
+	$(SBT) checkLicenseHeaders package
