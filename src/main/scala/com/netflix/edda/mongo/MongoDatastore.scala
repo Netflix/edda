@@ -83,11 +83,11 @@ object MongoDatastore {
   }
 
   def mongoDecodeString(str: String): String = {
-    str.replace("\\0xFF0E", ".").replace("0xFF0E", ".")
+    str.replace("\\uFF0E", ".").replace("\\uFF04", "$")
   }
 
   def mongoEncodeString(str: String): String = {
-    str.replaceAll("[\\.]", "\\0xFF0E")
+    str.replaceAll("[\\.]", "\\\\uFF0E").replaceAll("[\\$]", "\\\\uFF04")
   }
 
   /** converts a Record to a Mongo DBObject */

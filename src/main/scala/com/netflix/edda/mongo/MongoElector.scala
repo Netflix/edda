@@ -97,7 +97,7 @@ class MongoElector extends Elector {
             "_id" -> "leader",
             "data.instance" -> instance), true), // query
           null, // sort
-          MongoDatastore.mapToMongo(Map("$set" -> Map("mtime" -> now))) // update
+          MongoDatastore.mapToMongo(Map("$set" -> Map("mtime" -> now)), true) // update
         )
         // maybe we were too slow and someone took leader from us
         isLeader = if (result == null) false else true
