@@ -95,9 +95,9 @@ class MongoElector extends Elector {
         val result = mongo.findAndModify(
           MongoDatastore.mapToMongo(Map(
             "_id" -> "leader",
-            "data.instance" -> instance)), // query
+            "data.instance" -> instance), true), // query
           null, // sort
-          MongoDatastore.mapToMongo(Map("$set" -> Map("mtime" -> now))) // update
+          MongoDatastore.mapToMongo(Map("$set" -> Map("mtime" -> now)), true) // update
         )
         // maybe we were too slow and someone took leader from us
         isLeader = if (result == null) false else true
@@ -109,7 +109,7 @@ class MongoElector extends Elector {
             MongoDatastore.mapToMongo(Map(// query
               "_id" -> "leader",
               "data.instance" -> leader,
-              "mtime" -> mtime)),
+              "mtime" -> mtime), true),
             null, // sort
             MongoDatastore.recordToMongo(// update
               r.copy(
@@ -121,6 +121,7 @@ class MongoElector extends Elector {
           // if we got the update then we are leader and attempt to
           // archive the old leader record
           if (result == null) {
+            logger.info("Error becoming leader")
             isLeader = false
           } else {
             isLeader = true
@@ -131,7 +132,10 @@ class MongoElector extends Elector {
       }
     }
 
-    if (logger.isInfoEnabled) logger.info(s"$req Leader [$instance]: $isLeader [$leader]")
+    logger.info("{} Leader [{}]: {} [{}]", Array[AnyRef](req, instance, isLeader.toString, leader))
+    if (isLeader == false && instance == leader) {
+        logger.warn("This node is registered as the leader but could not become the leader. If this issue does not resolve on its own there may be a problem with the datastore")
+    }
     isLeader
   }
 

@@ -25,7 +25,7 @@ lazy val edda = project.in(file("."))
     "org.joda"                       % "joda-convert"             % "1.2",
     "joda-time"                      % "joda-time"                % "2.0",
     "javax.ws.rs"                    % "jsr311-api"               % "1.1.1",
-    "org.mongodb"                    % "mongo-java-driver"        % "2.6.5",
+    "org.mongodb"                    % "mongo-java-driver"        % "2.13.0",
     "org.scala-lang"                 % "scala-actors"             % scalaVersion.value,
     "org.scala-lang.modules"        %% "scala-parser-combinators" % "1.0.4",
     "com.netflix.servo"              % "servo-core"               % "0.4.10",

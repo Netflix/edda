@@ -69,16 +69,25 @@ object MongoDatastore {
     import collection.JavaConverters._
     obj match {
       case o: BasicDBObject => {
-        o.keySet.asScala.map((key: String) => (key -> mongoToScala(o.get(key)))).toMap
+        o.keySet.asScala.map((key: String) => (mongoDecodeString(key) -> mongoToScala(o.get(key)))).toMap
       }
       case o: BasicDBList => {
         List.empty[Any] ++ o.asScala.map(mongoToScala(_))
       }
       case o: Date => new DateTime(o)
+      case o: String => mongoDecodeString(o)
       case o: AnyRef => o
       case null => null
       case other => throw new java.lang.RuntimeException("mongoToScala: don't know how to handle: " + other)
     }
+  }
+
+  def mongoDecodeString(str: String): String = {
+    str.replace("\\uFF0E", ".").replace("\\uFF04", "$")
+  }
+
+  def mongoEncodeString(str: String): String = {
+    str.replaceAll("[\\.]", "\\\\uFF0E").replaceAll("[\\$]", "\\\\uFF04")
   }
 
   /** converts a Record to a Mongo DBObject */
@@ -93,9 +102,13 @@ object MongoDatastore {
   }
 
   /** converts a basic scala Map to a Mongo DBObject */
-  def mapToMongo(map: Map[String, Any]): DBObject = {
+  def mapToMongo(map: Map[String, Any], literal: Boolean = false): DBObject = {
     val obj = new BasicDBObject
-    map.foreach(pair => obj.put(pair._1, scalaToMongo(pair._2)))
+    if (literal) {
+      map.foreach(pair => obj.put(pair._1, scalaToMongo(pair._2)))
+    } else {
+      map.foreach(pair => obj.put(mongoEncodeString(pair._1), scalaToMongo(pair._2)))
+    }
     obj
   }
 
@@ -147,7 +160,6 @@ object MongoDatastore {
         val queryTimeout = Utils.getProperty("edda.collection", "queryTimeout", name, "60000").get.toInt
 
         val options = new MongoOptions
-        options.autoConnectRetry = true
         options.connectTimeout = 500
         options.connectionsPerHost = 40
         options.socketKeepAlive = true
