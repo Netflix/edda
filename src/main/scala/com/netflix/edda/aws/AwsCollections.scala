@@ -125,6 +125,7 @@ object AwsCollectionBuilder {
       hostedZones,
       hostedRecords,
       new AwsDatabaseCollection(accountName, elector, ctx),
+      new AwsDatabaseSubnetCollection(accountName, elector, ctx),
       new AwsCacheClusterCollection(accountName, elector, ctx),
       new AwsSubnetCollection(accountName, elector, ctx),
       new AwsCloudformationCollection(accountName, elector, ctx),
@@ -829,6 +830,14 @@ class AwsDatabaseCollection(
     val oldLatestRestorable = oldRec.copy(data = oldData.filterNot(_._1.startsWith("latestRestorable")))
     newRec.data != oldRec.data && newLatestRestorable.dataString != oldLatestRestorable.dataString
   }
+}
+
+class AwsDatabaseSubnetCollection(
+                                   val accountName: String,
+                                   val elector: Elector,
+                                   override val ctx: AwsCollection.Context
+                                 ) extends RootCollection("aws.databaseSubnets", accountName, ctx) {
+  val crawler = new AwsDatabaseSubnetCrawler(name, ctx)
 }
 
 /** collection for AWS ElastiCache clusters
