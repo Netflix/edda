@@ -18,7 +18,6 @@ package com.netflix.edda.aws
 import scala.actors.Actor
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
-
 import com.netflix.edda.StateMachine
 import com.netflix.edda.Crawler
 import com.netflix.edda.CrawlerState
@@ -30,11 +29,8 @@ import com.netflix.edda.BeanMapper
 import com.netflix.edda.basic.BasicBeanMapper
 import com.netflix.edda.Utils
 import com.netflix.edda.ObserverExecutionContext
-
 import org.joda.time.DateTime
-
 import com.amazonaws.AmazonServiceException
-
 import com.amazonaws.services.ec2.model.DescribeAddressesRequest
 import com.amazonaws.services.ec2.model.DescribeImagesRequest
 import com.amazonaws.services.ec2.model.DescribeInstancesRequest
@@ -46,38 +42,23 @@ import com.amazonaws.services.ec2.model.DescribeSubnetsRequest
 import com.amazonaws.services.ec2.model.DescribeTagsRequest
 import com.amazonaws.services.ec2.model.DescribeVolumesRequest
 import com.amazonaws.services.ec2.model.DescribeVpcsRequest
-
-import com.amazonaws.services.identitymanagement.model.ListUsersRequest
-import com.amazonaws.services.identitymanagement.model.ListAccessKeysRequest
-import com.amazonaws.services.identitymanagement.model.ListGroupsForUserRequest
-import com.amazonaws.services.identitymanagement.model.ListUserPoliciesRequest
-import com.amazonaws.services.identitymanagement.model.ListGroupsRequest
-import com.amazonaws.services.identitymanagement.model.ListGroupPoliciesRequest
-import com.amazonaws.services.identitymanagement.model.ListRolesRequest
-import com.amazonaws.services.identitymanagement.model.ListVirtualMFADevicesRequest
-
+import com.amazonaws.services.identitymanagement.model._
 import com.amazonaws.services.s3.model.ListBucketsRequest
-
 import com.amazonaws.services.sqs.model.ListQueuesRequest
 import com.amazonaws.services.sqs.model.GetQueueAttributesRequest
-
 import com.amazonaws.services.cloudwatch.model.DescribeAlarmsRequest
-
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
 import com.amazonaws.services.autoscaling.model.DescribeLaunchConfigurationsRequest
 import com.amazonaws.services.autoscaling.model.DescribePoliciesRequest
 import com.amazonaws.services.autoscaling.model.DescribeScalingActivitiesRequest
 import com.amazonaws.services.autoscaling.model.DescribeScheduledActionsRequest
-
 import com.amazonaws.services.elasticloadbalancing.model.DescribeLoadBalancersRequest
 import com.amazonaws.services.elasticloadbalancing.model.DescribeInstanceHealthRequest
-
 import com.amazonaws.services.route53.model.ListHostedZonesRequest
 import com.amazonaws.services.route53.model.GetHostedZoneRequest
 import com.amazonaws.services.route53.model.ListResourceRecordSetsRequest
 
 import collection.JavaConverters._
-
 import java.util.concurrent.Executors
 import java.util.concurrent.Callable
 
@@ -783,6 +764,40 @@ class AwsIamRoleCrawler(val name: String, val ctx: AwsCrawler.Context) extends C
 
   override def doCrawl()(implicit req: RequestId) = ctx.awsClient.identitymanagement.listRoles(request).getRoles.asScala.map(
     item => Record(item.getRoleName, new DateTime(item.getCreateDate), ctx.beanMapper(item))).toSeq
+}
+
+/** crawler for IAM policies
+  *
+  * @param name name of context we are crawling for
+  * @param ctx context to provide beanMapper and configuration
+  */
+class AwsIamPolicyCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new ListPoliciesRequest
+  val vr = new GetPolicyVersionRequest
+
+  override def doCrawl()(implicit req: RequestId) = {
+    ctx.awsClient.identitymanagement.listPolicies(request).getPolicies.asScala.map(
+      item => {
+        vr.setPolicyArn(item.getArn)
+        vr.setVersionId(item.getDefaultVersionId)
+        val version = ctx.awsClient.identitymanagement.getPolicyVersion(vr).getPolicyVersion
+
+        val data = ctx.beanMapper(item).asInstanceOf[Map[String, Any]] ++ Map("defaultDocument" -> version.getDocument)
+
+        Record(item.getPolicyName, new DateTime(item.getUpdateDate), data)
+      }).toSeq
+  }
+}
+
+
+/** crawler for IAM Policy Versions
+  *
+  */
+class AwsIamPolicyVersionCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new ListPolicyVersionsRequest
+
+  override def doCrawl()(implicit req: RequestId) = ctx.awsClient.identitymanagement.listPolicyVersions(request).getVersions.asScala.map(
+    item => Record(item.getVersionId, new DateTime(item.getCreateDate), ctx.beanMapper(item))).toSeq
 }
 
 /** crawler for IAM Virtual MFA Devices
