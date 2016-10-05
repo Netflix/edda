@@ -17,12 +17,15 @@ package com.netflix.edda
 
 import scala.actors.Actor
 import scala.actors.TIMEOUT
+import scala.util.Random
 
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 import com.netflix.servo.monitor.Monitors
 import com.netflix.servo.DefaultMonitorRegistry
+
+import com.amazonaws.AmazonClientException
 
 import org.slf4j.LoggerFactory
 
@@ -56,6 +59,15 @@ abstract class Crawler extends Observable {
 
   private[this] val logger = LoggerFactory.getLogger(getClass)
   lazy val enabled = Utils.getProperty("edda.crawler", "enabled", name, "true")
+  lazy val jitter = Utils.getProperty("edda.crawler", "jitter.enabled", name, "false")
+  lazy val throttle = Utils.getProperty("edda.crawler", "throttle.enabled", name, "false")
+  lazy val throttle_delay = Utils.getProperty("edda.crawler", "throttle.delay", name, "200")
+  lazy val retry_max = Utils.getProperty("edda.crawler", "throttle.maxDelayMultiplier", name, "225")
+  lazy val request_delay = Utils.getProperty("edda.crawler", "requestDelay", name, "0")
+
+  /* number of retries attempted */
+  var retry_count = 0
+
 
   /** start a crawl if the crawler is enabled */
   def crawl()(implicit req: RequestId) {
@@ -135,10 +147,66 @@ abstract class Crawler extends Observable {
           if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $o")
           o ! msg
       })
+      /* reset the error count at the end of each run */
+      retry_count = 0
       setLocalState(state, CrawlerState(records = newRecords))
 
       // } else state
     }
+  }
+
+  /** wrapper for all requests to throttle or delay access to the AWS API */
+  def backoffRequest[T](code: =>T): T = {
+    // using a ratio of 2:1 for errors to retries due to requests being sent concurrently
+    val errorReducer = 2
+    // number of "free" errors to ignore before full throttling is enabled
+    val margin = 10
+    val marginalDelay = ( throttle_delay.get.toInt * (((retry_count-margin)/errorReducer) + 1) )
+    val throttleDelay = ( throttle_delay.get.toInt * ((retry_count/errorReducer) + 1) )
+
+    /* configurable delay for all requests to slow down access */
+    if (request_delay.get.toInt > 0) Thread sleep request_delay.get.toInt
+
+    /* configurable random delay to further throttle access */
+    if (jitter.get.toBoolean) {
+      val maxJitter = Utils.getProperty("edda.crawler", "jitter.max", name, "2000").get.toInt
+      val rand = new Random
+      val jitter = (maxJitter * rand.nextDouble).toLong
+      logger.debug("{} api request delayed by {}ms", this, jitter)
+      Thread sleep jitter
+    }
+
+    /* handler for AWS imposed throttling */
+    if (throttle.get.toBoolean) {
+      try {
+        if (retry_count > margin) {
+          logger.debug("{} SLEEPING [{}]: {}", Array(this, retry_count, marginalDelay))
+          Thread sleep marginalDelay
+        }
+        code
+      } catch {
+        case e: AmazonClientException => {
+          val pattern = ".*Error Code: ([A-Za-z]+);.*".r
+          val pattern(err_code) = e.getMessage()
+          if ( (err_code == "RequestLimitExceeded") || (err_code == "Throttling") ) {
+            Thread sleep throttleDelay
+            retry_count = retry_count + 1
+            if ((retry_count/errorReducer) >= retry_max.get.toInt) {
+              logger.error("Hit configured maximum number of API backoff requests, aborting")
+              throw e
+            }
+            backoffRequest { code }
+          } else {
+            logger.error("Unexpected AmazonClientException, aborting")
+            throw e
+          }
+        }
+        case e: Exception => {
+          logger.error("Unexpected Exception, aborting")
+          throw e
+        }
+      }
+    } else code
   }
 
   protected override def transitions = localTransitions orElse super.transitions
