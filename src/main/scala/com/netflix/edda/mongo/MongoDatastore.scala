@@ -28,7 +28,10 @@ import com.mongodb.BasicDBObject
 import com.mongodb.DBObject
 import com.mongodb.BasicDBList
 import com.mongodb.Mongo
-import com.mongodb.MongoOptions
+import com.mongodb.MongoClient
+import com.mongodb.MongoClientOptions
+import com.mongodb.MongoCredential
+import com.mongodb.ReadPreference
 import com.mongodb.ServerAddress
 import com.mongodb.Bytes
 
@@ -158,19 +161,24 @@ object MongoDatastore {
         )
 
         val queryTimeout = Utils.getProperty("edda.collection", "queryTimeout", name, "60000").get.toInt
+        val user = mongoProperty("user", name, null)
+        val credential = List(MongoCredential.createMongoCRCredential(
+            user,
+            mongoProperty("database", name, "edda"),
+            mongoProperty("password", name, "").toArray))
 
-        val options = new MongoOptions
-        options.connectTimeout = 500
-        options.connectionsPerHost = 40
-        options.socketKeepAlive = true
-        options.socketTimeout = queryTimeout
-        options.threadsAllowedToBlockForConnectionMultiplier = 8
+        val options = new MongoClientOptions.Builder()
+        options.connectTimeout(500)
+        options.connectionsPerHost(40)
+        options.socketKeepAlive(true)
+        options.socketTimeout(queryTimeout)
+        options.threadsAllowedToBlockForConnectionMultiplier(8)
 
-        val primary = new Mongo(serverList.asJava, options)
+        val primary = new MongoClient(serverList.asJava, credential.asJava, options.build())
         primaryMongoConnections += (servers -> primary)
 
-        val replica = new Mongo(serverList.asJava, options)
-        replica.slaveOk()
+        val replica = new MongoClient(serverList.asJava, credential.asJava, options.build())
+        replica.setReadPreference(ReadPreference.secondaryPreferred())
         replicaMongoConnections += (servers -> replica)
 
         if(replicaOk) replica else primary
@@ -182,15 +190,6 @@ object MongoDatastore {
   def mongoCollection(name: String, replicaOk: Boolean = false) = {
     val conn = mongoConnection(name, replicaOk)
     val db = conn.getDB(mongoProperty("database", name, "edda"))
-    val user = mongoProperty("user", name, null)
-    if (user != null) {
-      // Fix to avoid "java.lang.IllegalStateException: can't call authenticate twice on the same DBObject"
-      if (!db.isAuthenticated()) {
-        db.authenticate(
-          user,
-          mongoProperty("password", name, "").toArray)
-      }
-    }
     if (db.collectionExists(name)) db.getCollection(name) else db.createCollection(name, null)
   }
 
@@ -333,11 +332,11 @@ class MongoDatastore(val name: String) extends Datastore {
 
   /** ensures Indes for "stime", "mtime", "ltime", and "id" */
   def init() {
-    primary.ensureIndex(mapToMongo(Map("stime" -> -1, "id" -> 1)))
-    primary.ensureIndex(mapToMongo(Map("stime" -> -1)))
-    primary.ensureIndex(mapToMongo(Map("mtime" -> -1)))
-    primary.ensureIndex(mapToMongo(Map("ltime" -> 1)))
-    primary.ensureIndex(mapToMongo(Map("id" -> 1)))
+    primary.createIndex(mapToMongo(Map("stime" -> -1, "id" -> 1)))
+    primary.createIndex(mapToMongo(Map("stime" -> -1)))
+    primary.createIndex(mapToMongo(Map("mtime" -> -1)))
+    primary.createIndex(mapToMongo(Map("ltime" -> 1)))
+    primary.createIndex(mapToMongo(Map("id" -> 1)))
   }
 
   protected def upsert(record: Record)(implicit req: RequestId) {
