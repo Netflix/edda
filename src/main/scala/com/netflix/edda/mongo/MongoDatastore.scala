@@ -366,7 +366,7 @@ class MongoDatastore(val name: String) extends Datastore {
   override def remove(queryMap: Map[String, Any])(implicit req: RequestId) {
     try {
       var opResult = primary.remove(mapToMongo(queryMap, true))
-      logger.info(s"$req$this removed " + opResult.getN().toString + " records")
+      logger.info("{}{} removed {} records", Array(req, this, opResult.getN()))
     } catch {
       case e: Exception => {
         if (logger.isErrorEnabled) logger.error(s"$req$this failed to remove records: $queryMap")
