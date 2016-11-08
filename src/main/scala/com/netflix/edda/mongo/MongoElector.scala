@@ -85,7 +85,7 @@ class MongoElector extends Elector {
             "ltime" -> null,
             "data" -> Map("instance" -> instance, "id" -> "leader", "type" -> "leader"))))
       // if we got an error then uniqueness failed (someone else beat us to it)
-      isLeader = if (wr.getLastError().ok != 1.0) true else false
+      isLeader = if (wr.getN() == 0) true else false
     } else {
       val r = MongoDatastore.mongoToRecord(rec)
       leader = r.data.asInstanceOf[Map[String, Any]]("instance").asInstanceOf[String]
