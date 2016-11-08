@@ -105,17 +105,17 @@ object MongoDatastore {
   def mapToMongo(map: Map[String, Any], literal: Boolean = false): DBObject = {
     val obj = new BasicDBObject
     if (literal) {
-      map.foreach(pair => obj.put(pair._1, scalaToMongo(pair._2)))
+      map.foreach(pair => obj.put(pair._1, scalaToMongo(pair._2, literal)))
     } else {
-      map.foreach(pair => obj.put(mongoEncodeString(pair._1), scalaToMongo(pair._2)))
+      map.foreach(pair => obj.put(mongoEncodeString(pair._1), scalaToMongo(pair._2, literal)))
     }
     obj
   }
 
   /** converts a Scala basic type to a corresponding Mongo data type */
-  def scalaToMongo(obj: Any): AnyRef = {
+  def scalaToMongo(obj: Any, literal: Boolean = false): AnyRef = {
     obj match {
-      case o: Map[_, _] => mapToMongo(o.asInstanceOf[Map[String, Any]])
+      case o: Map[_, _] => mapToMongo(o.asInstanceOf[Map[String, Any]], literal)
       case o: Seq[_] => {
         val mongo = new BasicDBList
         o.foreach(item => mongo.add(scalaToMongo(item)))
@@ -365,7 +365,8 @@ class MongoDatastore(val name: String) extends Datastore {
 
   override def remove(queryMap: Map[String, Any])(implicit req: RequestId) {
     try {
-      primary.remove(mapToMongo(queryMap))
+      var opResult = primary.remove(mapToMongo(queryMap, true))
+      logger.info("{}{} removed {} records", Array(req, this, opResult.getN()))
     } catch {
       case e: Exception => {
         if (logger.isErrorEnabled) logger.error(s"$req$this failed to remove records: $queryMap")

@@ -529,7 +529,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             case PurgePolicy.AGE => {
               val options = purgePolicyOptions.asInstanceOf[Map[String,String]]
               if( options.contains("expiry") ) {
-                val expiry = options("expiry").toLong;
+                val expiry = options("expiry").toLong
                 dataStore.get.remove(Map("ltime" -> Map("$lt" -> new DateTime( DateTime.now.getMillis - expiry ))))
               }
               else {
