@@ -109,7 +109,8 @@ class BasicBeanMapperTest extends FunSuite {
       "availabilityZones" -> List("us-east-1c"),
       "autoScalingGroupName" -> "asgName",
       "minSize" -> 2,
-      "launchConfigurationName" -> "launchConfigName"
+      "launchConfigurationName" -> "launchConfigName",
+      "targetGroupARNs" -> List()
     )
 
     expectResult(expected) {
