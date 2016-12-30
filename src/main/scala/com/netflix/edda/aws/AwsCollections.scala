@@ -664,7 +664,7 @@ class GroupAutoScalingGroups(
                               override val ctx: AwsCollection.Context) extends RootCollection("group.autoScalingGroups", asgCollection.accountName, ctx) with GroupCollection {
   import Utils._
   import Queryable._
-  // dont crawl, we get crawl results from the asgCollection crawler
+  // don't crawl, we get crawl results from the asgCollection crawler
   override val allowCrawl = false
   val crawler = asgCollection.crawler
 
@@ -836,7 +836,7 @@ class AwsDatabaseCollection(
                                override val ctx: AwsCollection.Context) extends RootCollection("aws.databases", accountName, ctx) {
   val crawler = new AwsDatabaseCrawler(name, ctx)
 
-  /** this is overriden from com.netflix.edda.aws.Collection because we want to record
+  /** this is overridden from com.netflix.edda.aws.Collection because we want to record
     * changes, but not create new document revisions if the only changes are to latestRestorableTime values
     */
   override protected
