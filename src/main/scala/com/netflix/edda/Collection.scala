@@ -142,7 +142,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   def elector: Elector
 
 
-  /** allow option to skip cache usage and go straigt to datastore
+  /** allow option to skip cache usage and go straight to datastore
    */
   lazy val liveOverride = Utils.getProperty("edda.collection", "noCache", name, "false")
 
@@ -573,7 +573,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             val symPath = dir.resolve(name)
             if( Files.isSymbolicLink(symPath) ) {
               val oldFile = Files.readSymbolicLink(symPath)
-              // cant replace symlink in one operation, so make tmp symlink
+              // can't replace symlink in one operation, so make tmp symlink
               // and move it over the old one
               val tmpSymPath = dir.resolve(name + "." + Utils.uuid)
               Files.createSymbolicLink(tmpSymPath, realPath)

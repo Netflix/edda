@@ -157,7 +157,7 @@ object DynamoDB {
         val key = client.describeTable(new DescribeTableRequest().withTableName(tableName)).getTable().getKeySchema.asScala.head.getAttributeName()
 
         val item = this.get(tableName, key, attributes(key).asInstanceOf[String])
-        // compare everthin in item to the arguments set in the attributes map
+        // compare everything in item to the arguments set in the attributes map
         if( item.isEmpty || item.get.filterKeys(attributes.keySet) != attributes ) {
           logger.error(s"$req failed to update dynamodb: $request", e)
           throw e
