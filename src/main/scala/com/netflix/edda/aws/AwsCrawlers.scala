@@ -67,8 +67,7 @@ import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
 import com.amazonaws.services.rds.model.DescribeDBSubnetGroupsRequest
 import com.amazonaws.services.rds.model.ListTagsForResourceRequest
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
-import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
-import com.amazonaws.services.cloudformation.model.ListStackResourcesRequest
+import com.amazonaws.services.cloudformation.model.{DescribeStacksRequest, ListStackResourcesRequest, Stack}
 
 /** static namespace for out Context trait */
 object AwsCrawler {
@@ -1144,15 +1143,31 @@ class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) ex
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(1)
 
+  def stacks(): List[Stack] = {
+    val it = new Iterator[List[Stack]]() {
+      var nextToken: Option[String] = Some(null)
+
+      def hasNext = nextToken.isDefined
+      def next() = {
+        val response = backoffRequest {
+          ctx.awsClient.cloudformation.describeStacks(request.withNextToken(this.nextToken.get))
+        }
+        this.nextToken = Option(response.getNextToken)
+        response.getStacks.asScala.toList
+      }
+    }
+    it.flatten.toList
+  }
+
   override def doCrawl()(implicit req: RequestId) = {
-    val stacks = backoffRequest { ctx.awsClient.cloudformation.describeStacks(request).getStacks.asScala }
+    val stacks = this.stacks()
     val futures: Seq[java.util.concurrent.Future[Record]] = stacks.map(
       stack => {
-        threadPool.submit(
+        this.threadPool.submit(
           new Callable[Record] {
             def call() = {
               val stackResourcesRequest = new ListStackResourcesRequest().withStackName(stack.getStackName)
-              val stackResources = backoffRequest { ctx.awsClient.cloudformation.listStackResources(stackResourcesRequest).getStackResourceSummaries.asScala.map(item => ctx.beanMapper(item)).toSeq }
+              val stackResources = backoffRequest { ctx.awsClient.cloudformation.listStackResources(stackResourcesRequest).getStackResourceSummaries.asScala.map(item => ctx.beanMapper(item)) }
               Record(stack.getStackName, new DateTime(stack.getCreationTime), ctx.beanMapper(stack).asInstanceOf[Map[String,Any]] ++ Map("resources" -> stackResources))
             }
           }
@@ -1172,7 +1187,6 @@ class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) ex
     ).collect {
       case Some(rec) => rec
     }
-
     records
   }
 
