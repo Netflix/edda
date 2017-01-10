@@ -16,7 +16,6 @@
 package com.netflix.edda.aws
 
 import scala.actors.Actor
-import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import com.netflix.edda.StateMachine
 import com.netflix.edda.Crawler
@@ -55,20 +54,19 @@ import com.amazonaws.services.autoscaling.model.DescribeScheduledActionsRequest
 import com.amazonaws.services.elasticloadbalancing.model.DescribeLoadBalancersRequest
 import com.amazonaws.services.elasticloadbalancing.model.DescribeInstanceHealthRequest
 import com.amazonaws.services.route53.model.ListHostedZonesRequest
-import com.amazonaws.services.route53.model.GetHostedZoneRequest
 import com.amazonaws.services.route53.model.ListResourceRecordSetsRequest
 
 import collection.JavaConverters._
 import java.util.concurrent.Executors
 import java.util.concurrent.Callable
 
-import com.amazonaws.services.cloudformation.model.DescribeStacksResult
 import org.slf4j.LoggerFactory
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
-import com.amazonaws.services.rds.model.DescribeDBSubnetGroupsRequest
 import com.amazonaws.services.rds.model.ListTagsForResourceRequest
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
-import com.amazonaws.services.cloudformation.model.{DescribeStacksRequest, ListStackResourcesRequest, Stack}
+import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
+import com.amazonaws.services.cloudformation.model.ListStackResourcesRequest
+import com.amazonaws.services.cloudformation.model.Stack
 
 /** static namespace for out Context trait */
 object AwsCrawler {
