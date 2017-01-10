@@ -161,11 +161,15 @@ object MongoDatastore {
         )
 
         val queryTimeout = Utils.getProperty("edda.collection", "queryTimeout", name, "60000").get.toInt
-        val user = mongoProperty("user", name, null)
-        val credential = List(MongoCredential.createMongoCRCredential(
+        val user = mongoProperty("user", name, "")
+
+        var credential = List[MongoCredential]()
+        if (!user.isEmpty) {
+          credential = List(MongoCredential.createMongoCRCredential(
             user,
             mongoProperty("database", name, "edda"),
             mongoProperty("password", name, "").toArray))
+        }
 
         val options = new MongoClientOptions.Builder()
         options.connectTimeout(500)
