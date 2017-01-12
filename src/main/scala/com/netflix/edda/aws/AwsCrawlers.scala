@@ -33,6 +33,7 @@ import com.amazonaws.AmazonServiceException
 import com.amazonaws.services.ec2.model.DescribeAddressesRequest
 import com.amazonaws.services.ec2.model.DescribeImagesRequest
 import com.amazonaws.services.ec2.model.DescribeInstancesRequest
+import com.amazonaws.services.ec2.model.DescribeNetworkInterfacesRequest
 import com.amazonaws.services.ec2.model.DescribeReservedInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeReservedInstancesOfferingsRequest
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest
@@ -476,6 +477,24 @@ class AwsLaunchConfigurationCrawler(val name: String, val ctx: AwsCrawler.Contex
       }
     }
     it.toList.flatten
+  }
+}
+
+/** crawler for Network Interfaces
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsNetworkInterfaceCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeNetworkInterfacesRequest
+
+  override def doCrawl()(implicit req: RequestId) = {
+    val list = backoffRequest { ctx.awsClient.ec2.describeNetworkInterfaces(request).getNetworkInterfaces }.asScala.map(
+      item => {
+        Record(item.getNetworkInterfaceId, ctx.beanMapper(item))
+      }
+    )
+    list
   }
 }
 
