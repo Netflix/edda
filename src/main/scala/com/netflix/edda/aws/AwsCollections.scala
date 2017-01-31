@@ -130,10 +130,11 @@ object AwsCollectionBuilder {
       new AwsCacheClusterCollection(accountName, elector, ctx),
       new AwsSubnetCollection(accountName, elector, ctx),
       new AwsCloudformationCollection(accountName, elector, ctx),
-			new AwsScalingActivitiesCollection(accountName, elector, ctx),
-			new AwsScheduledActionsCollection(accountName, elector, ctx),
-			new AwsVpcCollection(accountName, elector, ctx),
-			new AwsReservedInstancesOfferingCollection(accountName, elector, ctx)
+      new AwsScalingActivitiesCollection(accountName, elector, ctx),
+      new AwsScheduledActionsCollection(accountName, elector, ctx),
+      new AwsVpcCollection(accountName, elector, ctx),
+      new AwsReservedInstancesOfferingCollection(accountName, elector, ctx),
+      new AwsLoadBalancerV2Collection(accountName, elector, ctx)
     )
   }
 }
@@ -351,6 +352,23 @@ class AwsLoadBalancerCollection(
                                  val elector: Elector,
                                  override val ctx: AwsCollection.Context) extends RootCollection("aws.loadBalancers", accountName, ctx) {
   val crawler = new AwsLoadBalancerCrawler(name, ctx)
+}
+
+/** collection for AWS Elastic Load Balancers (version 2)
+  *
+  * root collection name: aws.loadBalancersV2
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsLoadBalancerV2Crawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+class AwsLoadBalancerV2Collection(
+                                 val accountName: String,
+                                 val elector: Elector,
+                                 override val ctx: AwsCollection.Context) extends RootCollection("aws.loadBalancersV2", accountName, ctx) {
+  val crawler = new AwsLoadBalancerV2Crawler(name, ctx)
 }
 
 /** collection for AWS Elastic Load Balancer Instances
