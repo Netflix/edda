@@ -134,7 +134,8 @@ object AwsCollectionBuilder {
       new AwsScheduledActionsCollection(accountName, elector, ctx),
       new AwsVpcCollection(accountName, elector, ctx),
       new AwsReservedInstancesOfferingCollection(accountName, elector, ctx),
-      new AwsLoadBalancerV2Collection(accountName, elector, ctx)
+      new AwsLoadBalancerV2Collection(accountName, elector, ctx),
+      new AwsTargetGroupCollection(accountName, elector, ctx)
     )
   }
 }
@@ -369,6 +370,23 @@ class AwsLoadBalancerV2Collection(
                                  val elector: Elector,
                                  override val ctx: AwsCollection.Context) extends RootCollection("aws.loadBalancersV2", accountName, ctx) {
   val crawler = new AwsLoadBalancerV2Crawler(name, ctx)
+}
+
+/** collection for AWS Target Groups
+  *
+  * root collection name: aws.targetGroups
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsTargetGroupCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+class AwsTargetGroupCollection(
+                                   val accountName: String,
+                                   val elector: Elector,
+                                   override val ctx: AwsCollection.Context) extends RootCollection("aws.targetGroups", accountName, ctx) {
+  val crawler = new AwsTargetGroupCrawler(name, ctx)
 }
 
 /** collection for AWS Elastic Load Balancer Instances
