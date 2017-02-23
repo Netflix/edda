@@ -337,13 +337,12 @@ class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) exte
   private[this] val logger = LoggerFactory.getLogger(getClass)
   val request = new DescribeLoadBalancersRequest
   request.setPageSize(400)
-  
+
   override def doCrawl()(implicit req: RequestId) = {
     val it = new AwsIterator() {
       def next() = {
         val response = backoffRequest { ctx.awsClient.elb.describeLoadBalancers(request.withMarker(this.nextToken.get)) }
         this.nextToken = Option(response.getNextMarker)
-        logger.warn(s"$this.nextToken $response")
         response.getLoadBalancerDescriptions.asScala.map(
           item => {
             Record(item.getLoadBalancerName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))
