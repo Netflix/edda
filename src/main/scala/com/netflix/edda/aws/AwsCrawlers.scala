@@ -336,10 +336,24 @@ class AwsImageCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cra
 class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   private[this] val logger = LoggerFactory.getLogger(getClass)
   val request = new DescribeLoadBalancersRequest
-
-  override def doCrawl()(implicit req: RequestId) = backoffRequest { ctx.awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions }.asScala.map(
-    item => Record(item.getLoadBalancerName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))).toSeq
+  request.setPageSize(400)
+  
+  override def doCrawl()(implicit req: RequestId) = {
+    val it = new AwsIterator() {
+      def next() = {
+        val response = backoffRequest { ctx.awsClient.elb.describeLoadBalancers(request.withMarker(this.nextToken.get)) }
+        this.nextToken = Option(response.getNextMarker)
+        logger.warn(s"$this.nextToken $response")
+        response.getLoadBalancerDescriptions.asScala.map(
+          item => {
+            Record(item.getLoadBalancerName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))
+          }).toList
+      }
+    }
+    it.toList.flatten
+  }
 }
+
 
 case class AwsInstanceHealthCrawlerState(elbRecords: Seq[Record] = Seq[Record]())
 
