@@ -365,7 +365,7 @@ class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) exte
           }).toList
       }
     }
-    val initial = it.toSeq.grouped(20).toList
+    val initial = it.map(_.asInstanceOf[Record]).toSeq.grouped(20).toList
 
     backoffRequest { ctx.awsClient.loadAccountNum() }
 
@@ -379,7 +379,7 @@ class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) exte
         names += data("loadBalancerName")
       }
       try {
-        val request = new com.amazonaws.services.elasticloadbalancing.model.DescribeTagsRequest().withLoadBalancerNames(names)
+        val request = new com.amazonaws.services.elasticloadbalancing.model.DescribeTagsRequest().withLoadBalancerNames(names.asJava)
         val response = backoffRequest { ctx.awsClient.elb.describeTags(request) }
         val responseList = backoffRequest { response.getTagDescriptions().asScala.map(
           item => {
