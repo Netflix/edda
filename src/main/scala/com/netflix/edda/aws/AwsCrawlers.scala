@@ -46,6 +46,10 @@ import com.amazonaws.services.identitymanagement.model._
 import com.amazonaws.services.s3.model.ListBucketsRequest
 import com.amazonaws.services.sqs.model.ListQueuesRequest
 import com.amazonaws.services.sqs.model.GetQueueAttributesRequest
+
+import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
+import com.amazonaws.services.cloudformation.model.ListStackResourcesRequest
+
 import com.amazonaws.services.cloudwatch.model.DescribeAlarmsRequest
 import com.amazonaws.services.autoscaling.model.DescribeAutoScalingGroupsRequest
 import com.amazonaws.services.autoscaling.model.DescribeLaunchConfigurationsRequest
@@ -60,11 +64,18 @@ import com.amazonaws.services.elasticloadbalancingv2.model.DescribeTargetGroupsR
 import com.amazonaws.services.route53.model.ListHostedZonesRequest
 import com.amazonaws.services.route53.model.ListResourceRecordSetsRequest
 
+import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
+
+import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
+import com.amazonaws.services.rds.model.DescribeDBSubnetGroupsRequest
+import com.amazonaws.services.rds.model.ListTagsForResourceRequest
+
 import collection.JavaConverters._
 import java.util.concurrent.Executors
 import java.util.concurrent.Callable
 
 import org.slf4j.LoggerFactory
+
 import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
 import com.amazonaws.services.rds.model.ListTagsForResourceRequest
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
@@ -115,6 +126,8 @@ trait AwsBeanMapper extends BeanMapper {
     case obj : com.amazonaws.services.autoscaling.model.Tag =>
       flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
     case obj : com.amazonaws.services.autoscaling.model.TagDescription =>
+      flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
+    case obj : com.amazonaws.services.elasticloadbalancing.model.Tag =>
       flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
     case obj : com.amazonaws.services.rds.model.Tag =>
       flattenTag(basicBeanMapper.fromBean(obj).asInstanceOf[Map[String,Any]])
@@ -352,7 +365,43 @@ class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) exte
           }).toList
       }
     }
-    it.toList.flatten
+    val initial = it.map(_.asInstanceOf[Record]).toSeq.grouped(20).toList
+
+    backoffRequest { ctx.awsClient.loadAccountNum() }
+
+    var buffer = new ListBuffer[Record]()
+
+    for (group <- initial) {
+      var names = new ListBuffer[String]()
+
+      for (rec <- group) {
+        val data = rec.toMap("data").asInstanceOf[Map[String,String]]
+        names += data("loadBalancerName")
+      }
+      try {
+        val request = new com.amazonaws.services.elasticloadbalancing.model.DescribeTagsRequest().withLoadBalancerNames(names.asJava)
+        val response = backoffRequest { ctx.awsClient.elb.describeTags(request) }
+        val responseList = backoffRequest { response.getTagDescriptions().asScala.map(
+          item => {
+            ctx.beanMapper(item)
+          }).toSeq
+        }
+
+        for (rec <- group) {
+          val data = rec.toMap("data").asInstanceOf[Map[String,String]]
+          for (response <- responseList) {
+            if (response.asInstanceOf[Map[String,Any]]("loadBalancerName") == data("loadBalancerName")) {
+              buffer += rec.copy(data = data.asInstanceOf[Map[String,Any]] ++ Map("tags" -> response.asInstanceOf[Map[String,Any]]("tags")))
+            }
+          }
+        }
+      } catch {
+        case e: Exception => {
+          logger.error("error retrieving tags for an elb", e)
+        }
+      }
+    }
+    buffer.toList
   }
 }
 
