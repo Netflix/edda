@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2016 Netflix, Inc.
+ * Copyright 2012-2017 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,7 +109,8 @@ class BasicBeanMapperTest extends FunSuite {
       "availabilityZones" -> List("us-east-1c"),
       "autoScalingGroupName" -> "asgName",
       "minSize" -> 2,
-      "launchConfigurationName" -> "launchConfigName"
+      "launchConfigurationName" -> "launchConfigName",
+      "targetGroupARNs" -> List()
     )
 
     expectResult(expected) {

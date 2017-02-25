@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2016 Netflix, Inc.
+ * Copyright 2012-2017 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -142,7 +142,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
   def elector: Elector
 
 
-  /** allow option to skip cache usage and go straigt to datastore
+  /** allow option to skip cache usage and go straight to datastore
    */
   lazy val liveOverride = Utils.getProperty("edda.collection", "noCache", name, "false")
 
@@ -529,7 +529,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             case PurgePolicy.AGE => {
               val options = purgePolicyOptions.asInstanceOf[Map[String,String]]
               if( options.contains("expiry") ) {
-                val expiry = options("expiry").toLong;
+                val expiry = options("expiry").toLong
                 dataStore.get.remove(Map("ltime" -> Map("$lt" -> new DateTime( DateTime.now.getMillis - expiry ))))
               }
               else {
@@ -573,7 +573,7 @@ abstract class Collection(val ctx: Collection.Context) extends Queryable {
             val symPath = dir.resolve(name)
             if( Files.isSymbolicLink(symPath) ) {
               val oldFile = Files.readSymbolicLink(symPath)
-              // cant replace symlink in one operation, so make tmp symlink
+              // can't replace symlink in one operation, so make tmp symlink
               // and move it over the old one
               val tmpSymPath = dir.resolve(name + "." + Utils.uuid)
               Files.createSymbolicLink(tmpSymPath, realPath)

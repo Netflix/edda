@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2016 Netflix, Inc.
+ * Copyright 2012-2017 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.amazonaws.auth.profile.ProfileCredentialsProvider
 import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
+import com.amazonaws.services.elasticloadbalancingv2.{AmazonElasticLoadBalancingClient => AmazonElasticLoadBalancingV2Client}
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient
 import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.sqs.AmazonSQSClient
@@ -135,6 +136,13 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
   /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/elasticloadbalancing/AmazonElasticLoadBalancingClient.html com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient]] object */
   def elb = {
     val client = new AmazonElasticLoadBalancingClient(provider)
+    client.setEndpoint("elasticloadbalancing." + region + ".amazonaws.com")
+    client
+  }
+
+  /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/elasticloadbalancingv2/AmazonElasticLoadBalancingClient.html com.amazonaws.services.elasticloadbalancingv2.AmazonElasticLoadBalancingClient]] object */
+  def elbv2 = {
+    val client = new AmazonElasticLoadBalancingV2Client(provider)
     client.setEndpoint("elasticloadbalancing." + region + ".amazonaws.com")
     client
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2016 Netflix, Inc.
+ * Copyright 2012-2017 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -157,7 +157,7 @@ object DynamoDB {
         val key = client.describeTable(new DescribeTableRequest().withTableName(tableName)).getTable().getKeySchema.asScala.head.getAttributeName()
 
         val item = this.get(tableName, key, attributes(key).asInstanceOf[String])
-        // compare everthin in item to the arguments set in the attributes map
+        // compare everything in item to the arguments set in the attributes map
         if( item.isEmpty || item.get.filterKeys(attributes.keySet) != attributes ) {
           logger.error(s"$req failed to update dynamodb: $request", e)
           throw e

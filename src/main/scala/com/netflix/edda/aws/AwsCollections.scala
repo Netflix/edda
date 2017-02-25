@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2016 Netflix, Inc.
+ * Copyright 2012-2017 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -130,10 +130,12 @@ object AwsCollectionBuilder {
       new AwsCacheClusterCollection(accountName, elector, ctx),
       new AwsSubnetCollection(accountName, elector, ctx),
       new AwsCloudformationCollection(accountName, elector, ctx),
-			new AwsScalingActivitiesCollection(accountName, elector, ctx),
-			new AwsScheduledActionsCollection(accountName, elector, ctx),
-			new AwsVpcCollection(accountName, elector, ctx),
-			new AwsReservedInstancesOfferingCollection(accountName, elector, ctx)
+      new AwsScalingActivitiesCollection(accountName, elector, ctx),
+      new AwsScheduledActionsCollection(accountName, elector, ctx),
+      new AwsVpcCollection(accountName, elector, ctx),
+      new AwsReservedInstancesOfferingCollection(accountName, elector, ctx),
+      new AwsLoadBalancerV2Collection(accountName, elector, ctx),
+      new AwsTargetGroupCollection(accountName, elector, ctx)
     )
   }
 }
@@ -351,6 +353,40 @@ class AwsLoadBalancerCollection(
                                  val elector: Elector,
                                  override val ctx: AwsCollection.Context) extends RootCollection("aws.loadBalancers", accountName, ctx) {
   val crawler = new AwsLoadBalancerCrawler(name, ctx)
+}
+
+/** collection for AWS Elastic Load Balancers (version 2)
+  *
+  * root collection name: aws.loadBalancersV2
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsLoadBalancerV2Crawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+class AwsLoadBalancerV2Collection(
+                                 val accountName: String,
+                                 val elector: Elector,
+                                 override val ctx: AwsCollection.Context) extends RootCollection("aws.loadBalancersV2", accountName, ctx) {
+  val crawler = new AwsLoadBalancerV2Crawler(name, ctx)
+}
+
+/** collection for AWS Target Groups
+  *
+  * root collection name: aws.targetGroups
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsTargetGroupCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+class AwsTargetGroupCollection(
+                                   val accountName: String,
+                                   val elector: Elector,
+                                   override val ctx: AwsCollection.Context) extends RootCollection("aws.targetGroups", accountName, ctx) {
+  val crawler = new AwsTargetGroupCrawler(name, ctx)
 }
 
 /** collection for AWS Elastic Load Balancer Instances
@@ -664,7 +700,7 @@ class GroupAutoScalingGroups(
                               override val ctx: AwsCollection.Context) extends RootCollection("group.autoScalingGroups", asgCollection.accountName, ctx) with GroupCollection {
   import Utils._
   import Queryable._
-  // dont crawl, we get crawl results from the asgCollection crawler
+  // don't crawl, we get crawl results from the asgCollection crawler
   override val allowCrawl = false
   val crawler = asgCollection.crawler
 
@@ -836,7 +872,7 @@ class AwsDatabaseCollection(
                                override val ctx: AwsCollection.Context) extends RootCollection("aws.databases", accountName, ctx) {
   val crawler = new AwsDatabaseCrawler(name, ctx)
 
-  /** this is overriden from com.netflix.edda.aws.Collection because we want to record
+  /** this is overridden from com.netflix.edda.aws.Collection because we want to record
     * changes, but not create new document revisions if the only changes are to latestRestorableTime values
     */
   override protected
@@ -907,3 +943,21 @@ class AwsCloudformationCollection(
                                override val ctx: AwsCollection.Context) extends RootCollection("aws.stacks", accountName, ctx) {
   val crawler = new AwsCloudformationCrawler(name, ctx)
 }
+
+/** collection for AWS Network Interfaces
+  *
+  * root collection name: aws.networkInterfaces
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsNetworkInterfaceCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+class AwsNetworkInterfaceCollection(
+                                   val accountName: String,
+                                   val elector: Elector,
+                                   override val ctx: AwsCollection.Context) extends RootCollection("aws.networkInterfaces", accountName, ctx) {
+  val crawler = new AwsNetworkInterfaceCrawler(name, ctx)
+}
+

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2016 Netflix, Inc.
+ * Copyright 2012-2017 Netflix, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 package com.netflix.edda.aws
 
 import scala.actors.Actor
-import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import com.netflix.edda.StateMachine
 import com.netflix.edda.Crawler
@@ -34,6 +33,7 @@ import com.amazonaws.AmazonServiceException
 import com.amazonaws.services.ec2.model.DescribeAddressesRequest
 import com.amazonaws.services.ec2.model.DescribeImagesRequest
 import com.amazonaws.services.ec2.model.DescribeInstancesRequest
+import com.amazonaws.services.ec2.model.DescribeNetworkInterfacesRequest
 import com.amazonaws.services.ec2.model.DescribeReservedInstancesRequest
 import com.amazonaws.services.ec2.model.DescribeReservedInstancesOfferingsRequest
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest
@@ -58,8 +58,10 @@ import com.amazonaws.services.autoscaling.model.DescribeScalingActivitiesRequest
 import com.amazonaws.services.autoscaling.model.DescribeScheduledActionsRequest
 import com.amazonaws.services.elasticloadbalancing.model.DescribeLoadBalancersRequest
 import com.amazonaws.services.elasticloadbalancing.model.DescribeInstanceHealthRequest
+import com.amazonaws.services.elasticloadbalancingv2.model.DescribeListenersRequest
+import com.amazonaws.services.elasticloadbalancingv2.model.{DescribeLoadBalancersRequest => DescribeLoadBalancersV2Request}
+import com.amazonaws.services.elasticloadbalancingv2.model.DescribeTargetGroupsRequest
 import com.amazonaws.services.route53.model.ListHostedZonesRequest
-import com.amazonaws.services.route53.model.GetHostedZoneRequest
 import com.amazonaws.services.route53.model.ListResourceRecordSetsRequest
 
 import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
@@ -73,6 +75,13 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Callable
 
 import org.slf4j.LoggerFactory
+
+import com.amazonaws.services.rds.model.DescribeDBInstancesRequest
+import com.amazonaws.services.rds.model.ListTagsForResourceRequest
+import com.amazonaws.services.elasticache.model.DescribeCacheClustersRequest
+import com.amazonaws.services.cloudformation.model.DescribeStacksRequest
+import com.amazonaws.services.cloudformation.model.ListStackResourcesRequest
+import com.amazonaws.services.cloudformation.model.Stack
 
 /** static namespace for out Context trait */
 object AwsCrawler {
@@ -343,10 +352,20 @@ class AwsImageCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cra
 class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
   private[this] val logger = LoggerFactory.getLogger(getClass)
   val request = new DescribeLoadBalancersRequest
+  request.setPageSize(400)
 
   override def doCrawl()(implicit req: RequestId) = {
-    val initial = backoffRequest { ctx.awsClient.elb.describeLoadBalancers(request).getLoadBalancerDescriptions }.asScala.map(
-        item => Record(item.getLoadBalancerName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))).toSeq.grouped(20).toList
+    val it = new AwsIterator() {
+      def next() = {
+        val response = backoffRequest { ctx.awsClient.elb.describeLoadBalancers(request.withMarker(this.nextToken.get)) }
+        this.nextToken = Option(response.getNextMarker)
+        response.getLoadBalancerDescriptions.asScala.map(
+          item => {
+            Record(item.getLoadBalancerName, new DateTime(item.getCreatedTime), ctx.beanMapper(item))
+          }).toList
+      }
+    }
+    val initial = it.toSeq.grouped(20).toList
 
     backoffRequest { ctx.awsClient.loadAccountNum() }
 
@@ -383,6 +402,64 @@ class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) exte
       }
     }
     buffer.toList
+  }
+}
+
+/** crawler for LoadBalancers (version 2)
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsLoadBalancerV2Crawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val request = new DescribeLoadBalancersV2Request
+
+  override def doCrawl()(implicit req: RequestId) = {
+    val it = new AwsIterator {
+      override def next() = {
+        val response = backoffRequest {
+          ctx.awsClient.elbv2.describeLoadBalancers(request.withMarker(this.nextToken.get))
+        }
+        this.nextToken = Option(response.getNextMarker)
+        response.getLoadBalancers.asScala.map(
+          item => {
+            val lr = new DescribeListenersRequest().withLoadBalancerArn(item.getLoadBalancerArn)
+            val listeners = backoffRequest { ctx.awsClient.elbv2.describeListeners(lr) }.getListeners
+            // If there are no listeners AWS returns null instead of an empty list
+            val listenersList = if (listeners == null) Nil else listeners.asScala.map(item => ctx.beanMapper(item)).toList
+            val data = ctx.beanMapper(item).asInstanceOf[Map[String, Any]] ++ Map("listeners" -> listenersList)
+
+            Record(item.getLoadBalancerName, new DateTime(item.getCreatedTime), data)
+          }
+        ).toList
+      }
+    }
+    it.toList.flatten
+  }
+}
+
+/** crawler for TargetGroups
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsTargetGroupCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  private[this] val logger = LoggerFactory.getLogger(getClass)
+  val request = new DescribeTargetGroupsRequest
+
+  override def doCrawl()(implicit req: RequestId) = {
+    val it = new AwsIterator {
+      override def next() = {
+        val response = backoffRequest {
+          ctx.awsClient.elbv2.describeTargetGroups(request.withMarker(this.nextToken.get))
+        }
+        this.nextToken = Option(response.getNextMarker)
+        response.getTargetGroups.asScala.map(
+          item => Record(item.getTargetGroupName, ctx.beanMapper(item))
+        ).toList
+      }
+    }
+    it.toList.flatten
   }
 }
 
@@ -522,6 +599,24 @@ class AwsLaunchConfigurationCrawler(val name: String, val ctx: AwsCrawler.Contex
       }
     }
     it.toList.flatten
+  }
+}
+
+/** crawler for Network Interfaces
+  *
+  * @param name name of collection we are crawling for
+  * @param ctx context to provide beanMapper
+  */
+class AwsNetworkInterfaceCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
+  val request = new DescribeNetworkInterfacesRequest
+
+  override def doCrawl()(implicit req: RequestId) = {
+    val list = backoffRequest { ctx.awsClient.ec2.describeNetworkInterfaces(request).getNetworkInterfaces }.asScala.map(
+      item => {
+        Record(item.getNetworkInterfaceId, ctx.beanMapper(item))
+      }
+    )
+    list
   }
 }
 
@@ -1184,19 +1279,32 @@ class AwsSubnetCrawler(val name: String, val ctx: AwsCrawler.Context) extends Cr
   * @param ctx context to provide beanMapper
   */
 class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) extends Crawler {
-  val request = new DescribeStacksRequest
   private[this] val logger = LoggerFactory.getLogger(getClass)
   private[this] val threadPool = Executors.newFixedThreadPool(1)
 
+  private def getStacksFromAws: List[Stack] = {
+    val stacks = List.newBuilder[Stack]
+    val request = new DescribeStacksRequest
+    var token: String = null
+    do {
+      val response = backoffRequest {
+        ctx.awsClient.cloudformation.describeStacks(request.withNextToken(token))
+      }
+      stacks ++= response.getStacks.asScala
+      token = response.getNextToken
+    } while (token != null)
+    stacks.result
+  }
+
   override def doCrawl()(implicit req: RequestId) = {
-    val stacks = backoffRequest { ctx.awsClient.cloudformation.describeStacks(request).getStacks.asScala }
+    val stacks = getStacksFromAws
     val futures: Seq[java.util.concurrent.Future[Record]] = stacks.map(
       stack => {
-        threadPool.submit(
+        this.threadPool.submit(
           new Callable[Record] {
             def call() = {
               val stackResourcesRequest = new ListStackResourcesRequest().withStackName(stack.getStackName)
-              val stackResources = backoffRequest { ctx.awsClient.cloudformation.listStackResources(stackResourcesRequest).getStackResourceSummaries.asScala.map(item => ctx.beanMapper(item)).toSeq }
+              val stackResources = backoffRequest { ctx.awsClient.cloudformation.listStackResources(stackResourcesRequest).getStackResourceSummaries.asScala.map(item => ctx.beanMapper(item)) }
               Record(stack.getStackName, new DateTime(stack.getCreationTime), ctx.beanMapper(stack).asInstanceOf[Map[String,Any]] ++ Map("resources" -> stackResources))
             }
           }
@@ -1216,7 +1324,6 @@ class AwsCloudformationCrawler(val name: String, val ctx: AwsCrawler.Context) ex
     ).collect {
       case Some(rec) => rec
     }
-
     records
   }
 
