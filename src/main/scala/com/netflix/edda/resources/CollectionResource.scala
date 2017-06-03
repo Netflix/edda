@@ -382,6 +382,40 @@ class CollectionResource {
     }
   }
 
+  /** allow browsing of collections to enable RESTful discovery */
+  @GET
+  @Path("/")
+  def index(@Context req: HttpServletRequest): Response = {
+    val t0 = System.nanoTime()
+    // +4 for length("/v2/")
+    val realPath = req.getRequestURI.drop(req.getContextPath.length + req.getServletPath.length + 4)
+    reqId = RequestId()
+    logger.info(reqId.toString + "GET " + realPath)
+    try {
+      val output = buildCollectionUrls()
+      Response.
+        status(Response.Status.OK).
+        `type`(MediaType.APPLICATION_JSON).
+        entity(output).
+        header("X-Request-Id", reqId.id).
+        build()
+    } finally {
+      val t1 = System.nanoTime()
+      val lapse = (t1 - t0) / 1000000;
+      if (logger.isInfoEnabled) logger.info(reqId.toString + "EXIT " + realPath  + " lapse " + lapse + "ms")
+    }
+  }
+
+  def buildCollectionUrls(): String = {
+    val prefix = "{ \"_links\": {"
+
+    val suffix = "}}"
+    val names = CollectionManager.names().map(x => (x, x.replace(".","/")))
+    prefix + names.map(x => "\"" + x._1 + "\" : { \"href\": \"/edda/api/v2/" + x._2 + "\"}").mkString(",") + suffix
+  }
+
+
+
   /** handle HTTP request.  Map uri path to collection name, matrix arguments and field selectors */
   @GET
   @Path("{paths: .+}")
@@ -419,5 +453,6 @@ class CollectionResource {
       if (logger.isInfoEnabled) logger.info(reqId.toString + "EXIT " + realPath  + " lapse " + lapse + "ms")
     }
   }
-    
+
+
 }
