@@ -419,5 +419,39 @@ class CollectionResource {
       if (logger.isInfoEnabled) logger.info(reqId.toString + "EXIT " + realPath  + " lapse " + lapse + "ms")
     }
   }
+
+  /** allow browsing of collections to enable RESTful discovery */
+  @GET
+  @Path("/index")
+  def index(@Context req: HttpServletRequest): Response = {
+    val t0 = System.nanoTime()
+    // +4 for length("/v2/")
+    val realPath = req.getRequestURI.drop(req.getContextPath.length + req.getServletPath.length + 4)
+    reqId = RequestId()
+    logger.info(reqId.toString + "GET " + realPath)
+    try {
+      val output = buildCollectionUrls()
+      Response.
+            status(Response.Status.OK).
+            `type`(MediaType.TEXT_HTML).
+            entity(output).
+            header("X-Request-Id", reqId.id).
+            build()
+      } finally {
+      val t1 = System.nanoTime()
+      val lapse = (t1 - t0) / 1000000;
+      if (logger.isInfoEnabled) logger.info(reqId.toString + "EXIT " + realPath  + " lapse " + lapse + "ms")
+    }
+  }
+
+  /** TODO: replace this with a templating engine */
+  def buildCollectionUrls(): String = {
+    val prefix = "<html><body>Collections<br/>"
+    
+    val suffix = "</body></html>"
+    val names = CollectionManager.names().map(x => x.replace(".","/"))
+    prefix + names.map(x => "<a href=\"" + x + "\">" + x + "</a>").mkString("<br/>") + suffix
+  }
+
     
 }
