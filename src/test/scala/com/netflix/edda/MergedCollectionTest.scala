@@ -15,13 +15,16 @@
  */
 package com.netflix.edda
 
+import java.util.Properties
+
+import com.netflix.config.{ConcurrentCompositeConfiguration, DynamicPropertyFactory}
+import org.apache.commons.configuration.MapConfiguration
 import org.scalatest.FunSuite
 
 import scala.actors.Actor
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
@@ -38,8 +41,14 @@ class MergedCollectionTest extends FunSuite {
     Await.result(future, Duration(5, SECONDS))
   }
 
-  // TODO: #88 figure out why this fails occasionally
-  ignore("query") {
+  test("query") {
+    DynamicPropertyFactory.getInstance()
+    val composite = DynamicPropertyFactory. getBackingConfigurationSource.asInstanceOf[ConcurrentCompositeConfiguration]
+    val config = new MapConfiguration(new Properties);
+    composite.addConfigurationAtFront(config, "testConfig")
+
+    config.addProperty("edda.collection.jitter.enabled", "false")
+
     val collA = new TestCollection("test.A")
     collA.elector.leader = false
     val collB = new TestCollection("test.B")
@@ -61,16 +70,16 @@ class MergedCollectionTest extends FunSuite {
       case Collection.UpdateOK(`collB`, d, meta) => Unit
     }
 
-    expectResult(2) {
+    assertResult(2) {
       SYNC ( merged.query(Map("data" -> 1)) ).size
     }
     
-    expectResult(4) {
-      SYNC( merged.query(Map("data" -> Map("$gte" -> 2))) ).size
+    assertResult(4) {
+      SYNC ( merged.query(Map("data" -> Map("$gte" -> 2))) ).size
     }
-    
-    expectResult(2) {
-      SYNC( merged.query(Map("id" -> Map("$in" -> Seq("A", "a")))) ).size
+
+    assertResult(2) {
+      SYNC ( merged.query(Map("id" -> Map("$in" -> Seq("A", "a")))) ).size
     }
     
     SYNC( collA.delObserver(Actor.self) )
