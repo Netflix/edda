@@ -44,9 +44,9 @@ class DynamoDBElector extends Elector {
 
   private var inited = false
 
-  val readDynamo = new AwsClient(account).dynamo
+  val readDynamo = new AwsClient(account).dynamo(true)
   val writeDynamo = {
-    val client = new AwsClient(account).dynamo
+    val client = new AwsClient(account).dynamo(true)
     client
   }
 

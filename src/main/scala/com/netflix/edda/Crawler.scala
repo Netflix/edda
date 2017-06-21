@@ -64,6 +64,7 @@ abstract class Crawler extends Observable {
   lazy val throttle_delay = Utils.getProperty("edda.crawler", "throttle.delay", name, "200")
   lazy val retry_max = Utils.getProperty("edda.crawler", "throttle.maxDelayMultiplier", name, "225")
   lazy val request_delay = Utils.getProperty("edda.crawler", "requestDelay", name, "0")
+  lazy val assumeRoleEnabled = Utils.getProperty("edda.aws", "assumerole.enabled", name, "false").get.toBoolean
 
   /* number of retries attempted */
   var retry_count = 0
