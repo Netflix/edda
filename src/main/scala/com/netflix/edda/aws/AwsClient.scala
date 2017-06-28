@@ -15,30 +15,23 @@
  */
 package com.netflix.edda.aws
 
-import com.netflix.edda.Utils
-
-import com.amazonaws.auth.AWSCredentials
-import com.amazonaws.auth.BasicAWSCredentials
-import com.amazonaws.auth.AWSCredentialsProvider
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
-import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider
-import com.amazonaws.auth.profile.ProfileCredentialsProvider
-
-import com.amazonaws.services.ec2.AmazonEC2Client
+import com.amazonaws.auth._
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
+import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
+import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
+import com.amazonaws.services.ec2.AmazonEC2Client
+import com.amazonaws.services.elasticache.AmazonElastiCacheClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.elasticloadbalancingv2.{AmazonElasticLoadBalancingClient => AmazonElasticLoadBalancingV2Client}
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient
-import com.amazonaws.services.s3.AmazonS3Client
-import com.amazonaws.services.sqs.AmazonSQSClient
-import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
-import com.amazonaws.services.route53.AmazonRoute53Client
 import com.amazonaws.services.rds.AmazonRDSClient
-import com.amazonaws.services.elasticache.AmazonElastiCacheClient
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
-import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
+import com.amazonaws.services.route53.AmazonRoute53Client
+import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient
 import com.amazonaws.services.securitytoken.model.GetCallerIdentityRequest
+import com.amazonaws.services.sqs.AmazonSQSClient
+import com.netflix.edda.Utils
 
 object AwsClient {
   def mkCredentialProvider(accessKey: String, secretKey: String, arn: String): AWSCredentialsProvider = {
@@ -68,8 +61,6 @@ object AwsClient {
 class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
 
   var account = ""
-  val awsAccessKey = Utils.getProperty("edda", "aws.accessKey", account, "").get
-  val awsSecretKey = Utils.getProperty("edda", "aws.secretKey", account, "").get
 
   /** uses [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/auth/AWSCredentials.html com.amazonaws.auth.AWSCredentials]] to create AWSCredentialsProvider
     *
@@ -104,10 +95,7 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
 
   /* Basic Credintial Provider */
   def getBasicCredsProvider = {
-    new AWSCredentialsProvider() {
-      def getCredentials = new BasicAWSCredentials(awsAccessKey, awsSecretKey)
-      def refresh = {}
-    }
+    InstanceProfileCredentialsProvider.getInstance()
   }
 
   /** generate a resource arn */
