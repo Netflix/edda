@@ -365,8 +365,10 @@ class AwsLoadBalancerCrawler(val name: String, val ctx: AwsCrawler.Context) exte
           }).toList
       }
     }
-    val initial = it.map(_.asInstanceOf[Record]).toSeq.grouped(20).toList
 
+    // List[Seq[Record]]
+    //val initial = it.map(_.asInstanceOf[Record]).toSeq.grouped(20).toList
+    var initial = it.toSeq.flatten.grouped(20).toList
     backoffRequest { ctx.awsClient.loadAccountNum() }
 
     var buffer = new ListBuffer[Record]()
