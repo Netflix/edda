@@ -248,7 +248,7 @@ object ElasticSearchDatastore {
       try {
         ixClient.prepareCreate(name).
           setSettings(settings).
-          addMapping("_default_", io.Source.fromInputStream(getClass.getResourceAsStream("/elasticsearch/mappings/_default_.json")).mkString).
+          addMapping("_default_", scala.io.Source.fromInputStream(getClass.getResourceAsStream("/elasticsearch/mappings/_default_.json")).mkString).
           execute.
           actionGet
       } catch {
@@ -307,7 +307,7 @@ class ElasticSearchDatastore(val name: String) extends Datastore {
 
     val ixClient = client.admin().indices()
 
-    val mapping = io.Source.fromInputStream(getClass.getResourceAsStream("/elasticsearch/mappings/default.json")).mkString
+    val mapping = scala.io.Source.fromInputStream(getClass.getResourceAsStream("/elasticsearch/mappings/default.json")).mkString
     ixClient.preparePutMapping(indexName).setType(docType).setSource("{\""+docType+"\": " + mapping + "}").setIgnoreConflicts(true).execute.actionGet
 
     // put new mapping in case it has changed

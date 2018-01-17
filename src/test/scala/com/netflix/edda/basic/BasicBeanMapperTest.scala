@@ -89,12 +89,14 @@ class BasicBeanMapperTest extends FunSuite {
           "instanceId" -> "i-0123456789",
           "healthStatus" -> "Healthy",
           "availabilityZone" -> "us-east-1c",
+          "launchTemplate" -> null,
           "protectedFromScaleIn" -> null,
           "lifecycleState" -> "InService",
           "class" -> "com.amazonaws.services.autoscaling.model.Instance",
           "launchConfigurationName" -> "launchConfigName"
         )
       ),
+      "launchTemplate" -> null,
       "VPCZoneIdentifier" -> "",
       "defaultCooldown" -> 10,
       "loadBalancerNames" -> List("elbName"),
