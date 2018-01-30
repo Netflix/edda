@@ -55,14 +55,14 @@ class S3CurrentDatastore(val name: String) extends Datastore {
     }
   }
 
-  lazy val s3     = new AwsClient(account).s3
-  val readDynamo = new AwsClient(account).dynamo
+  lazy val s3     = new AwsClient(account).s3(true)
+  val readDynamo = new AwsClient(account).dynamo(true)
   // disable retry's when writing to dynamo ... if initial request
   // gets a timeout we need to know as it will likely complete eventually
   // and then all subsequent conditional updates will fail since will be out
   // of sync with the datastore
   val writeDynamo = {
-    val client = new AwsClient(account).dynamo
+    val client = new AwsClient(account).dynamo(true)
     client
   }
 

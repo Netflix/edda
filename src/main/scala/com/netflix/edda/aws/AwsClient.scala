@@ -15,30 +15,23 @@
  */
 package com.netflix.edda.aws
 
-import com.netflix.edda.Utils
-
-import com.amazonaws.auth.AWSCredentials
-import com.amazonaws.auth.BasicAWSCredentials
-import com.amazonaws.auth.AWSCredentialsProvider
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
-import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider
-import com.amazonaws.auth.profile.ProfileCredentialsProvider
-
-import com.amazonaws.services.ec2.AmazonEC2Client
+import com.amazonaws.auth._
 import com.amazonaws.services.autoscaling.AmazonAutoScalingClient
+import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
+import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
+import com.amazonaws.services.ec2.AmazonEC2Client
+import com.amazonaws.services.elasticache.AmazonElastiCacheClient
 import com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient
 import com.amazonaws.services.elasticloadbalancingv2.{AmazonElasticLoadBalancingClient => AmazonElasticLoadBalancingV2Client}
 import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient
-import com.amazonaws.services.s3.AmazonS3Client
-import com.amazonaws.services.sqs.AmazonSQSClient
-import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
-import com.amazonaws.services.route53.AmazonRoute53Client
 import com.amazonaws.services.rds.AmazonRDSClient
-import com.amazonaws.services.elasticache.AmazonElastiCacheClient
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient
-import com.amazonaws.services.cloudformation.AmazonCloudFormationClient
+import com.amazonaws.services.route53.AmazonRoute53Client
+import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient
 import com.amazonaws.services.securitytoken.model.GetCallerIdentityRequest
+import com.amazonaws.services.sqs.AmazonSQSClient
+import com.netflix.edda.Utils
 
 object AwsClient {
   def mkCredentialProvider(accessKey: String, secretKey: String, arn: String): AWSCredentialsProvider = {
@@ -51,11 +44,12 @@ object AwsClient {
       }
     }
     if (arn.isEmpty) {
-        provider
+      provider
     } else {
-        new STSAssumeRoleSessionCredentialsProvider(provider, arn, "edda")
+      new STSAssumeRoleSessionCredentialsProvider(provider, arn, "edda")
     }
   }
+
 }
 
 
@@ -99,6 +93,11 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
     this(AwsClient.mkCredentialProvider(accessKey,secretKey, ""), region)
 
 
+  /* Basic Credintial Provider */
+  def getBasicCredsProvider = {
+    InstanceProfileCredentialsProvider.getInstance()
+  }
+
   /** generate a resource arn */
   def arn(resourceAPI: String, resourceType: String, resourceName: String): String = {
     "arn:aws:" + resourceAPI + ":" + region + ":" + account + ":" + resourceType + arnSeperator(resourceType) + resourceName
@@ -120,36 +119,41 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
   }
 
   /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/ec2/AmazonEC2Client.html com.amazonaws.services.ec2.AmazonEC2Client]] object */
-  def ec2 = {
-    val client = new AmazonEC2Client(provider)
+  def ec2(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonEC2Client(credsProvider)
     client.setEndpoint("ec2." + region + ".amazonaws.com")
     client
   }
 
   /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/autoscaling/AmazonAutoScalingClient.html com.amazonaws.services.autoscaling.AmazonAutoScalingClient]] object */
-  def asg = {
-    val client = new AmazonAutoScalingClient(provider)
+  def asg(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonAutoScalingClient(credsProvider)
     client.setEndpoint("autoscaling." + region + ".amazonaws.com")
     client
   }
 
   /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/elasticloadbalancing/AmazonElasticLoadBalancingClient.html com.amazonaws.services.elasticloadbalancing.AmazonElasticLoadBalancingClient]] object */
-  def elb = {
-    val client = new AmazonElasticLoadBalancingClient(provider)
+  def elb(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonElasticLoadBalancingClient(credsProvider)
     client.setEndpoint("elasticloadbalancing." + region + ".amazonaws.com")
     client
   }
 
   /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/elasticloadbalancingv2/AmazonElasticLoadBalancingClient.html com.amazonaws.services.elasticloadbalancingv2.AmazonElasticLoadBalancingClient]] object */
-  def elbv2 = {
-    val client = new AmazonElasticLoadBalancingV2Client(provider)
+  def elbv2(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonElasticLoadBalancingV2Client(credsProvider)
     client.setEndpoint("elasticloadbalancing." + region + ".amazonaws.com")
     client
   }
 
   /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Client.html com.amazonaws.services.s3.AmazonS3Client]] object */
-  def s3 = {
-    val client = new AmazonS3Client(provider)
+  def     s3(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonS3Client(credsProvider)
     if (region == "us-east-1")
       client.setEndpoint("s3.amazonaws.com")
     else
@@ -158,8 +162,9 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
   }
 
   /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/identitymanagement/AmazonIdentityManagementClient.html com.amazonaws.services.identitymanagement.AmazonIdentityManagementClient]] object */
-  def identitymanagement = {
-    val client = new AmazonIdentityManagementClient(provider)
+  def identitymanagement(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonIdentityManagementClient(credsProvider)
     if (region == "us-gov")
       client.setEndpoint("iam.us-gov.amazonaws.com")
     else
@@ -168,47 +173,54 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
   }
 
   /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/sqs/AmazonSQSClient.html com.amazonaws.services.sqs.AmazonSQSClient]] object */
-  def sqs = {
-    val client = new AmazonSQSClient(provider)
+  def sqs(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonSQSClient(credsProvider)
     client.setEndpoint("sqs." + region + ".amazonaws.com")
     client
   }
 
   /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/cloudwatch/AmazonCloudWatchClient.html com.amazonaws.services.cloudwatch.AmazonCloudWatchClient]] object */
-  def cw = {
-    val client = new AmazonCloudWatchClient(provider)
+  def cw(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonCloudWatchClient(credsProvider)
     client.setEndpoint("monitoring." + region + ".amazonaws.com")
     client
   }
 
-   /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/route53/AmazonRoute53Client.html com.amazonaws.services.route53.AmazonRoute53Client]] object */
-   def route53 = {
-      val client = new AmazonRoute53Client(provider)
-      client.setEndpoint("route53.amazonaws.com")
-      client
-   }
+  /** get [[http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/route53/AmazonRoute53Client.html com.amazonaws.services.route53.AmazonRoute53Client]] object */
+  def route53(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonRoute53Client(credsProvider)
+    client.setEndpoint("route53.amazonaws.com")
+    client
+  }
 
-   def rds = {
-     val client = new AmazonRDSClient(provider)
-     client.setEndpoint("rds." + region + ".amazonaws.com")
-     client
-   }
+  def rds(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonRDSClient(credsProvider)
+    client.setEndpoint("rds." + region + ".amazonaws.com")
+    client
+  }
 
-   def elasticache = {
-    val client = new AmazonElastiCacheClient(provider)
+  def elasticache(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonElastiCacheClient(credsProvider)
     client.setEndpoint("elasticache." + region + ".amazonaws.com")
     client
-   }
+  }
 
-   def dynamo = {
-     val client = new AmazonDynamoDBClient(provider)
-     client.setEndpoint("dynamodb." + region + ".amazonaws.com")
-     client
-   }
+  def dynamo(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonDynamoDBClient(credsProvider)
+    client.setEndpoint("dynamodb." + region + ".amazonaws.com")
+    client
+  }
 
-   def cloudformation = {
-    val client = new AmazonCloudFormationClient(provider)
+  def cloudformation(needAssumeRoleProvider : Boolean = false) = {
+    val credsProvider = if(needAssumeRoleProvider) provider else getBasicCredsProvider
+    val client = new AmazonCloudFormationClient(credsProvider)
     client.setEndpoint("cloudformation." + region + ".amazonaws.com")
     client
-   }
+  }
 }
