@@ -1068,8 +1068,7 @@ class AwsReservedInstancesOfferingCrawler(val name: String, val ctx: AwsCrawler.
           }).toList
       }
     }
-    val list = it.toList.flatten
-    list
+    it.toList.flatten
   }
 }
 
