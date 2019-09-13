@@ -28,40 +28,60 @@ class FieldSelectorParserTest extends FunSuite {
 
   test("ParseManyKeys") {
     val expr = ":(a,b,c)"
-    expectResult(KeySelectExpr(Map(
-      "a" -> FixedExpr(matches = true),
-      "b" -> FixedExpr(matches = true),
-      "c" -> FixedExpr(matches = true)
-    ))) {
+    expectResult(
+      KeySelectExpr(
+        Map(
+          "a" -> FixedExpr(matches = true),
+          "b" -> FixedExpr(matches = true),
+          "c" -> FixedExpr(matches = true)
+        )
+      )
+    ) {
       FieldSelectorParser.parse(expr)
     }
   }
 
   test("ParseFlatten") {
     val expr = "::(a,b,c)"
-    expectResult(FlattenExpr(KeySelectExpr(Map(
-      "a" -> FixedExpr(matches = true),
-      "b" -> FixedExpr(matches = true),
-      "c" -> FixedExpr(matches = true)
-    )))) {
+    expectResult(
+      FlattenExpr(
+        KeySelectExpr(
+          Map(
+            "a" -> FixedExpr(matches = true),
+            "b" -> FixedExpr(matches = true),
+            "c" -> FixedExpr(matches = true)
+          )
+        )
+      )
+    ) {
       FieldSelectorParser.parse(expr)
     }
   }
 
   test("ParseSubExpr") {
     val expr = ":(a,b:(d,e),c::(f,g,h))"
-    expectResult(KeySelectExpr(Map(
-      "a" -> FixedExpr(matches = true),
-      "b" -> KeySelectExpr(Map(
-        "d" -> FixedExpr(matches = true),
-        "e" -> FixedExpr(matches = true)
-      )),
-      "c" -> FlattenExpr(KeySelectExpr(Map(
-        "f" -> FixedExpr(matches = true),
-        "g" -> FixedExpr(matches = true),
-        "h" -> FixedExpr(matches = true)
-      )))
-    ))) {
+    expectResult(
+      KeySelectExpr(
+        Map(
+          "a" -> FixedExpr(matches = true),
+          "b" -> KeySelectExpr(
+            Map(
+              "d" -> FixedExpr(matches = true),
+              "e" -> FixedExpr(matches = true)
+            )
+          ),
+          "c" -> FlattenExpr(
+            KeySelectExpr(
+              Map(
+                "f" -> FixedExpr(matches = true),
+                "g" -> FixedExpr(matches = true),
+                "h" -> FixedExpr(matches = true)
+              )
+            )
+          )
+        )
+      )
+    ) {
       FieldSelectorParser.parse(expr)
     }
   }

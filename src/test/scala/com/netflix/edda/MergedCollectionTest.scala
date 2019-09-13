@@ -43,7 +43,8 @@ class MergedCollectionTest extends FunSuite {
 
   test("query") {
     DynamicPropertyFactory.getInstance()
-    val composite = DynamicPropertyFactory. getBackingConfigurationSource.asInstanceOf[ConcurrentCompositeConfiguration]
+    val composite = DynamicPropertyFactory.getBackingConfigurationSource
+      .asInstanceOf[ConcurrentCompositeConfiguration]
     val config = new MapConfiguration(new Properties);
     composite.addConfigurationAtFront(config, "testConfig")
 
@@ -54,15 +55,17 @@ class MergedCollectionTest extends FunSuite {
     val collB = new TestCollection("test.B")
     collB.elector.leader = false
     val merged = new MergedCollection("merged.collection", Seq(collA, collB))
-    
+
     merged.start()
 
-    collA.dataStore.get.recordSet = collA.dataStore.get.recordSet.copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
-    collB.dataStore.get.recordSet = collB.dataStore.get.recordSet.copy(records = Seq(Record("A", 1), Record("B", 2), Record("C", 3)))
+    collA.dataStore.get.recordSet = collA.dataStore.get.recordSet
+      .copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
+    collB.dataStore.get.recordSet = collB.dataStore.get.recordSet
+      .copy(records = Seq(Record("A", 1), Record("B", 2), Record("C", 3)))
 
-    SYNC( collA.addObserver(Actor.self) )
-    SYNC( collB.addObserver(Actor.self) )
-    
+    SYNC(collA.addObserver(Actor.self))
+    SYNC(collB.addObserver(Actor.self))
+
     Actor.self receive {
       case Collection.UpdateOK(`collA`, d, meta) => Unit
     }
@@ -71,19 +74,19 @@ class MergedCollectionTest extends FunSuite {
     }
 
     assertResult(2) {
-      SYNC ( merged.query(Map("data" -> 1)) ).size
+      SYNC(merged.query(Map("data" -> 1))).size
     }
-    
+
     assertResult(4) {
-      SYNC ( merged.query(Map("data" -> Map("$gte" -> 2))) ).size
+      SYNC(merged.query(Map("data" -> Map("$gte" -> 2)))).size
     }
 
     assertResult(2) {
-      SYNC ( merged.query(Map("id" -> Map("$in" -> Seq("A", "a")))) ).size
+      SYNC(merged.query(Map("id" -> Map("$in" -> Seq("A", "a"))))).size
     }
-    
-    SYNC( collA.delObserver(Actor.self) )
-    SYNC( collB.delObserver(Actor.self) )
+
+    SYNC(collA.delObserver(Actor.self))
+    SYNC(collB.delObserver(Actor.self))
     merged.stop()
   }
 }

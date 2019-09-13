@@ -39,8 +39,10 @@ case class CrawlerState(records: Seq[Record] = Seq[Record]())
 object Crawler extends StateMachine.LocalState[CrawlerState] {
 
   /** Message sent to Observers */
-  case class CrawlResult(from: Actor, newRecordSet: RecordSet)(implicit req: RequestId) extends StateMachine.Message {
-    override def toString = s"CrawlResult(req=$req, newRecords=${newRecordSet.records.size} meta=${newRecordSet.meta})"
+  case class CrawlResult(from: Actor, newRecordSet: RecordSet)(implicit req: RequestId)
+      extends StateMachine.Message {
+    override def toString =
+      s"CrawlResult(req=$req, newRecords=${newRecordSet.records.size} meta=${newRecordSet.meta})"
   }
 
   /** Message to start a crawl action */
@@ -51,7 +53,7 @@ object Crawler extends StateMachine.LocalState[CrawlerState] {
 /** Crawler to crawl something and generate Records based on what was crawled.
   * Those records are then passed to a Collection (typically) by sending the
   * crawl results to all observers.
- */
+  */
 abstract class Crawler extends Observable {
 
   import Crawler._
@@ -68,7 +70,6 @@ abstract class Crawler extends Observable {
   /* number of retries attempted */
   var retry_count = 0
 
-
   /** start a crawl if the crawler is enabled */
   def crawl()(implicit req: RequestId) {
     if (enabled.get.toBoolean) {
@@ -79,19 +80,27 @@ abstract class Crawler extends Observable {
   }
 
   /** see [[com.netflix.edda.Observable.addObserver]].  Overridden to be a NoOp when Crawler is not enabled */
-  override def addObserver(actor: Actor)(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
+  override def addObserver(
+    actor: Actor
+  )(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
     import ObserverExecutionContext._
-    if (enabled.get.toBoolean) super.addObserver(actor) else scala.concurrent.future {
-      Observable.OK(Actor.self)
-    }
+    if (enabled.get.toBoolean) super.addObserver(actor)
+    else
+      scala.concurrent.future {
+        Observable.OK(Actor.self)
+      }
   }
 
   /** see [[com.netflix.edda.Observable.delObserver]].  Overridden to be a NoOp when Crawler is not enabled */
-  override def delObserver(actor: Actor)(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
+  override def delObserver(
+    actor: Actor
+  )(implicit req: RequestId): scala.concurrent.Future[StateMachine.Message] = {
     import ObserverExecutionContext._
-    if (enabled.get.toBoolean) super.delObserver(actor) else scala.concurrent.future {
-      Observable.OK(Actor.self)
-    }
+    if (enabled.get.toBoolean) super.delObserver(actor)
+    else
+      scala.concurrent.future {
+        Observable.OK(Actor.self)
+      }
   }
 
   /** name of the Crawler, typically matches the name of the Collection that the Crawler works with */
@@ -111,7 +120,14 @@ abstract class Crawler extends Observable {
   /** init just registers metrics for Servo */
   protected override def init() {
     Monitors.registerObject("edda.crawler." + name, this)
-    DefaultMonitorRegistry.getInstance().register(Monitors.newThreadPoolMonitor(s"edda.crawler.$name.threadpool", this.pool.asInstanceOf[ThreadPoolExecutor]))
+    DefaultMonitorRegistry
+      .getInstance()
+      .register(
+        Monitors.newThreadPoolMonitor(
+          s"edda.crawler.$name.threadpool",
+          this.pool.asInstanceOf[ThreadPoolExecutor]
+        )
+      )
     super.init
   }
 
@@ -139,14 +155,26 @@ abstract class Crawler extends Observable {
         stopwatch.stop()
       }
 
-      if (logger.isInfoEnabled) logger.info("{} {} Crawled {} records in {} sec", toObjects(
-        req, this, newRecords.size, stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000D -> "%.2f"))
+      if (logger.isInfoEnabled)
+        logger.info(
+          "{} {} Crawled {} records in {} sec",
+          toObjects(
+            req,
+            this,
+            newRecords.size,
+            stopwatch.getDuration(TimeUnit.MILLISECONDS) / 1000d -> "%.2f"
+          )
+        )
       crawlCounter.increment(newRecords.size)
-      Observable.localState(state).observers.foreach(o => {
-          val msg = Crawler.CrawlResult(this, RecordSet(newRecords, Map("source" -> "crawl", "req" -> req.id)))
+      Observable
+        .localState(state)
+        .observers
+        .foreach(o => {
+          val msg = Crawler
+            .CrawlResult(this, RecordSet(newRecords, Map("source" -> "crawl", "req" -> req.id)))
           if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $o")
           o ! msg
-      })
+        })
       /* reset the error count at the end of each run */
       retry_count = 0
       setLocalState(state, CrawlerState(records = newRecords))
@@ -156,13 +184,13 @@ abstract class Crawler extends Observable {
   }
 
   /** wrapper for all requests to throttle or delay access to the AWS API */
-  def backoffRequest[T](code: =>T): T = {
+  def backoffRequest[T](code: => T): T = {
     // using a ratio of 2:1 for errors to retries due to requests being sent concurrently
     val errorReducer = 2
     // number of "free" errors to ignore before full throttling is enabled
     val margin = 10
-    val marginalDelay = ( throttle_delay.get.toInt * (((retry_count-margin)/errorReducer) + 1) )
-    val throttleDelay = ( throttle_delay.get.toInt * ((retry_count/errorReducer) + 1) )
+    val marginalDelay = (throttle_delay.get.toInt * (((retry_count - margin) / errorReducer) + 1))
+    val throttleDelay = (throttle_delay.get.toInt * ((retry_count / errorReducer) + 1))
 
     /* configurable delay for all requests to slow down access */
     if (request_delay.get.toInt > 0) Thread sleep request_delay.get.toInt
@@ -188,10 +216,10 @@ abstract class Crawler extends Observable {
         case e: AmazonClientException => {
           val pattern = ".*Error Code: ([A-Za-z]+);.*".r
           val pattern(err_code) = e.getMessage()
-          if ( (err_code == "RequestLimitExceeded") || (err_code == "Throttling") ) {
+          if ((err_code == "RequestLimitExceeded") || (err_code == "Throttling")) {
             Thread sleep throttleDelay
             retry_count = retry_count + 1
-            if ((retry_count/errorReducer) >= retry_max.get.toInt) {
+            if ((retry_count / errorReducer) >= retry_max.get.toInt) {
               logger.error("Hit configured maximum number of API backoff requests, aborting")
               throw e
             }

@@ -39,11 +39,12 @@ class BasicServer extends HttpServlet {
 
   override def init() {
 
-    Utils.initConfiguration(System.getProperty("edda.properties","edda.properties"))
+    Utils.initConfiguration(System.getProperty("edda.properties", "edda.properties"))
 
     logger.info(s"$req Staring Server")
 
-    val electorClassName = Utils.getProperty("edda", "elector.class", "", "com.netflix.edda.mongo.MongoElector").get
+    val electorClassName =
+      Utils.getProperty("edda", "elector.class", "", "com.netflix.edda.mongo.MongoElector").get
     val electorClass = this.getClass.getClassLoader.loadClass(electorClassName)
 
     val elector = electorClass.newInstance.asInstanceOf[Elector]

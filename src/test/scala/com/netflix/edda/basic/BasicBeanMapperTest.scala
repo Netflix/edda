@@ -67,52 +67,51 @@ class BasicBeanMapperTest extends FunSuite {
     tags.add(tag)
     asg.setTags(tags)
 
-
     val expected = Map(
-      "terminationPolicies" -> List(),
+      "terminationPolicies"    -> List(),
       "healthCheckGracePeriod" -> 600,
       "tags" -> List(
         Map(
-          "resourceId" -> null,
-          "resourceType" -> null,
-          "key" -> "tagName",
-          "class" -> "com.amazonaws.services.autoscaling.model.TagDescription",
+          "resourceId"        -> null,
+          "resourceType"      -> null,
+          "key"               -> "tagName",
+          "class"             -> "com.amazonaws.services.autoscaling.model.TagDescription",
           "propagateAtLaunch" -> null,
-          "value" -> "tagValue"
+          "value"             -> "tagValue"
         )
       ),
-      "healthCheckType" -> "EC2",
+      "healthCheckType"     -> "EC2",
       "autoScalingGroupARN" -> "ARN",
-      "placementGroup" -> null,
+      "placementGroup"      -> null,
       "instances" -> List(
         Map(
-          "instanceId" -> "i-0123456789",
-          "healthStatus" -> "Healthy",
-          "availabilityZone" -> "us-east-1c",
-          "launchTemplate" -> null,
-          "protectedFromScaleIn" -> null,
-          "lifecycleState" -> "InService",
-          "class" -> "com.amazonaws.services.autoscaling.model.Instance",
+          "instanceId"              -> "i-0123456789",
+          "healthStatus"            -> "Healthy",
+          "availabilityZone"        -> "us-east-1c",
+          "launchTemplate"          -> null,
+          "protectedFromScaleIn"    -> null,
+          "lifecycleState"          -> "InService",
+          "class"                   -> "com.amazonaws.services.autoscaling.model.Instance",
           "launchConfigurationName" -> "launchConfigName"
         )
       ),
-      "launchTemplate" -> null,
-      "VPCZoneIdentifier" -> "",
-      "defaultCooldown" -> 10,
-      "loadBalancerNames" -> List("elbName"),
-      "createdTime" -> new DateTime(0),
-      "suspendedProcesses" -> List(),
-      "status" -> null,
-      "desiredCapacity" -> 2,
-      "class" -> "com.amazonaws.services.autoscaling.model.AutoScalingGroup",
-      "enabledMetrics" -> List(),
+      "launchTemplate"                   -> null,
+      "VPCZoneIdentifier"                -> "",
+      "defaultCooldown"                  -> 10,
+      "loadBalancerNames"                -> List("elbName"),
+      "createdTime"                      -> new DateTime(0),
+      "suspendedProcesses"               -> List(),
+      "status"                           -> null,
+      "desiredCapacity"                  -> 2,
+      "class"                            -> "com.amazonaws.services.autoscaling.model.AutoScalingGroup",
+      "enabledMetrics"                   -> List(),
       "newInstancesProtectedFromScaleIn" -> null,
-      "maxSize" -> 2,
-      "availabilityZones" -> List("us-east-1c"),
-      "autoScalingGroupName" -> "asgName",
-      "minSize" -> 2,
-      "launchConfigurationName" -> "launchConfigName",
-      "targetGroupARNs" -> List()
+      "maxSize"                          -> 2,
+      "availabilityZones"                -> List("us-east-1c"),
+      "autoScalingGroupName"             -> "asgName",
+      "minSize"                          -> 2,
+      "launchConfigurationName"          -> "launchConfigName",
+      "targetGroupARNs"                  -> List()
     )
 
     expectResult(expected) {
@@ -120,20 +119,32 @@ class BasicBeanMapperTest extends FunSuite {
     }
 
     val pf1: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]] = {
-      case (obj: com.amazonaws.services.autoscaling.model.TagDescription, "value", Some(x: Any)) if obj.getKey == "tagName" => None
+      case (obj: com.amazonaws.services.autoscaling.model.TagDescription, "value", Some(x: Any))
+          if obj.getKey == "tagName" =>
+        None
     }
     mapper.addKeyMapper(pf1)
 
-    expectResult(expected + ("tags" -> List(expected("tags").asInstanceOf[List[Map[String, Any]]].head - "value"))) {
+    expectResult(
+      expected + ("tags" -> List(
+        expected("tags").asInstanceOf[List[Map[String, Any]]].head - "value"
+      ))
+    ) {
       mapper.fromBean(asg)
     }
 
     val pf2: PartialFunction[(AnyRef, String, Option[Any]), Option[Any]] = {
-      case (obj: com.amazonaws.services.autoscaling.model.TagDescription, "value", Some(x: Any)) if obj.getKey == "tagName" => Some("newValue")
+      case (obj: com.amazonaws.services.autoscaling.model.TagDescription, "value", Some(x: Any))
+          if obj.getKey == "tagName" =>
+        Some("newValue")
     }
     mapper.addKeyMapper(pf2)
 
-    expectResult(expected + ("tags" -> List(expected("tags").asInstanceOf[List[Map[String, Any]]].head + ("value" -> "newValue")))) {
+    expectResult(
+      expected + ("tags" -> List(
+        expected("tags").asInstanceOf[List[Map[String, Any]]].head + ("value" -> "newValue")
+      ))
+    ) {
       mapper.fromBean(asg)
     }
 

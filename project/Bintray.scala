@@ -16,22 +16,20 @@ object Bintray {
   lazy val pass = get("Key")
 
   lazy val settings: Seq[Def.Setting[_]] = bintraySettings ++ Seq(
-    bintrayRepository := "maven",
-    bintrayPackage := "edda",
-    bintrayOrganization := Some("netflixoss"),
-    bintrayReleaseOnPublish := false,
-    licenses += ("Apache-2.0", url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
-    credentials += Credentials("Artifactory Realm", "oss.jfrog.org", user, pass),
-
-    publishTo := {
-      if (isSnapshot.value)
-        Some("OJO" at s"https://oss.jfrog.org/oss-snapshot-local;build.timestamp=$now/")
-      else
-        publishTo in bintray value
-    },
-
-    pomExtra :=
-      <url>https://github.com/netflix/edda/wiki</url>
+      bintrayRepository := "maven",
+      bintrayPackage := "edda",
+      bintrayOrganization := Some("netflixoss"),
+      bintrayReleaseOnPublish := false,
+      licenses += ("Apache-2.0", url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
+      credentials += Credentials("Artifactory Realm", "oss.jfrog.org", user, pass),
+      publishTo := {
+        if (isSnapshot.value)
+          Some("OJO" at s"https://oss.jfrog.org/oss-snapshot-local;build.timestamp=$now/")
+        else
+          publishTo in bintray value
+      },
+      pomExtra :=
+        <url>https://github.com/netflix/edda/wiki</url>
       <scm>
         <url>git@github.com:netflix/edda.git</url>
         <connection>scm:git:git@github.com:netflix/edda.git</connection>
@@ -43,5 +41,5 @@ object Bintray {
           <email>brharrington@netflix.com</email>
         </developer>
       </developers>
-  )
+    )
 }

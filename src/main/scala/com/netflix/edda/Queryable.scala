@@ -25,15 +25,25 @@ import org.slf4j.LoggerFactory
 object Queryable {
 
   /** Message to to query the StateMachine */
-  case class Query(from: Actor, query: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean)(implicit req: RequestId) extends StateMachine.Message
+  case class Query(
+    from: Actor,
+    query: Map[String, Any],
+    limit: Int,
+    live: Boolean,
+    keys: Set[String],
+    replicaOk: Boolean
+  )(implicit req: RequestId)
+      extends StateMachine.Message
 
   /** response Message from a Query Message */
-  case class QueryResult(from: Actor, records: Seq[Record])(implicit req: RequestId) extends StateMachine.Message {
+  case class QueryResult(from: Actor, records: Seq[Record])(implicit req: RequestId)
+      extends StateMachine.Message {
     override def toString = s"QueryResult(req=$req, records=${records.size})"
   }
 
   /** response Message from a Query Message */
-  case class QueryError(from: Actor, error: Any)(implicit req: RequestId) extends StateMachine.Message
+  case class QueryError(from: Actor, error: Any)(implicit req: RequestId)
+      extends StateMachine.Message
 }
 
 /** this class add a query routine and messages to the StateMachine that supports the query routine.
@@ -53,20 +63,27 @@ abstract class Queryable extends Observable {
   def queryTimeout = 60000L
 
   /** query a collection for Records.
-   *
-   * @param queryMap query criteria to select records.  See [[com.netflix.edda.basic.BasicRecordMatcher]]
-   * @param limit maximum number of records to return
-   * @param live boolean flag to specify if the query should go straight to the Datastore or if the in-memory cache is ok.  live=true means use the Datastore.
-   * @param keys set of keynames to restrict the data fetched from the datastore.  Useful when operation on very large Records but small segment of document desired.
-   * @param replicaOk boolean flag to specify if is ok for the query to be sent to a data replica in the case of a primary/secondary datastore set.
-   * @return the records that match the query criteria
-   */
-  def query(queryMap: Map[String, Any] = Map(), limit: Int = 0, live: Boolean = false, keys: Set[String] = Set(), replicaOk: Boolean = false)(implicit req: RequestId): scala.concurrent.Future[Seq[Record]] = {
+    *
+    * @param queryMap query criteria to select records.  See [[com.netflix.edda.basic.BasicRecordMatcher]]
+    * @param limit maximum number of records to return
+    * @param live boolean flag to specify if the query should go straight to the Datastore or if the in-memory cache is ok.  live=true means use the Datastore.
+    * @param keys set of keynames to restrict the data fetched from the datastore.  Useful when operation on very large Records but small segment of document desired.
+    * @param replicaOk boolean flag to specify if is ok for the query to be sent to a data replica in the case of a primary/secondary datastore set.
+    * @return the records that match the query criteria
+    */
+  def query(
+    queryMap: Map[String, Any] = Map(),
+    limit: Int = 0,
+    live: Boolean = false,
+    keys: Set[String] = Set(),
+    replicaOk: Boolean = false
+  )(implicit req: RequestId): scala.concurrent.Future[Seq[Record]] = {
     import QueryExecutionContext._
     val p = scala.concurrent.promise[Seq[Record]]
     Utils.namedActor(this + " query client") {
       val msg = Query(Actor.self, queryMap, limit, live, keys, replicaOk)
-      if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} sending: $msg -> $this with ${queryTimeout}ms timeout")
+      if (logger.isDebugEnabled)
+        logger.debug(s"$req${Actor.self} sending: $msg -> $this with ${queryTimeout}ms timeout")
       val stopwatch = queryTimer.start()
       this ! msg
       Actor.self.reactWithin(queryTimeout) {
@@ -88,7 +105,14 @@ abstract class Queryable extends Observable {
   }
 
   /** abstract routine to perform the raw query operation for whatever Datastore used. */
-  protected def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State)(implicit req: RequestId): Seq[Record]
+  protected def doQuery(
+    queryMap: Map[String, Any],
+    limit: Int,
+    live: Boolean,
+    keys: Set[String],
+    replicaOk: Boolean,
+    state: StateMachine.State
+  )(implicit req: RequestId): Seq[Record]
 
   /** helper routine to truncate records to the specified limit if more than request records are available */
   protected def firstOf(limit: Int, records: Seq[Record]): Seq[Record] = {
@@ -107,7 +131,7 @@ abstract class Queryable extends Observable {
         replyTo ! msg
       } onFailure {
         case err: Throwable => logger.error(s"$req$this query processor failed", err)
-        case err => logger.error(s"$req$this query processor failed: $err")
+        case err            => logger.error(s"$req$this query processor failed: $err")
       }
       state
     }

@@ -19,7 +19,7 @@ import scala.collection.mutable.{Set => MSet}
 
 import javax.servlet.http.HttpServletRequest
 import javax.ws.rs.{GET, Path}
-import javax.ws.rs.core.{Response, Context, MediaType}
+import javax.ws.rs.core.{Context, MediaType, Response}
 import java.io.ByteArrayOutputStream
 
 import com.netflix.edda.web.FieldSelectorParser
@@ -67,12 +67,12 @@ class CollectionResource {
     gen.writeEndObject()
     gen.close()
 
-    Response.
-      status(status).
-      `type`(MediaType.APPLICATION_JSON).
-      entity(output.toString("UTF-8")).
-      header("X-Request-Id", reqId.id).
-      build()
+    Response
+      .status(status)
+      .`type`(MediaType.APPLICATION_JSON)
+      .entity(output.toString("UTF-8"))
+      .header("X-Request-Id", reqId.id)
+      .build()
   }
 
   private def unseen(id: String, seen: MSet[String]): Boolean = {
@@ -95,8 +95,8 @@ class CollectionResource {
     val prefix = if (details.meta) "" else "data."
 
     details.matrixArgs.foreach {
-      case (k, null) => query += prefix + k -> Map("$nin" -> List(null, ""))
-      case (k, "true") => query += prefix + k -> true
+      case (k, null)    => query += prefix + k -> Map("$nin" -> List(null, ""))
+      case (k, "true")  => query += prefix + k -> true
       case (k, "false") => query += prefix + k -> false
       case (k, v: String) if v.contains(',') =>
         query += prefix + k -> Map("$in" -> v.split(',').toList)
@@ -105,10 +105,8 @@ class CollectionResource {
 
     if (details.metaArgs.contains("_at")) {
       query += "stime" -> Map("$lte" -> details.at)
-      query += "$or" -> List(
-        Map("ltime" -> null),
-        Map("ltime" -> Map("$gte" -> details.at)))
-    } else if(!details.timeTravelling)
+      query += "$or"   -> List(Map("ltime" -> null), Map("ltime" -> Map("$gte" -> details.at)))
+    } else if (!details.timeTravelling)
       query += "ltime" -> null
 
     if (details.updated) {
@@ -126,14 +124,20 @@ class CollectionResource {
       }
     } else {
       val since =
-        Map("$or" -> List(
-          Map("stime" -> Map("$gte" -> details.since)),
-          Map("ltime" -> null),
-          Map("ltime" -> Map("$gt" -> details.since))))
+        Map(
+          "$or" -> List(
+            Map("stime" -> Map("$gte" -> details.since)),
+            Map("ltime" -> null),
+            Map("ltime" -> Map("$gt" -> details.since))
+          )
+        )
       val until =
-        Map("$or" -> List(
-          Map("stime" -> Map("$lte" -> details.until)),
-          Map("ltime" -> Map("$lt" -> details.until))))
+        Map(
+          "$or" -> List(
+            Map("stime" -> Map("$lte" -> details.until)),
+            Map("ltime" -> Map("$lt"  -> details.until))
+          )
+        )
       if (details.metaArgs.contains("_since") && details.metaArgs.contains("_until")) {
         query += "$and" -> List(since, until)
       } else if (details.metaArgs.contains("_since")) {
@@ -147,10 +151,17 @@ class CollectionResource {
 
   /** companion object to handle matrix arguments */
   object ReqDetails {
-    def apply(req: HttpServletRequest, id: String, matrixStr: String, exprStr: String): ReqDetails = {
+
+    def apply(
+      req: HttpServletRequest,
+      id: String,
+      matrixStr: String,
+      exprStr: String
+    ): ReqDetails = {
       val args: Map[String, String] = Utils.parseMatrixArguments(matrixStr)
-      val expr = if (exprStr == null) MatchAnyExpr
-      else FieldSelectorParser.parse(exprStr)
+      val expr =
+        if (exprStr == null) MatchAnyExpr
+        else FieldSelectorParser.parse(exprStr)
 
       val metaArgs = args.filter(t => t._1.head == '_')
       val matrixArgs = args.filter(t => t._1.head != '_')
@@ -159,7 +170,13 @@ class CollectionResource {
   }
 
   /** container for query and connection metadata */
-  case class ReqDetails(req: HttpServletRequest, id: String, metaArgs: Map[String, String], matrixArgs: Map[String, String], expr: FieldSelectorExpr) {
+  case class ReqDetails(
+    req: HttpServletRequest,
+    id: String,
+    metaArgs: Map[String, String],
+    matrixArgs: Map[String, String],
+    expr: FieldSelectorExpr
+  ) {
     lazy val baos = {
       val v = new ByteArrayOutputStream()
       if (cb != null) {
@@ -180,29 +197,42 @@ class CollectionResource {
 
     /** only show documens valid at specific time */
     var at = timeArg(metaArgs.get("_at"))
+
     /** only show documents that were "alive" since a specific time */
     var since = timeArg(metaArgs.get("_since"))
+
     /** only show documents that were "alive" before a specific time */
     var until = timeArg(metaArgs.get("_until"))
+
     /** show the id,stime,ltime,mtime,ctime as well as the data, Note: changes the document root */
     val meta = boolArg(metaArgs.get("_meta"))
+
     /** dont just return the first record for a given id, return all revisions that match the query criteria */
-    val all = boolArg(metaArgs.get("_all")) || (id != null && (metaArgs.contains("_since") || metaArgs.contains("_until")))
+    val all = boolArg(metaArgs.get("_all")) || (id != null && (metaArgs.contains("_since") || metaArgs
+        .contains("_until")))
+
     /** print the unified diff of the objects fetched to show the changes over time */
     val diff: Option[String] = metaArgs.get("_diff")
+
     /** pretty-print the document. Dates are transformed to be readable and white-space is added */
     val pp = diff != None || boolArg(metaArgs.get("_pp"))
+
     /** use the datastore, not the in-memory cache */
     val live = boolArg(metaArgs.get("_live"))
+
     /** when used with _since or _until it will only show the records that were updated during that time,
       * instead of any document that was valid during that time. */
     val updated = boolArg(metaArgs.get("_updated"))
+
     /** used for json callback */
     val cb = if (metaArgs.contains("_callback")) metaArgs("_callback") else null
+
     /** are we trying to fetch a single record? */
     val single = id != null && !id.contains(',') && !all
+
     /** limit the number of records returned */
     val limit = if (single) 1 else intArg(metaArgs.get("_limit"))
+
     /** when fechting an index get (just resource ids) expand the names into the full resource */
     val expand = id != null || meta || all || boolArg(metaArgs.get("_expand"))
 
@@ -219,19 +249,23 @@ class CollectionResource {
     /** Set of field names (object keys) extraced from the FieldSelector expression */
     val fields: Set[String] = extractFields(expr) match {
       case Some(set) => Set("id", "stime") ++ (if (meta) set else set.map("data." + _))
-      case None => Set.empty
+      case None      => Set.empty
     }
 
     /** map field selector expression to a set of the key names used */
     def extractFields(expr: FieldSelectorExpr): Option[Set[String]] = {
       expr match {
         case e: KeySelectExpr => {
-          val results: Set[String] = e.keys.map(pair => pair._1 -> extractFields(pair._2)).flatMap(
-            pair => pair match {
-              case (prefix: String, Some(set)) => set.map(v => prefix + "." + v)
-              case (prefix: String, None) => Set(prefix)
-            }
-          ).toSet
+          val results: Set[String] = e.keys
+            .map(pair => pair._1 -> extractFields(pair._2))
+            .flatMap(
+              pair =>
+                pair match {
+                  case (prefix: String, Some(set)) => set.map(v => prefix + "." + v)
+                  case (prefix: String, None)      => Set(prefix)
+                }
+            )
+            .toSet
 
           Some(results)
         }
@@ -261,23 +295,23 @@ class CollectionResource {
     private def boolArg(v: Option[String]): Boolean = {
       v match {
         case Some(t) if t == "1" => true
-        case Some(null) => true
-        case _ => false
+        case Some(null)          => true
+        case _                   => false
       }
     }
 
     private def timeArg(v: Option[String]): DateTime = {
       v match {
         case Some(t) => new DateTime(t.toLong, org.joda.time.DateTimeZone.UTC)
-        case None => DateTime.now()
+        case None    => DateTime.now()
       }
     }
 
     private def intArg(v: Option[String]): Int = {
       v match {
         case Some(null) => 0
-        case Some(t) => t.toInt
-        case None => 0
+        case Some(t)    => t.toInt
+        case None       => 0
       }
     }
   }
@@ -292,8 +326,8 @@ class CollectionResource {
       else
         details.expr.select(r.data)
 
-    if( data.isDefined ) {
-        Utils.writeJson(details.gen, data.get, details.formatter)
+    if (data.isDefined) {
+      Utils.writeJson(details.gen, data.get, details.formatter)
     }
   }
 
@@ -303,7 +337,8 @@ class CollectionResource {
   def dispatch(collName: String, details: ReqDetails): Response = {
     collName match {
       case c if CollectionManager.names().contains(c) => handleBasicCollection(collName, details)
-      case _ => fail("invalid collection: " + collName + "." + details.id, Response.Status.BAD_REQUEST)
+      case _ =>
+        fail("invalid collection: " + collName + "." + details.id, Response.Status.BAD_REQUEST)
     }
   }
 
@@ -316,19 +351,33 @@ class CollectionResource {
     if (details.single) {
       if (recs.isEmpty) {
         if (!details.timeTravelling) {
-          val recs = selectRecords(collName, details.copy(metaArgs = details.metaArgs ++ Map("_live" -> null, "_since" -> "0", "_limit" -> "1")))
+          val recs = selectRecords(
+            collName,
+            details.copy(
+              metaArgs = details.metaArgs ++ Map("_live" -> null, "_since" -> "0", "_limit" -> "1")
+            )
+          )
           if (!recs.isEmpty) {
-            return fail("record \"" + details.id + "\" is no longer valid in collection " + collName + ". Use _at, _since or _all arguments to fetch historical records.  Last seen at " + recs.head.stime.getMillis, Response.Status.GONE)
+            return fail(
+              "record \"" + details.id + "\" is no longer valid in collection " + collName + ". Use _at, _since or _all arguments to fetch historical records.  Last seen at " + recs.head.stime.getMillis,
+              Response.Status.GONE
+            )
           }
         }
-        return fail("record \"" + details.id + "\" not found in collection " + collName, Response.Status.NOT_FOUND)
+        return fail(
+          "record \"" + details.id + "\" not found in collection " + collName,
+          Response.Status.NOT_FOUND
+        )
       }
     } else if (details.diff == None && !details.single) details.gen.writeStartArray()
 
     // handle diffing records if _diff is used or expand records if _expand is specified
     if (details.diff != None && details.id != null) {
       if (recs.size == 1) {
-        return fail("_diff requires at least 2 documents, only 1 found", Response.Status.BAD_REQUEST)
+        return fail(
+          "_diff requires at least 2 documents, only 1 found",
+          Response.Status.BAD_REQUEST
+        )
       }
 
       val prefix = details.req.getContextPath + details.req.getServletPath + "/v2/";
@@ -338,7 +387,7 @@ class CollectionResource {
         details.diff.collect({
           case x: String => x.toInt
         }),
-        prefix + collName.replace('.','/')
+        prefix + collName.replace('.', '/')
       )
       val bytes = diff.getBytes
       details.baos.write(bytes, 0, bytes.size)
@@ -346,7 +395,7 @@ class CollectionResource {
     } else {
       details.expand match {
         case true => recs.foreach(writeMaybeMeta(_, details))
-        case _ => recs.map(r => r.id).foreach(details.gen.writeString(_))
+        case _    => recs.map(r => r.id).foreach(details.gen.writeString(_))
       }
     }
     if (details.diff == None && (!details.single)) details.gen.writeEndArray()
@@ -367,7 +416,13 @@ class CollectionResource {
     // unique(coll.query(query, details.limit, details.timeTravelling, keys, replicaOk = true), details)
     try {
       scala.concurrent.Await.result(
-        coll.query(query, details.limit, details.timeTravelling || details.live, keys, replicaOk = if ( details.live ) false else true),
+        coll.query(
+          query,
+          details.limit,
+          details.timeTravelling || details.live,
+          keys,
+          replicaOk = if (details.live) false else true
+        ),
         scala.concurrent.duration.Duration(
           60000,
           scala.concurrent.duration.MILLISECONDS
@@ -386,14 +441,14 @@ class CollectionResource {
   @GET
   @Path("{paths: .+}")
   def getCollection(@Context req: HttpServletRequest): Response = {
-    
+
     val t0 = System.nanoTime()
     // +4 for length("/v2/")
     val realPath = req.getRequestURI.drop(req.getContextPath.length + req.getServletPath.length + 4)
     reqId = RequestId()
     logger.info(reqId.toString + "GET " + realPath)
     try {
-      val fieldSelectorsRx(path,exprStr) = realPath
+      val fieldSelectorsRx(path, exprStr) = realPath
       path match {
         case collectionPathRx(collPath, matrixStr) => {
           val name = collPath.replace('/', '.')
@@ -406,7 +461,10 @@ class CollectionResource {
             }
           val details = ReqDetails(req, id, matrixStr, exprStr)
           if (details.id == null && details.diff != None) {
-            fail("_diff argument requires use of resource id: " + req.getServletPath + collName + "/<id>", Response.Status.BAD_REQUEST)
+            fail(
+              "_diff argument requires use of resource id: " + req.getServletPath + collName + "/<id>",
+              Response.Status.BAD_REQUEST
+            )
           } else {
             dispatch(collName, details)
           }
@@ -416,8 +474,9 @@ class CollectionResource {
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
-      if (logger.isInfoEnabled) logger.info(reqId.toString + "EXIT " + realPath  + " lapse " + lapse + "ms")
+      if (logger.isInfoEnabled)
+        logger.info(reqId.toString + "EXIT " + realPath + " lapse " + lapse + "ms")
     }
   }
-    
+
 }

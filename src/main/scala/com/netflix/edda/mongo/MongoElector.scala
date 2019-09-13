@@ -32,7 +32,9 @@ class MongoElector extends Elector {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
   lazy val instance = Option(
-    System.getenv(Utils.getProperty("edda.elector", "uniqueEnvName", "mongo", "EC2_INSTANCE_ID").get)).getOrElse("dev")
+    System
+      .getenv(Utils.getProperty("edda.elector", "uniqueEnvName", "mongo", "EC2_INSTANCE_ID").get)
+  ).getOrElse("dev")
   lazy val name = Utils.getProperty("edda", "monitor.collectionName", "mongo", "sys.monitor").get
   lazy val mongo: DBCollection = MongoDatastore.mongoCollection(name)
 
@@ -43,8 +45,7 @@ class MongoElector extends Elector {
   }
 
   /** select the leader record from MongoDB to determine if we are the leader */
-  override
-  def isLeader()(implicit req: RequestId): Boolean = {
+  override def isLeader()(implicit req: RequestId): Boolean = {
     val data = mongo.findOne("leader")
     if (data != null) {
       val rec = MongoDatastore.mongoToRecord(data)
@@ -76,14 +77,17 @@ class MongoElector extends Elector {
       val wr = mongo.insert(
         MongoDatastore.mapToMongo(
           Map(
-            "_id" -> "leader",
-            "id" -> "leader",
+            "_id"   -> "leader",
+            "id"    -> "leader",
             "ftime" -> now,
             "ctime" -> now,
             "mtime" -> now,
             "stime" -> now,
             "ltime" -> null,
-            "data" -> Map("instance" -> instance, "id" -> "leader", "type" -> "leader"))))
+            "data"  -> Map("instance" -> instance, "id" -> "leader", "type" -> "leader")
+          )
+        )
+      )
       // if we got an error then uniqueness failed (someone else beat us to it)
       isLeader = if (wr.getN() == 1) true else false
     } else {
@@ -93,31 +97,38 @@ class MongoElector extends Elector {
       if (leader == instance) {
         // update mtime
         val result = mongo.findAndModify(
-          MongoDatastore.mapToMongo(Map(
-            "_id" -> "leader",
-            "data.instance" -> instance), true), // query
+          MongoDatastore
+            .mapToMongo(Map("_id" -> "leader", "data.instance" -> instance), true), // query
           null, // sort
           MongoDatastore.mapToMongo(Map("$set" -> Map("mtime" -> now)), true) // update
         )
         // maybe we were too slow and someone took leader from us
         isLeader = if (result == null) false else true
       } else {
-        val timeout = DateTime.now().plusMillis(-1 * (pollCycle.get.toInt + leaderTimeout.get.toInt))
+        val timeout =
+          DateTime.now().plusMillis(-1 * (pollCycle.get.toInt + leaderTimeout.get.toInt))
         if (mtime.isBefore(timeout)) {
           // assumer leader is dead, so try to become leader
           val result = mongo.findAndModify(
-            MongoDatastore.mapToMongo(Map(// query
-              "_id" -> "leader",
-              "data.instance" -> leader,
-              "mtime" -> mtime), true),
+            MongoDatastore.mapToMongo(
+              Map( // query
+                "_id"           -> "leader",
+                "data.instance" -> leader,
+                "mtime"         -> mtime
+              ),
+              true
+            ),
             null, // sort
-            MongoDatastore.recordToMongo(// update
+            MongoDatastore.recordToMongo( // update
               r.copy(
                 mtime = now,
                 stime = now,
                 ltime = null,
-                data = Map("instance" -> instance, "id" -> "leader", "type" -> "leader")),
-              Some("leader")))
+                data = Map("instance" -> instance, "id" -> "leader", "type" -> "leader")
+              ),
+              Some("leader")
+            )
+          )
           // if we got the update then we are leader and attempt to
           // archive the old leader record
           if (result == null) {
@@ -126,7 +137,8 @@ class MongoElector extends Elector {
           } else {
             isLeader = true
             mongo.insert(
-              MongoDatastore.recordToMongo(r.copy(ltime = now), Some("leader|" + r.stime.getMillis)))
+              MongoDatastore.recordToMongo(r.copy(ltime = now), Some("leader|" + r.stime.getMillis))
+            )
           }
         } else isLeader = false
       }
@@ -134,7 +146,9 @@ class MongoElector extends Elector {
 
     logger.info("{} Leader [{}]: {} [{}]", Array[AnyRef](req, instance, isLeader.toString, leader))
     if (isLeader == false && instance == leader) {
-        logger.warn("This node is registered as the leader but could not become the leader. If this issue does not resolve on its own there may be a problem with the datastore")
+      logger.warn(
+        "This node is registered as the leader but could not become the leader. If this issue does not resolve on its own there may be a problem with the datastore"
+      )
     }
     isLeader
   }

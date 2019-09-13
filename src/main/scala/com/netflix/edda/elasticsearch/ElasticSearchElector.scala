@@ -32,22 +32,30 @@ import org.elasticsearch.action.support.replication.ReplicationType
   * to organize leadership
   */
 class ElasticSearchElector extends Elector {
-private[this] val logger = LoggerFactory.getLogger(getClass)
+  private[this] val logger = LoggerFactory.getLogger(getClass)
   import ElasticSearchDatastore._
 
   lazy val client = initClient("elector.elasticsearch")
 
   lazy val instance = Option(
-    System.getenv(Utils.getProperty("edda.elector", "uniqueEnvName", "elasticsearch", "EC2_INSTANCE_ID").get)).getOrElse("dev")
+    System.getenv(
+      Utils.getProperty("edda.elector", "uniqueEnvName", "elasticsearch", "EC2_INSTANCE_ID").get
+    )
+  ).getOrElse("dev")
 
   val leaderTimeout = Utils.getProperty("edda.elector", "leaderTimeout", "elasticsearch", "5000")
 
-  private lazy val monitorIndexName = Utils.getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor").get.replaceAll("[.]","_")
+  private lazy val monitorIndexName = Utils
+    .getProperty("edda", "monitor.collectionName", "elasticsearch", "sys.monitor")
+    .get
+    .replaceAll("[.]", "_")
 
-  private val writeConsistencyProp = Utils.getProperty("edda", "elasticsearch.writeConsistency", monitorIndexName, "quorum")
-  private def writeConsistency = WriteConsistencyLevel.fromString( writeConsistencyProp.get )
-  private val replicationTypeProp = Utils.getProperty("edda", "elasticsearch.replicationType", monitorIndexName, "async")
-  private def replicationType  = ReplicationType.fromString( replicationTypeProp.get )
+  private val writeConsistencyProp =
+    Utils.getProperty("edda", "elasticsearch.writeConsistency", monitorIndexName, "quorum")
+  private def writeConsistency = WriteConsistencyLevel.fromString(writeConsistencyProp.get)
+  private val replicationTypeProp =
+    Utils.getProperty("edda", "elasticsearch.replicationType", monitorIndexName, "async")
+  private def replicationType = ReplicationType.fromString(replicationTypeProp.get)
 
   private val docType = "leader"
 
@@ -59,7 +67,7 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
     createIndex(
       client,
       monitorIndexName,
-      shards=1,
+      shards = 1,
       Utils.getProperty("edda", "elasticsearch.replicas", monitorIndexName, "2").get.toInt
     )
     inited = true
@@ -67,17 +75,20 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
   }
 
   /** select the leader record from ElasticSearch to determine if we are the leader */
-  override
-  def isLeader()(implicit req: RequestId): Boolean = {
-    if( inited ) {
-      val response = client.prepareGet(monitorIndexName, docType, "leader").setPreference("_primary").execute().actionGet()
-      if( response != null && response.isExists ) {
-        esToRecord(response.getSource).data.asInstanceOf[Map[String,Any]]("instance").asInstanceOf[String] == instance
+  override def isLeader()(implicit req: RequestId): Boolean = {
+    if (inited) {
+      val response = client
+        .prepareGet(monitorIndexName, docType, "leader")
+        .setPreference("_primary")
+        .execute()
+        .actionGet()
+      if (response != null && response.isExists) {
+        esToRecord(response.getSource).data
+          .asInstanceOf[Map[String, Any]]("instance")
+          .asInstanceOf[String] == instance
       } else false
-    }
-    else false
+    } else false
   }
-
 
   /** attempt to become the leader.  If no leader is present it attempts
     * to insert itself as leader (if insert error happens, then someone else became
@@ -90,7 +101,7 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
     * @return
     */
   protected override def runElection()(implicit req: RequestId): Boolean = {
-    if( !inited ) {
+    if (!inited) {
       return false
     }
 
@@ -101,29 +112,36 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
 
     val t0 = System.nanoTime()
     val response = try {
-      client.prepareGet(monitorIndexName, docType, "leader").setPreference("_primary").execute().actionGet()
+      client
+        .prepareGet(monitorIndexName, docType, "leader")
+        .setPreference("_primary")
+        .execute()
+        .actionGet()
     } finally {
       val t1 = System.nanoTime()
       val lapse = (t1 - t0) / 1000000;
       if (logger.isInfoEnabled) logger.info(s"$req$this get leader lapse: ${lapse}ms")
     }
-    if( response == null || !response.isExists ) {
+    if (response == null || !response.isExists) {
       val t0 = System.nanoTime()
       try {
-        val leaderRec = Record("leader", Map("instance" -> instance, "id" -> "leader", "type" -> docType))
+        val leaderRec =
+          Record("leader", Map("instance" -> instance, "id" -> "leader", "type" -> docType))
         // FIXME what error do I get when the document already exists?
-        client.prepareIndex(monitorIndexName, docType).
-          setId("leader").
-          setSource(esToJson(leaderRec)).
-          setConsistencyLevel(writeConsistency).
-          setReplicationType(replicationType).
-          setCreate(true).
-          execute().
-          actionGet();
-          isLeader = true
+        client
+          .prepareIndex(monitorIndexName, docType)
+          .setId("leader")
+          .setSource(esToJson(leaderRec))
+          .setConsistencyLevel(writeConsistency)
+          .setReplicationType(replicationType)
+          .setCreate(true)
+          .execute()
+          .actionGet();
+        isLeader = true
       } catch {
         case e: Exception => {
-          if (logger.isErrorEnabled) logger.error(s"$req failed to create leader record: ${e.getMessage}")
+          if (logger.isErrorEnabled)
+            logger.error(s"$req failed to create leader record: ${e.getMessage}")
           isLeader = false
         }
       } finally {
@@ -135,65 +153,81 @@ private[this] val logger = LoggerFactory.getLogger(getClass)
       val leaderRec = esToRecord(response.getSource)
       leader = leaderRec.data.asInstanceOf[Map[String, Any]]("instance").asInstanceOf[String]
       val mtime = leaderRec.mtime
-      if( leader == instance ) {
+      if (leader == instance) {
         // update mtime
         val t0 = System.nanoTime()
         try {
-          client.prepareIndex(monitorIndexName, docType).
-            setId("leader").
-            setSource(esToJson(leaderRec.copy(mtime=now))).
-            setConsistencyLevel(writeConsistency).
-            setReplicationType(replicationType).
-            setVersion(response.getVersion).
-            setCreate(false).
-            execute().
-            actionGet()
+          client
+            .prepareIndex(monitorIndexName, docType)
+            .setId("leader")
+            .setSource(esToJson(leaderRec.copy(mtime = now)))
+            .setConsistencyLevel(writeConsistency)
+            .setReplicationType(replicationType)
+            .setVersion(response.getVersion)
+            .setCreate(false)
+            .execute()
+            .actionGet()
           isLeader = true
         } catch {
           case e: Exception => {
-            if (logger.isErrorEnabled) logger.error(s"$req failed to update mtime for leader record: ${e.getMessage}")
+            if (logger.isErrorEnabled)
+              logger.error(s"$req failed to update mtime for leader record: ${e.getMessage}")
             isLeader = false
           }
         } finally {
           val t1 = System.nanoTime()
           val lapse = (t1 - t0) / 1000000;
-          if (logger.isInfoEnabled) logger.info(s"$req$this index leader (update mtime) lapse: ${lapse}ms")
+          if (logger.isInfoEnabled)
+            logger.info(s"$req$this index leader (update mtime) lapse: ${lapse}ms")
         }
       } else {
-        val timeout = DateTime.now().plusMillis(-1 * (pollCycle.get.toInt + leaderTimeout.get.toInt))
+        val timeout =
+          DateTime.now().plusMillis(-1 * (pollCycle.get.toInt + leaderTimeout.get.toInt))
         if (mtime.isBefore(timeout)) {
           // assume leader is dead, so try to become leader
           val t0 = System.nanoTime()
           try {
-            client.prepareIndex(monitorIndexName, docType).
-              setId("leader").
-              setSource(esToJson(leaderRec.copy(mtime=now, stime=now, data=leaderRec.data.asInstanceOf[Map[String,Any]] + ("instance" -> instance)))).
-              setConsistencyLevel(writeConsistency).
-              setReplicationType(replicationType).
-              setVersion(response.getVersion).
-              setCreate(false).
-              execute().
-              actionGet()
+            client
+              .prepareIndex(monitorIndexName, docType)
+              .setId("leader")
+              .setSource(
+                esToJson(
+                  leaderRec.copy(
+                    mtime = now,
+                    stime = now,
+                    data = leaderRec.data.asInstanceOf[Map[String, Any]] + ("instance" -> instance)
+                  )
+                )
+              )
+              .setConsistencyLevel(writeConsistency)
+              .setReplicationType(replicationType)
+              .setVersion(response.getVersion)
+              .setCreate(false)
+              .execute()
+              .actionGet()
             isLeader = true
             leader = instance;
             // old leader is gone, so create historical record from old leader record
-            client.prepareIndex(monitorIndexName, docType).
-              setId("leader|" + leaderRec.stime.getMillis).
-              setSource(esToJson(leaderRec.copy(ltime=now))).
-              setConsistencyLevel(writeConsistency).
-              setReplicationType(replicationType).
-              setCreate(true).
-              execute().
-              actionGet()
+            client
+              .prepareIndex(monitorIndexName, docType)
+              .setId("leader|" + leaderRec.stime.getMillis)
+              .setSource(esToJson(leaderRec.copy(ltime = now)))
+              .setConsistencyLevel(writeConsistency)
+              .setReplicationType(replicationType)
+              .setCreate(true)
+              .execute()
+              .actionGet()
           } catch {
             case e: Exception => {
-              if (logger.isErrorEnabled) logger.error(s"$req failed to update leader for leader record: ${e.getMessage}")
+              if (logger.isErrorEnabled)
+                logger.error(s"$req failed to update leader for leader record: ${e.getMessage}")
               isLeader = false
             }
           } finally {
             val t1 = System.nanoTime()
             val lapse = (t1 - t0) / 1000000;
-            if (logger.isInfoEnabled) logger.info(s"$req$this index leader + archive old leader lapse: ${lapse}ms")
+            if (logger.isInfoEnabled)
+              logger.info(s"$req$this index leader + archive old leader lapse: ${lapse}ms")
           }
         }
       }

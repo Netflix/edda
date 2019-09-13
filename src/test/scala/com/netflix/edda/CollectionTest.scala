@@ -57,24 +57,25 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     val coll = new TestCollection
     coll.start()
 
-    SYNC( coll.addObserver(Actor.self) )
+    SYNC(coll.addObserver(Actor.self))
 
-    SYNC( coll.elector.addObserver(Actor.self) )
+    SYNC(coll.elector.addObserver(Actor.self))
 
     expectResult(Nil) {
-      SYNC( coll.query(Map("id" -> "b")) )
+      SYNC(coll.query(Map("id" -> "b")))
     }
-    
+
     // dont let the crawler reset our records
     coll.elector.leader = false
     coll.elector ! Elector.RunElection(Actor.self)
-    
+
     // wait for leadership change to propagate
     Actor.self receive {
-      case Elector.ElectionResult(from,false) => Unit
+      case Elector.ElectionResult(from, false) => Unit
     }
 
-    coll.dataStore.get.recordSet = coll.dataStore.get.recordSet.copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
+    coll.dataStore.get.recordSet = coll.dataStore.get.recordSet
+      .copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
     coll.processor ! CollectionProcessor.Load(coll)
 
     // wait for load to propagate
@@ -82,31 +83,32 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
       case Collection.UpdateOK(`coll`, d, meta) if d.recordSet.meta("source") == "load" => Unit
     }
 
-    val records = SYNC( coll.query(Map("id" -> "b")) )
+    val records = SYNC(coll.query(Map("id" -> "b")))
     expectResult(1) {
       records.size
     }
     expectResult(2) {
-        records.head.data
+      records.head.data
     }
     expectResult("b") {
       records.head.id
     }
-    
-    SYNC( coll.elector.delObserver(Actor.self) )
-    SYNC( coll.delObserver(Actor.self) )
+
+    SYNC(coll.elector.delObserver(Actor.self))
+    SYNC(coll.delObserver(Actor.self))
     coll.stop()
   }
 
   test("update") {
     val coll = new TestCollection
-    coll.dataStore.get.recordSet = coll.dataStore.get.recordSet.copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
+    coll.dataStore.get.recordSet = coll.dataStore.get.recordSet
+      .copy(records = Seq(Record("a", 1), Record("b", 2), Record("c", 3)))
     coll.start()
 
-    SYNC( coll.addObserver(Actor.self) )
-    
+    SYNC(coll.addObserver(Actor.self))
+
     expectResult(3) {
-      SYNC( coll.query() ).size
+      SYNC(coll.query()).size
     }
 
     coll.crawler.records = Seq(Record("a", 1), Record("b", 3), Record("c", 4), Record("d", 5))
@@ -117,9 +119,9 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
     }
 
     expectResult(3) {
-      SYNC( coll.query(Map("data" -> Map("$gte" -> 3))) ).size 
+      SYNC(coll.query(Map("data" -> Map("$gte" -> 3)))).size
     }
-    SYNC( coll.delObserver(Actor.self) )
+    SYNC(coll.delObserver(Actor.self))
     coll.stop()
   }
 
@@ -133,9 +135,9 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
 
     coll.start()
 
-    SYNC( coll.addObserver(Actor.self) )
+    SYNC(coll.addObserver(Actor.self))
 
-    SYNC( coll.elector.addObserver(Actor.self) )
+    SYNC(coll.elector.addObserver(Actor.self))
 
     Actor.self receive {
       case Collection.UpdateOK(`coll`, d, meta) if d.recordSet.meta("source") == "load" => Unit
@@ -143,19 +145,19 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
 
     // expect data loaded form dataStore
     expectResult(3) {
-      SYNC( coll.query() ).size
+      SYNC(coll.query()).size
     }
-    
+
     // wait for the crawler results to propagate
     coll.crawler.crawl()
-    
+
     Actor.self receive {
       case Collection.UpdateOK(`coll`, d, meta) if d.recordSet.meta("source") == "crawl" => Unit
     }
 
     // we should get 4 records now
     expectResult(4) {
-      SYNC( coll.query() ).size
+      SYNC(coll.query()).size
     }
 
     // now drop leader role and wait for dataStore results to reload
@@ -167,19 +169,21 @@ class CollectionTest extends FunSuite with BeforeAndAfter {
       case Elector.ElectionResult(from, false) => Unit
     }
 
-    coll.dataStore.get.recordSet = coll.dataStore.get.recordSet.copy(records = coll.dataStore.get.recordSet.records.tail)
+    coll.dataStore.get.recordSet =
+      coll.dataStore.get.recordSet.copy(records = coll.dataStore.get.recordSet.records.tail)
     coll.processor ! CollectionProcessor.Load(coll)
     // wait for load to propagate
     Actor.self receive {
-      case Collection.UpdateOK(`coll`, d, meta) if d.recordSet.meta("source") == "load" => logger.debug(s"GOT: $d meta: $meta")
+      case Collection.UpdateOK(`coll`, d, meta) if d.recordSet.meta("source") == "load" =>
+        logger.debug(s"GOT: $d meta: $meta")
     }
 
     expectResult(3) {
-      SYNC( coll.query() ).size
+      SYNC(coll.query()).size
     }
 
     expectResult(0) {
-      SYNC( coll.query(Map("id" -> "a")) ).size
+      SYNC(coll.query(Map("id" -> "a"))).size
     }
 
     coll.stop()
