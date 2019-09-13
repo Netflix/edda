@@ -15,7 +15,6 @@
  */
 package com.netflix.edda.aws
 
-
 import com.netflix.edda.Collection
 import com.netflix.edda.CollectionManager
 import com.netflix.edda.MergedCollection
@@ -38,6 +37,7 @@ import org.slf4j.LoggerFactory
 /** Factory to build all known AWS collections
   */
 object AwsCollectionBuilder {
+
   /** builder routine to build collections
     *
     * CollectionManager.register is called for each generated collection object
@@ -47,42 +47,55 @@ object AwsCollectionBuilder {
     * @param bm beanMapper to be used by all the AWS crawlers
     * @param elector elector to be used for leadership selection
     */
-  def buildAll(ctx: Collection.Context, clientFactory: (String) => AwsClient, bm: BeanMapper, elector: Elector) {
-    val collMap = Utils.getProperty("edda","accounts","","").get match {
+  def buildAll(
+    ctx: Collection.Context,
+    clientFactory: (String) => AwsClient,
+    bm: BeanMapper,
+    elector: Elector
+  ) {
+    val collMap = Utils.getProperty("edda", "accounts", "", "").get match {
       case "" => {
         val context = new AwsCollection.Context {
           val beanMapper = bm
           val recordMatcher = ctx.recordMatcher
           val awsClient = clientFactory("")
         }
-        mkCollections(context, "", elector).map(
-          collection => collection.rootName -> collection).toMap
+        mkCollections(context, "", elector)
+          .map(collection => collection.rootName -> collection)
+          .toMap
       }
       case accountString => {
         val accounts = accountString.split(",")
-        val accountContexts = accounts.map(
-          account => account -> new AwsCollection.Context {
-            val beanMapper = bm
-            val recordMatcher = ctx.recordMatcher
-            val awsClient = clientFactory(account)
-          }).toMap
+        val accountContexts = accounts
+          .map(
+            account =>
+              account -> new AwsCollection.Context {
+                val beanMapper = bm
+                val recordMatcher = ctx.recordMatcher
+                val awsClient = clientFactory(account)
+              }
+          )
+          .toMap
 
         // this give us:
         // Map[String,Array[com.netflix.edda.Collection]]
-        val accountCollections = accounts.flatMap(
-          account => {
-            mkCollections(accountContexts(account), account, elector).map(
-              collection => collection.rootName -> collection)
-          }).groupBy(_._1).mapValues(c => c.map(x => x._2))
+        val accountCollections = accounts
+          .flatMap(account => {
+            mkCollections(accountContexts(account), account, elector)
+              .map(collection => collection.rootName -> collection)
+          })
+          .groupBy(_._1)
+          .mapValues(c => c.map(x => x._2))
         // now map the Array's to a MergedCollection
         // need to return name -> _ for each array element
         // concat with MergedCollection(Array)
-        accountCollections.flatMap(
-          pair => {
-            val name = pair._1
-            val collections = pair._2
-            collections.map(coll => coll.name -> coll).toMap ++ Map(name -> new MergedCollection(name, collections))
-          })
+        accountCollections.flatMap(pair => {
+          val name = pair._1
+          val collections = pair._2
+          collections.map(coll => coll.name -> coll).toMap ++ Map(
+            name -> new MergedCollection(name, collections)
+          )
+        })
       }
     }
 
@@ -92,13 +105,18 @@ object AwsCollectionBuilder {
   /** called by *buildAll* for each account listed in the config to
     * generate the Collection objects
     */
-  def mkCollections(ctx: AwsCollection.Context, accountName: String, elector: Elector): Seq[RootCollection] = {
+  def mkCollections(
+    ctx: AwsCollection.Context,
+    accountName: String,
+    elector: Elector
+  ): Seq[RootCollection] = {
     val res = new AwsReservationCollection(accountName, elector, ctx)
     val elb = new AwsLoadBalancerCollection(accountName, elector, ctx)
     val asg = new AwsAutoScalingGroupCollection(accountName, elector, ctx)
     val inst = new AwsInstanceCollection(res.crawler, accountName, elector, ctx)
     val hostedZones = new AwsHostedZoneCollection(accountName, elector, ctx)
-    val hostedRecords = new AwsHostedRecordCollection(hostedZones.crawler, accountName, elector, ctx)
+    val hostedRecords =
+      new AwsHostedRecordCollection(hostedZones.crawler, accountName, elector, ctx)
     Seq(
       new AwsAddressCollection(accountName, elector, ctx),
       asg,
@@ -153,34 +171,40 @@ object AwsCollection {
     * @param instanceMap the list of know instance records
     * @return a sequence of Maps containing instance details
     */
-  def makeGroupInstances(asgRec: Record, instanceMap: Map[String, Record])(implicit req: RequestId): Seq[Map[String, Any]] = {
-    val instances = asgRec.data.asInstanceOf[Map[String, Any]]("instances").asInstanceOf[List[Map[String, Any]]]
-    val newInstances = instances.filter(
-      inst => {
+  def makeGroupInstances(asgRec: Record, instanceMap: Map[String, Record])(
+    implicit req: RequestId
+  ): Seq[Map[String, Any]] = {
+    val instances =
+      asgRec.data.asInstanceOf[Map[String, Any]]("instances").asInstanceOf[List[Map[String, Any]]]
+    val newInstances = instances
+      .filter(inst => {
         val id = inst("instanceId").asInstanceOf[String]
         val bool = instanceMap.contains(id)
         if (!bool) {
-          if (logger.isWarnEnabled) logger.warn(s"$req asg: ${asgRec.id} contains unknown instance: $id")
+          if (logger.isWarnEnabled)
+            logger.warn(s"$req asg: ${asgRec.id} contains unknown instance: $id")
         }
         bool
-      }).map(asgInst => {
-      val id = asgInst("instanceId").asInstanceOf[String]
-      val instance = instanceMap(id)
-      val instanceData = instance.data.asInstanceOf[Map[String, Any]]
-      Map(
-        "availabilityZone" -> asgInst("availabilityZone"),
-        "imageId" -> instanceData.get("imageId").getOrElse(null),
-        "instanceId" -> id,
-        "instanceType" -> instanceData.get("instanceType").getOrElse(null),
-        "launchTime" -> instance.ctime,
-        "lifecycleState" -> asgInst("lifecycleState"),
-        "platform" -> instanceData.get("platform").getOrElse(null),
-        "privateIpAddress" -> instanceData.get("privateIpAddress").getOrElse(null),
-        "publicDnsName" -> instanceData.get("publicDnsName").getOrElse(null),
-        "publicIpAddress" -> instanceData.get("publicIpAddress").getOrElse(null),
-        "start" -> instance.ctime,
-        "vpcId" -> instanceData.get("vpcId").getOrElse(null))
-    })
+      })
+      .map(asgInst => {
+        val id = asgInst("instanceId").asInstanceOf[String]
+        val instance = instanceMap(id)
+        val instanceData = instance.data.asInstanceOf[Map[String, Any]]
+        Map(
+          "availabilityZone" -> asgInst("availabilityZone"),
+          "imageId"          -> instanceData.get("imageId").getOrElse(null),
+          "instanceId"       -> id,
+          "instanceType"     -> instanceData.get("instanceType").getOrElse(null),
+          "launchTime"       -> instance.ctime,
+          "lifecycleState"   -> asgInst("lifecycleState"),
+          "platform"         -> instanceData.get("platform").getOrElse(null),
+          "privateIpAddress" -> instanceData.get("privateIpAddress").getOrElse(null),
+          "publicDnsName"    -> instanceData.get("publicDnsName").getOrElse(null),
+          "publicIpAddress"  -> instanceData.get("publicIpAddress").getOrElse(null),
+          "start"            -> instance.ctime,
+          "vpcId"            -> instanceData.get("vpcId").getOrElse(null)
+        )
+      })
     newInstances
   }
 }
@@ -196,9 +220,10 @@ object AwsCollection {
   * @param ctx context for AWS clients objects
   */
 class AwsAddressCollection(
-                            val accountName: String,
-                            val elector: Elector,
-                            override val ctx: AwsCollection.Context) extends RootCollection("aws.addresses", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.addresses", accountName, ctx) {
   val crawler = new AwsAddressCrawler(name, ctx)
 }
 
@@ -213,9 +238,10 @@ class AwsAddressCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsAutoScalingGroupCollection(
-                                     val accountName: String,
-                                     val elector: Elector,
-                                     override val ctx: AwsCollection.Context) extends RootCollection("aws.autoScalingGroups", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.autoScalingGroups", accountName, ctx) {
   val crawler = new AwsAutoScalingGroupCrawler(name, ctx)
 }
 
@@ -230,9 +256,10 @@ class AwsAutoScalingGroupCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsScalingPolicyCollection(
-                                     val accountName: String,
-                                     val elector: Elector,
-                                     override val ctx: AwsCollection.Context) extends RootCollection("aws.scalingPolicies", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.scalingPolicies", accountName, ctx) {
   val crawler = new AwsScalingPolicyCrawler(name, ctx)
 }
 
@@ -247,30 +274,32 @@ class AwsScalingPolicyCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsAlarmCollection(
-                                     val accountName: String,
-                                     val elector: Elector,
-                                     override val ctx: AwsCollection.Context) extends RootCollection("aws.alarms", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.alarms", accountName, ctx) {
   val crawler = new AwsAlarmCrawler(name, ctx)
 }
 
 /** collection for AWS AutoScaling Activities
- *
- * root collection name: aws.scalingActivities
- *
- * see crawler details [[com.netflix.edda.aws.AwsScalingActivitiesCrawler]]
- *
- * @param accountName account name to be prefixed to collection name
- * @param elector Elector to determine leadership
- * @param ctx context for AWS clients objects
- */
- class AwsScalingActivitiesCollection(
-                                val accountName: String,
-                                val elector: Elector,
-                                override val ctx: AwsCollection.Context) extends RootCollection("aws.scalingActivities", accountName, ctx) {
-   val crawler = new AwsScalingActivitiesCrawler(name, ctx)
- }
+  *
+  * root collection name: aws.scalingActivities
+  *
+  * see crawler details [[com.netflix.edda.aws.AwsScalingActivitiesCrawler]]
+  *
+  * @param accountName account name to be prefixed to collection name
+  * @param elector Elector to determine leadership
+  * @param ctx context for AWS clients objects
+  */
+class AwsScalingActivitiesCollection(
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.scalingActivities", accountName, ctx) {
+  val crawler = new AwsScalingActivitiesCrawler(name, ctx)
+}
 
- /** collection for AWS AutoScaling Scheduled Actions
+/** collection for AWS AutoScaling Scheduled Actions
   *
   * root collection name: aws.scheduledActions
   *
@@ -280,12 +309,13 @@ class AwsAlarmCollection(
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
   */
-  class AwsScheduledActionsCollection(
-                                 val accountName: String,
-                                 val elector: Elector,
-                                 override val ctx: AwsCollection.Context) extends RootCollection("aws.scheduledActions", accountName, ctx) {
-    val crawler = new AwsScheduledActionsCrawler(name, ctx)
-  }
+class AwsScheduledActionsCollection(
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.scheduledActions", accountName, ctx) {
+  val crawler = new AwsScheduledActionsCrawler(name, ctx)
+}
 
 /** collection for AWS VPCs
   *
@@ -296,12 +326,13 @@ class AwsAlarmCollection(
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
-*/
+  */
 class AwsVpcCollection(
-                 val accountName: String,
-                 val elector: Elector,
-                 override val ctx: AwsCollection.Context) extends RootCollection("aws.vpcs", accountName, ctx) {
-                 val crawler = new AwsVpcCrawler(name, ctx)
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.vpcs", accountName, ctx) {
+  val crawler = new AwsVpcCrawler(name, ctx)
 }
 
 /** collection for AWS Reserved Instance Offerings
@@ -313,12 +344,13 @@ class AwsVpcCollection(
   * @param accountName account name to be prefixed to collection name
   * @param elector Elector to determine leadership
   * @param ctx context for AWS clients objects
-*/
+  */
 class AwsReservedInstancesOfferingCollection(
-                 val accountName: String,
-                 val elector: Elector,
-                 override val ctx: AwsCollection.Context) extends RootCollection("aws.reservedInstancesOfferings", accountName, ctx) {
-                 val crawler = new AwsReservedInstancesOfferingCrawler(name, ctx)
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.reservedInstancesOfferings", accountName, ctx) {
+  val crawler = new AwsReservedInstancesOfferingCrawler(name, ctx)
 }
 
 /** collection for AWS Images
@@ -332,9 +364,10 @@ class AwsReservedInstancesOfferingCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsImageCollection(
-                          val accountName: String,
-                          val elector: Elector,
-                          override val ctx: AwsCollection.Context) extends RootCollection("aws.images", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.images", accountName, ctx) {
   val crawler = new AwsImageCrawler(name, ctx)
 }
 
@@ -349,9 +382,10 @@ class AwsImageCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsLoadBalancerCollection(
-                                 val accountName: String,
-                                 val elector: Elector,
-                                 override val ctx: AwsCollection.Context) extends RootCollection("aws.loadBalancers", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.loadBalancers", accountName, ctx) {
   val crawler = new AwsLoadBalancerCrawler(name, ctx)
 }
 
@@ -366,9 +400,10 @@ class AwsLoadBalancerCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsLoadBalancerV2Collection(
-                                 val accountName: String,
-                                 val elector: Elector,
-                                 override val ctx: AwsCollection.Context) extends RootCollection("aws.loadBalancersV2", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.loadBalancersV2", accountName, ctx) {
   val crawler = new AwsLoadBalancerV2Crawler(name, ctx)
 }
 
@@ -383,9 +418,10 @@ class AwsLoadBalancerV2Collection(
   * @param ctx context for AWS clients objects
   */
 class AwsTargetGroupCollection(
-                                   val accountName: String,
-                                   val elector: Elector,
-                                   override val ctx: AwsCollection.Context) extends RootCollection("aws.targetGroups", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.targetGroups", accountName, ctx) {
   val crawler = new AwsTargetGroupCrawler(name, ctx)
 }
 
@@ -400,10 +436,11 @@ class AwsTargetGroupCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsInstanceHealthCollection(
-                                   val elbCrawler: AwsLoadBalancerCrawler,
-                                   val accountName: String,
-                                   val elector: Elector,
-                                   override val ctx: AwsCollection.Context) extends RootCollection("view.loadBalancerInstances", accountName, ctx) {
+  val elbCrawler: AwsLoadBalancerCrawler,
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("view.loadBalancerInstances", accountName, ctx) {
   // we dont actually crawl, the elbCrawler triggers our crawl events
   override val allowCrawl = false
   val crawler = new AwsInstanceHealthCrawler(name, ctx, elbCrawler)
@@ -420,9 +457,10 @@ class AwsInstanceHealthCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsLaunchConfigurationCollection(
-                                        val accountName: String,
-                                        val elector: Elector,
-                                        override val ctx: AwsCollection.Context) extends RootCollection("aws.launchConfigurations", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.launchConfigurations", accountName, ctx) {
   val crawler = new AwsLaunchConfigurationCrawler(name, ctx)
 }
 
@@ -437,9 +475,10 @@ class AwsLaunchConfigurationCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsReservationCollection(
-                                val accountName: String,
-                                val elector: Elector,
-                                override val ctx: AwsCollection.Context) extends RootCollection("aws.instances", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.instances", accountName, ctx) {
   val crawler = new AwsReservationCrawler(name, ctx)
 }
 
@@ -454,10 +493,11 @@ class AwsReservationCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsInstanceCollection(
-                             val resCrawler: AwsReservationCrawler,
-                             val accountName: String,
-                             val elector: Elector,
-                             override val ctx: AwsCollection.Context) extends RootCollection("view.instances", accountName, ctx) {
+  val resCrawler: AwsReservationCrawler,
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("view.instances", accountName, ctx) {
   // we dont actually crawl, the resCrawler triggers our crawl events
   override val allowCrawl = false
   val crawler = new AwsInstanceCrawler(name, ctx, resCrawler)
@@ -474,9 +514,10 @@ class AwsInstanceCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsSecurityGroupCollection(
-                                  val accountName: String,
-                                  val elector: Elector,
-                                  override val ctx: AwsCollection.Context) extends RootCollection("aws.securityGroups", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.securityGroups", accountName, ctx) {
   val crawler = new AwsSecurityGroupCrawler(name, ctx)
 }
 
@@ -491,9 +532,10 @@ class AwsSecurityGroupCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsSnapshotCollection(
-                             val accountName: String,
-                             val elector: Elector,
-                             override val ctx: AwsCollection.Context) extends RootCollection("aws.snapshots", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.snapshots", accountName, ctx) {
   val crawler = new AwsSnapshotCrawler(name, ctx)
 }
 
@@ -508,9 +550,10 @@ class AwsSnapshotCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsTagCollection(
-                        val accountName: String,
-                        val elector: Elector,
-                        override val ctx: AwsCollection.Context) extends RootCollection("aws.tags", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.tags", accountName, ctx) {
   val crawler = new AwsTagCrawler(name, ctx)
 }
 
@@ -525,9 +568,10 @@ class AwsTagCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsVolumeCollection(
-                           val accountName: String,
-                           val elector: Elector,
-                           override val ctx: AwsCollection.Context) extends RootCollection("aws.volumes", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.volumes", accountName, ctx) {
   val crawler = new AwsVolumeCrawler(name, ctx)
 }
 
@@ -542,9 +586,10 @@ class AwsVolumeCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsBucketCollection(
-                           val accountName: String,
-                           val elector: Elector,
-                           override val ctx: AwsCollection.Context) extends RootCollection("aws.buckets", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.buckets", accountName, ctx) {
   val crawler = new AwsBucketCrawler(name, ctx)
 }
 
@@ -559,9 +604,10 @@ class AwsBucketCollection(
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamUserCollection(
-                           val accountName: String,
-                           val elector: Elector,
-                           override val ctx: AwsCollection.Context) extends RootCollection("aws.iamUsers", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.iamUsers", accountName, ctx) {
   val crawler = new AwsIamUserCrawler(name, ctx)
 }
 
@@ -576,9 +622,10 @@ class AwsIamUserCollection(
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamGroupCollection(
-                           val accountName: String,
-                           val elector: Elector,
-                           override val ctx: AwsCollection.Context) extends RootCollection("aws.iamGroups", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.iamGroups", accountName, ctx) {
   val crawler = new AwsIamGroupCrawler(name, ctx)
 }
 
@@ -593,9 +640,10 @@ class AwsIamGroupCollection(
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamRoleCollection(
-                           val accountName: String,
-                           val elector: Elector,
-                           override val ctx: AwsCollection.Context) extends RootCollection("aws.iamRoles", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.iamRoles", accountName, ctx) {
   val crawler = new AwsIamRoleCrawler(name, ctx)
 }
 
@@ -610,9 +658,10 @@ class AwsIamRoleCollection(
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamPolicyCollection(
-                              val accountName: String,
-                              val elector: Elector,
-                              override val ctx: AwsCollection.Context) extends RootCollection("aws.iamPolicies", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.iamPolicies", accountName, ctx) {
   val crawler = new AwsIamPolicyCrawler(name, ctx)
 }
 
@@ -627,9 +676,10 @@ class AwsIamPolicyCollection(
   * @param ctx context for configuration and AWS clients objects
   */
 class AwsIamVirtualMFADeviceCollection(
-                           val accountName: String,
-                           val elector: Elector,
-                           override val ctx: AwsCollection.Context) extends RootCollection("aws.iamVirtualMFADevices", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.iamVirtualMFADevices", accountName, ctx) {
   val crawler = new AwsIamVirtualMFADeviceCrawler(name, ctx)
 }
 
@@ -644,22 +694,30 @@ class AwsIamVirtualMFADeviceCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsSimpleQueueCollection(
-                                val accountName: String,
-                                val elector: Elector,
-                                override val ctx: AwsCollection.Context) extends RootCollection("view.simpleQueues", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("view.simpleQueues", accountName, ctx) {
   val crawler = new AwsSimpleQueueCrawler(name, ctx)
 
   /** this is overriden from com.netflix.edda.aws.Collection because there are several
     * keys like ApproximateNumberOfMessages that are changing constantly.  We want to record
     * those changes, but not create new document revisions if the only changes are Approx* values
     */
-  override protected
-  def newStateTimeForChange(newRec: Record, oldRec: Record): Boolean = {
+  override protected def newStateTimeForChange(newRec: Record, oldRec: Record): Boolean = {
     if (newRec == null || oldRec == null) return true
     val newData = newRec.data.asInstanceOf[Map[String, Any]]
     val oldData = oldRec.data.asInstanceOf[Map[String, Any]]
-    val newNoApprox = newRec.copy(data = newData + ("attributes" -> newData("attributes").asInstanceOf[Map[String, String]].filterNot(_._1.startsWith("Approx"))))
-    val oldNoApprox = oldRec.copy(data = oldData + ("attributes" -> oldData("attributes").asInstanceOf[Map[String, String]].filterNot(_._1.startsWith("Approx"))))
+    val newNoApprox = newRec.copy(
+      data = newData + ("attributes" -> newData("attributes")
+          .asInstanceOf[Map[String, String]]
+          .filterNot(_._1.startsWith("Approx")))
+    )
+    val oldNoApprox = oldRec.copy(
+      data = oldData + ("attributes" -> oldData("attributes")
+          .asInstanceOf[Map[String, String]]
+          .filterNot(_._1.startsWith("Approx")))
+    )
     newRec.data != oldRec.data && newNoApprox.dataString != oldNoApprox.dataString
   }
 }
@@ -675,12 +733,12 @@ class AwsSimpleQueueCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsReservedInstanceCollection(
-                                 val accountName: String,
-                                 val elector: Elector,
-                                 override val ctx: AwsCollection.Context) extends RootCollection("aws.reservedInstances", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.reservedInstances", accountName, ctx) {
   val crawler = new AwsReservedInstanceCrawler(name, ctx)
 }
-
 
 /** collection for abstracted groupings of instances in AutoScalingGroups
   *
@@ -694,10 +752,12 @@ class AwsReservedInstanceCollection(
   * @param ctx context for AWS clients objects
   */
 class GroupAutoScalingGroups(
-                              val asgCollection: AwsAutoScalingGroupCollection,
-                              val instanceCollection: AwsInstanceCollection,
-                              val elector: Elector,
-                              override val ctx: AwsCollection.Context) extends RootCollection("group.autoScalingGroups", asgCollection.accountName, ctx) with GroupCollection {
+  val asgCollection: AwsAutoScalingGroupCollection,
+  val instanceCollection: AwsInstanceCollection,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("group.autoScalingGroups", asgCollection.accountName, ctx)
+    with GroupCollection {
   import Utils._
   import Queryable._
   // don't crawl, we get crawl results from the asgCollection crawler
@@ -708,7 +768,8 @@ class GroupAutoScalingGroups(
   val mergeKeys = Map("instances" -> "instanceId")
 
   val instanceQuery = Map(
-    "data.state.name" -> Map("$nin" -> Seq("pending", "shutting-down", "terminating", "terminated")))
+    "data.state.name" -> Map("$nin" -> Seq("pending", "shutting-down", "terminating", "terminated"))
+  )
 
   /** The crawler is really a com.netflix.edda.aws.AwsAutoScalingGroupCrawler so we have to
     * translate the ASG records into what the group.autoScalingGroup records should look like
@@ -717,7 +778,9 @@ class GroupAutoScalingGroups(
     * @param oldRecords these are the previous generation of group.autoScalingGroup records
     * @return the [[com.netflix.edda.Collection.Delta]] modified from com.netflix.edda.GroupCollection.groupDelta
     */
-  override protected[edda] def delta(newRecordSet: RecordSet, oldRecordSet: RecordSet)(implicit req: RequestId): Collection.Delta = {
+  override protected[edda] def delta(newRecordSet: RecordSet, oldRecordSet: RecordSet)(
+    implicit req: RequestId
+  ): Collection.Delta = {
     // newRecords will be from the ASG crawler, we need to convert it
     // to the Group records then call groupDelta
 
@@ -736,56 +799,69 @@ class GroupAutoScalingGroups(
         throw e
       }
     }
-    val instanceMap = records.map(rec => rec.id -> rec).toMap
+    val instanceMap = records.map(rec => rec.id         -> rec).toMap
     val oldMap = oldRecordSet.records.map(rec => rec.id -> rec).toMap
 
-    val modNewRecords = newRecordSet.records.map(
-      asgRec => {
-        val newInstances = assignSlots(
-          AwsCollection.makeGroupInstances(asgRec, instanceMap),
-          "instanceId",
-          slotMap("instances"))
-        val asgData = asgRec.data.asInstanceOf[Map[String, Any]]
+    val modNewRecords = newRecordSet.records.map(asgRec => {
+      val newInstances = assignSlots(
+        AwsCollection.makeGroupInstances(asgRec, instanceMap),
+        "instanceId",
+        slotMap("instances")
+      )
+      val asgData = asgRec.data.asInstanceOf[Map[String, Any]]
 
-        val ctime = oldMap.get(asgRec.id) match {
-          case Some(rec) => rec.ctime
-          case None => asgRec.ctime
-        }
+      val ctime = oldMap.get(asgRec.id) match {
+        case Some(rec) => rec.ctime
+        case None      => asgRec.ctime
+      }
 
-        val data = Map(
-          "desiredCapacity" -> asgData.get("desiredCapacity").getOrElse(null),
-          "instances" -> newInstances,
-          "launchConfigurationName" -> asgData.get("launchConfigurationName").getOrElse(null),
-          "loadBalancerNames" -> asgData.get("loadBalancerNames").getOrElse(List()),
-          "maxSize" -> asgData.get("maxSize").getOrElse(null),
-          "minSize" -> asgData.get("minSize").getOrElse(null),
-          "name" -> asgRec.id,
-          "start" -> ctime)
+      val data = Map(
+        "desiredCapacity"         -> asgData.get("desiredCapacity").getOrElse(null),
+        "instances"               -> newInstances,
+        "launchConfigurationName" -> asgData.get("launchConfigurationName").getOrElse(null),
+        "loadBalancerNames"       -> asgData.get("loadBalancerNames").getOrElse(List()),
+        "maxSize"                 -> asgData.get("maxSize").getOrElse(null),
+        "minSize"                 -> asgData.get("minSize").getOrElse(null),
+        "name"                    -> asgRec.id,
+        "start"                   -> ctime
+      )
 
-        asgRec.copy(data = data)
-      })
-    super.delta(RecordSet(modNewRecords,newRecordSet.meta), oldRecordSet)
+      asgRec.copy(data = data)
+    })
+    super.delta(RecordSet(modNewRecords, newRecordSet.meta), oldRecordSet)
   }
 
-  override protected[edda] def update(d: Collection.Delta)(implicit req: RequestId): Collection.Delta = {
-    if (dataStore.isDefined && (d.changed.size > 0 || d.added.size > 0 || d.removed.size > 0) ) {
+  override protected[edda] def update(
+    d: Collection.Delta
+  )(implicit req: RequestId): Collection.Delta = {
+    if (dataStore.isDefined && (d.changed.size > 0 || d.added.size > 0 || d.removed.size > 0)) {
       // make sure slots are not reassigned
       // get SET of "old" instances
-      val oldInstances = d.changed.flatMap( update => {
-        val instances = update.oldRecord.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[Seq[Map[String,Any]]]
-        instances.map( instance => instance("instanceId").asInstanceOf[String])
-      }).toSet
+      val oldInstances = d.changed
+        .flatMap(update => {
+          val instances = update.oldRecord.data
+            .asInstanceOf[Map[String, Any]]("instances")
+            .asInstanceOf[Seq[Map[String, Any]]]
+          instances.map(instance => instance("instanceId").asInstanceOf[String])
+        })
+        .toSet
 
       // get MAP of "new" instances -> slot (new updates + added records)
-      val newInstances = (d.changed.map(update => update.newRecord) ++ d.added).flatMap( rec => {
-        val instances = rec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[Seq[Map[String,Any]]]
-        instances.map( instance => instance("instanceId").asInstanceOf[String] -> instance("slot").asInstanceOf[Int])
-      }).toMap
+      val newInstances = (d.changed.map(update => update.newRecord) ++ d.added)
+        .flatMap(rec => {
+          val instances =
+            rec.data.asInstanceOf[Map[String, Any]]("instances").asInstanceOf[Seq[Map[String, Any]]]
+          instances.map(
+            instance =>
+              instance("instanceId").asInstanceOf[String] -> instance("slot").asInstanceOf[Int]
+          )
+        })
+        .toMap
 
       // just get a list of the instances that we think are new (ie have had new slot assigned)
       val addedInstances = newInstances.keySet diff oldInstances
 
-      if( addedInstances.size > 0 ) {
+      if (addedInstances.size > 0) {
         // query db for all "new" instances to get slot
         val query = Map(
           "data.instances.instanceId" -> Map("$in" -> addedInstances.toSeq),
@@ -795,18 +871,29 @@ class GroupAutoScalingGroups(
           )
         )
 
-        val recs = dataStore.get.query(query, limit=0, keys=Set("data.instances.instanceId", "data.instances.slot", "stime"), replicaOk=false)
+        val recs = dataStore.get.query(
+          query,
+          limit = 0,
+          keys = Set("data.instances.instanceId", "data.instances.slot", "stime"),
+          replicaOk = false
+        )
 
-        recs.foreach( rec => {
-          val instances = rec.data.asInstanceOf[Map[String,Any]]("instances").asInstanceOf[Seq[Map[String,Any]]]
-          instances.foreach( instance => {
+        recs.foreach(rec => {
+          val instances =
+            rec.data.asInstanceOf[Map[String, Any]]("instances").asInstanceOf[Seq[Map[String, Any]]]
+          instances.foreach(instance => {
             val id = instance("instanceId").asInstanceOf[String]
-            if( newInstances.contains(id) ) {
+            if (newInstances.contains(id)) {
               val slot = instance("slot").asInstanceOf[Int]
-              if( newInstances(id) != slot ) {
-                val msg = this.toString + " Slot reassignment for instance " + id + " from " + slot + " [stime=" + rec.stime.getMillis + "] to " + newInstances(id)
+              if (newInstances(id) != slot) {
+                val msg = this.toString + " Slot reassignment for instance " + id + " from " + slot + " [stime=" + rec.stime.getMillis + "] to " + newInstances(
+                    id
+                  )
                 logger.error(s"$req $msg")
-                if( ! Utils.getProperty("edda","collection.allowSlotReassign",name,"false").get.toBoolean ) {
+                if (!Utils
+                      .getProperty("edda", "collection.allowSlotReassign", name, "false")
+                      .get
+                      .toBoolean) {
                   throw new java.lang.RuntimeException(msg)
                 }
               }
@@ -830,9 +917,10 @@ class GroupAutoScalingGroups(
   * @param ctx context for AWS clients objects
   */
 class AwsHostedZoneCollection(
-                           val accountName: String,
-                           val elector: Elector,
-                           override val ctx: AwsCollection.Context) extends RootCollection("aws.hostedZones", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.hostedZones", accountName, ctx) {
   val crawler = new AwsHostedZoneCrawler(name, ctx)
 }
 
@@ -847,10 +935,11 @@ class AwsHostedZoneCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsHostedRecordCollection(
-                           val zoneCrawler: AwsHostedZoneCrawler,
-                           val accountName: String,
-                           val elector: Elector,
-                           override val ctx: AwsCollection.Context) extends RootCollection("aws.hostedRecords", accountName, ctx) {
+  val zoneCrawler: AwsHostedZoneCrawler,
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.hostedRecords", accountName, ctx) {
   // we dont actually crawl, the zoneCrawler triggers our crawl events
   override val allowCrawl = false
   val crawler = new AwsHostedRecordCrawler(name, ctx, zoneCrawler)
@@ -867,30 +956,32 @@ class AwsHostedRecordCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsDatabaseCollection(
-                               val accountName: String,
-                               val elector: Elector,
-                               override val ctx: AwsCollection.Context) extends RootCollection("aws.databases", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.databases", accountName, ctx) {
   val crawler = new AwsDatabaseCrawler(name, ctx)
 
   /** this is overridden from com.netflix.edda.aws.Collection because we want to record
     * changes, but not create new document revisions if the only changes are to latestRestorableTime values
     */
-  override protected
-  def newStateTimeForChange(newRec: Record, oldRec: Record): Boolean = {
+  override protected def newStateTimeForChange(newRec: Record, oldRec: Record): Boolean = {
     if (newRec == null || oldRec == null) return true
     val newData = newRec.data.asInstanceOf[Map[String, Any]]
     val oldData = oldRec.data.asInstanceOf[Map[String, Any]]
-    val newLatestRestorable = newRec.copy(data = newData.filterNot(_._1.startsWith("latestRestorable")))
-    val oldLatestRestorable = oldRec.copy(data = oldData.filterNot(_._1.startsWith("latestRestorable")))
+    val newLatestRestorable =
+      newRec.copy(data = newData.filterNot(_._1.startsWith("latestRestorable")))
+    val oldLatestRestorable =
+      oldRec.copy(data = oldData.filterNot(_._1.startsWith("latestRestorable")))
     newRec.data != oldRec.data && newLatestRestorable.dataString != oldLatestRestorable.dataString
   }
 }
 
 class AwsDatabaseSubnetCollection(
-                                   val accountName: String,
-                                   val elector: Elector,
-                                   override val ctx: AwsCollection.Context
-                                 ) extends RootCollection("aws.databaseSubnets", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.databaseSubnets", accountName, ctx) {
   val crawler = new AwsDatabaseSubnetCrawler(name, ctx)
 }
 
@@ -905,9 +996,10 @@ class AwsDatabaseSubnetCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsCacheClusterCollection(
-                                val accountName: String,
-                                val elector: Elector,
-                                override val ctx: AwsCollection.Context) extends RootCollection("aws.cacheClusters", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.cacheClusters", accountName, ctx) {
   val crawler = new AwsCacheClusterCrawler(name, ctx)
 }
 
@@ -922,11 +1014,13 @@ class AwsCacheClusterCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsSubnetCollection(
-                             val accountName: String,
-                             val elector: Elector,
-                             override val ctx: AwsCollection.Context) extends RootCollection("aws.subnets", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.subnets", accountName, ctx) {
   val crawler = new AwsSubnetCrawler(name, ctx)
 }
+
 /** collection for AWS Cloudformation Stacks
   *
   * root collection name: aws.stacks
@@ -938,9 +1032,10 @@ class AwsSubnetCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsCloudformationCollection(
-                               val accountName: String,
-                               val elector: Elector,
-                               override val ctx: AwsCollection.Context) extends RootCollection("aws.stacks", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.stacks", accountName, ctx) {
   val crawler = new AwsCloudformationCrawler(name, ctx)
 }
 
@@ -955,9 +1050,9 @@ class AwsCloudformationCollection(
   * @param ctx context for AWS clients objects
   */
 class AwsNetworkInterfaceCollection(
-                                   val accountName: String,
-                                   val elector: Elector,
-                                   override val ctx: AwsCollection.Context) extends RootCollection("aws.networkInterfaces", accountName, ctx) {
+  val accountName: String,
+  val elector: Elector,
+  override val ctx: AwsCollection.Context
+) extends RootCollection("aws.networkInterfaces", accountName, ctx) {
   val crawler = new AwsNetworkInterfaceCrawler(name, ctx)
 }
-

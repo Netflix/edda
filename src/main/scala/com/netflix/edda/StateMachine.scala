@@ -30,7 +30,6 @@ import com.netflix.servo.monitor.Monitors
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.Executors
 
-
 /** companion for [[com.netflix.edda.StateMachine]] holding base message type for
   * all state machine transition messages.
   */
@@ -54,10 +53,12 @@ object StateMachine {
   trait ErrorMessage extends Message {}
 
   /** sent in case the message does not extend Message trait */
-  case class InvalidMessageError(from: Actor, reason: String, message: Any)(implicit req: RequestId) extends ErrorMessage
+  case class InvalidMessageError(from: Actor, reason: String, message: Any)(implicit req: RequestId)
+      extends ErrorMessage
 
   /** sent in the case there are no matching case clauses for the the incoming message */
-  case class UnknownMessageError(from: Actor, reason: String, message: Any)(implicit req: RequestId) extends ErrorMessage
+  case class UnknownMessageError(from: Actor, reason: String, message: Any)(implicit req: RequestId)
+      extends ErrorMessage
 
   /** keep track of a local state for each subclass of the StateMachine. For the inheritance of
     * Collection->Queryable->Observable->StateMachine we could have separate states
@@ -83,12 +84,14 @@ object StateMachine {
       *   setLocalState(state, localState(state).copy(crawled = newRecords))
       * }}}
       */
-    def setLocalState(state: StateMachine.State, localState: T) = state + (localStateKey -> localState)
+    def setLocalState(state: StateMachine.State, localState: T) =
+      state + (localStateKey -> localState)
 
     /** get the state for your local class */
     def localState(state: StateMachine.State): T = state.get(localStateKey) match {
       case Some(localState) => localState.asInstanceOf[T]
-      case other => throw new java.lang.RuntimeException(localStateKey + " state missing from current state")
+      case other =>
+        throw new java.lang.RuntimeException(localStateKey + " state missing from current state")
     }
   }
 
@@ -108,7 +111,7 @@ class StateMachine extends Actor {
     if (logger.isDebugEnabled) logger.debug(Actor.self + " sending: " + msg + " -> " + this)
     this ! msg
   }
-  
+
   def threadPoolSize = 4
   val pool = Executors.newFixedThreadPool(threadPoolSize)
   override val scheduler = ExecutorScheduler(pool, false)
@@ -132,21 +135,22 @@ class StateMachine extends Actor {
   protected def addInitialState(state: State, stateTup: (String, Any)): State = {
     val (localStateKey, initValue) = stateTup
     state isDefinedAt localStateKey match {
-      case true => throw new java.lang.RuntimeException("State for " + localStateKey + " already initialized")
+      case true =>
+        throw new java.lang.RuntimeException("State for " + localStateKey + " already initialized")
       case false => state + (localStateKey -> initValue)
     }
   }
 
   /** used to drain the actor mailbox of messages when desired.
-   * {{{
-   * flushMessages {
-   *   case Crawl(from) => true
-   * }
-   * }}}
-   */
-  protected def flushMessages(pf: PartialFunction[Any,Boolean]) {
+    * {{{
+    * flushMessages {
+    *   case Crawl(from) => true
+    * }
+    * }}}
+    */
+  protected def flushMessages(pf: PartialFunction[Any, Boolean]) {
     var keepLooping = true
-    while ( keepLooping ) {
+    while (keepLooping) {
       keepLooping = Actor.self.receiveWithin(0)(pf orElse {
         case TIMEOUT => false
       })
@@ -188,11 +192,12 @@ class StateMachine extends Actor {
               if (logger.isDebugEnabled) logger.debug(s"$req$this received: $gotMsg from $sender")
               keepLooping = false
             }
-            case gotMsg : Message => {
+            case gotMsg: Message => {
               implicit val req = gotMsg.req
               if (!transitions.isDefinedAt(gotMsg, state)) {
-                if (logger.isErrorEnabled) logger.error(s"$req Unknown Message $gotMsg sent from $sender")
-                val msg = UnknownMessageError(this, "Unknown Message " + gotMsg, gotMsg) 
+                if (logger.isErrorEnabled)
+                  logger.error(s"$req Unknown Message $gotMsg sent from $sender")
+                val msg = UnknownMessageError(this, "Unknown Message " + gotMsg, gotMsg)
                 if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $sender")
                 sender ! msg
               }
@@ -206,8 +211,10 @@ class StateMachine extends Actor {
               }
             }
             case message => {
-              if (logger.isErrorEnabled) logger.error("Invalid Message " + message + " sent from " + sender)
-              val msg = InvalidMessageError(this, "Invalid Message " + message, message)(RequestId()) 
+              if (logger.isErrorEnabled)
+                logger.error("Invalid Message " + message + " sent from " + sender)
+              val msg =
+                InvalidMessageError(this, "Invalid Message " + message, message)(RequestId())
               if (logger.isDebugEnabled) logger.debug(this + " sending: " + msg + " -> " + sender)
               sender ! msg
             }
@@ -217,7 +224,7 @@ class StateMachine extends Actor {
     }
   }
 
-  var handlers: PartialFunction[Exception,Unit] = {
+  var handlers: PartialFunction[Exception, Unit] = {
     case e: Exception => if (logger.isErrorEnabled) logger.error(this + " caught exception", e)
   }
 
@@ -225,7 +232,7 @@ class StateMachine extends Actor {
     * handling when needed
     * @param pf PartialFunction to handle exception types
     */
-  def addExceptionHandler(pf: PartialFunction[Exception,Unit]) {
+  def addExceptionHandler(pf: PartialFunction[Exception, Unit]) {
     handlers = pf orElse handlers
   }
 

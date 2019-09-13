@@ -49,14 +49,15 @@ class S3CurrentDatastore(val name: String) extends Datastore {
     Utils.getProperty("edda", "s3current.account", name, "").get match {
       case "" => {
         val nameParts = name.split('.')
-        if( nameParts.size == 2 ) "" else nameParts.dropRight(2).mkString(".")
+        if (nameParts.size == 2) "" else nameParts.dropRight(2).mkString(".")
       }
       case acct => acct
     }
   }
 
-  lazy val s3     = new AwsClient(account).s3
+  lazy val s3 = new AwsClient(account).s3
   val readDynamo = new AwsClient(account).dynamo
+
   // disable retry's when writing to dynamo ... if initial request
   // gets a timeout we need to know as it will likely complete eventually
   // and then all subsequent conditional updates will fail since will be out
@@ -66,22 +67,24 @@ class S3CurrentDatastore(val name: String) extends Datastore {
     client
   }
 
+  lazy val tableName =
+    Utils.getProperty("edda", "s3current.table", name, "edda-s3current-collection-index").get
+  lazy val readCap = Utils.getProperty("edda", "s3current.readCapacity", name, "1").get.toLong
+  lazy val writeCap = Utils.getProperty("edda", "s3current.writeCapacity", name, "1").get.toLong
+  lazy val bucketName =
+    Utils.getProperty("edda", "s3current.bucket", name, "edda-s3current-collections").get
 
-  lazy val tableName = Utils.getProperty("edda", "s3current.table", name, "edda-s3current-collection-index").get
-  lazy val readCap   = Utils.getProperty("edda", "s3current.readCapacity", name, "1").get.toLong
-  lazy val writeCap  = Utils.getProperty("edda", "s3current.writeCapacity", name, "1").get.toLong
-  lazy val bucketName = Utils.getProperty("edda", "s3current.bucket", name, "edda-s3current-collections").get
-
-  lazy val locationPrefix = Utils.getProperty("edda", "s3current.locationPrefix", name, "edda/s3current").get
+  lazy val locationPrefix =
+    Utils.getProperty("edda", "s3current.locationPrefix", name, "edda/s3current").get
 
   lazy val autoDelete = Utils.getProperty("edda", "s3current.autoDelete", name, "false")
-    
+
   def init() {
     implicit var client = writeDynamo
     s3.getBucketLocation(bucketName) match {
-      case "EU"|"eu-west-1" => s3.setEndpoint("s3-eu-west-1.amazonaws.com")
-      case "US"|"" => s3.setEndpoint("s3.amazonaws.com")
-      case location => s3.setEndpoint(s"s3-$location.amazonaws.com")
+      case "EU" | "eu-west-1" => s3.setEndpoint("s3-eu-west-1.amazonaws.com")
+      case "US" | ""          => s3.setEndpoint("s3.amazonaws.com")
+      case location           => s3.setEndpoint(s"s3-$location.amazonaws.com")
     }
     DynamoDB.init(tableName, readCap, writeCap)
   }
@@ -106,11 +109,12 @@ class S3CurrentDatastore(val name: String) extends Datastore {
     implicit var client = readDynamo
 
     val item = DynamoDB.get(tableName, "name", name) match {
-      case Some(record: Map[String,String]) => record
-      case _ => throw new java.lang.UnsupportedOperationException(s"Dynamo record for $name not found")
+      case Some(record: Map[String, String]) => record
+      case _ =>
+        throw new java.lang.UnsupportedOperationException(s"Dynamo record for $name not found")
     }
 
-    val location  = item("location")
+    val location = item("location")
     val requestId = item("reqId")
     logger.info(s"$req$this Loading $name: $location ($requestId)")
 
@@ -118,17 +122,17 @@ class S3CurrentDatastore(val name: String) extends Datastore {
     val t0 = System.nanoTime()
     var md5: String = null
     var mtime: DateTime = DateTime.now
-    var userMeta = Map[String,String]()
+    var userMeta = Map[String, String]()
     val bytes = try {
       val s3Object = s3.getObject(bucketName, location)
       val meta = s3Object.getObjectMetadata();
       mtime = new DateTime(meta.getLastModified())
-      
+
       userMeta = meta.getUserMetadata().asScala.toMap
       val origReqId = userMeta("reqid")
       md5 = userMeta.get("md5").getOrElse("")
       logger.info(s"$req$this Loaded $name: $location [$md5] ($origReqId) modifed: $mtime")
-      
+
       val inputStream = s3Object.getObjectContent
       var out = IOUtils.toByteArray(inputStream)
       inputStream.close()
@@ -140,69 +144,76 @@ class S3CurrentDatastore(val name: String) extends Datastore {
     }
 
     var newMD5 = Base64.encodeBase64String(MessageDigest.getInstance("MD5").digest(bytes)).trim
-    var jsonContent = if( userMeta.get("compressed").getOrElse("false").toBoolean ) {
+    var jsonContent = if (userMeta.get("compressed").getOrElse("false").toBoolean) {
       Utils.decompress(bytes)
     } else {
       IOUtils.toString(bytes, "UTF-8")
     }
 
     // MD5 check content
-    if( ! md5.isEmpty ) {
-      if( md5 != newMD5 ) {
-        logger.error(s"$req$this content from s3 does not match designated md5 value, got: '$newMD5' expected: '$md5'");
-        throw new java.lang.IllegalStateException("content from s3 does not match designated md5 value")
+    if (!md5.isEmpty) {
+      if (md5 != newMD5) {
+        logger.error(
+          s"$req$this content from s3 does not match designated md5 value, got: '$newMD5' expected: '$md5'"
+        );
+        throw new java.lang.IllegalStateException(
+          "content from s3 does not match designated md5 value"
+        )
       }
     }
 
     val mapper = new ObjectMapper();
     val jsonNode = mapper.readTree(jsonContent);
 
-    val recs = Utils.fromJson(jsonNode).asInstanceOf[Seq[Map[String,Any]]].map( node => {
-      Record(
-        node.get("id").getOrElse(node.get("_id")).asInstanceOf[String],
-        node.get("ftime") match {
-          case Some(date: Long) => new DateTime(date)
-          case _ => node.get("ctime") match {
+    val recs = Utils
+      .fromJson(jsonNode)
+      .asInstanceOf[Seq[Map[String, Any]]]
+      .map(node => {
+        Record(
+          node.get("id").getOrElse(node.get("_id")).asInstanceOf[String],
+          node.get("ftime") match {
             case Some(date: Long) => new DateTime(date)
-            case _ => null
+            case _ =>
+              node.get("ctime") match {
+                case Some(date: Long) => new DateTime(date)
+                case _                => null
+              }
+          },
+          node.get("ctime") match {
+            case Some(date: Long) => new DateTime(date)
+            case _                => null
+          },
+          node.get("stime") match {
+            case Some(date: Long) => new DateTime(date)
+            case _                => null
+          },
+          node.get("ltime") match {
+            case Some(date: Long) => new DateTime(date)
+            case _                => null
+          },
+          node.get("mtime") match {
+            case Some(date: Long) => new DateTime(date)
+            case _                => null
+          },
+          node.get("data") match {
+            case Some(data) => data
+            case _          => null
+          },
+          node.get("tags") match {
+            case Some(tags) => tags.asInstanceOf[Map[String, Any]]
+            case _          => Map[String, Any]()
           }
-        },
-        node.get("ctime") match {
-          case Some(date: Long) => new DateTime(date)
-          case _ => null
-        },
-        node.get("stime") match {
-          case Some(date: Long) => new DateTime(date)
-          case _ => null
-        },
-        node.get("ltime") match {
-          case Some(date: Long) => new DateTime(date)
-          case _ => null
-        },
-        node.get("mtime") match {
-          case Some(date: Long) => new DateTime(date)
-          case _ => null
-        },
-        node.get("data") match {
-          case Some(data) => data
-          case _ => null
-        },
-        node.get("tags") match {
-          case Some(tags) => tags.asInstanceOf[Map[String,Any]]
-          case _ => Map[String,Any]()
-        }
-      )
-    })
-    val recMtime = if( recs.isEmpty ) {
-        mtime
-      } else {
-        recs.head.mtime
-      }
+        )
+      })
+    val recMtime = if (recs.isEmpty) {
+      mtime
+    } else {
+      recs.head.mtime
+    }
     RecordSet(recs, Map("location" -> location, "mtime" -> recMtime))
   }
 
-  override
-  def update(d: Collection.Delta)(implicit req: RequestId): Collection.Delta = {
+  override def update(d: Collection.Delta)(implicit req: RequestId): Collection.Delta = {
     import collection.JavaConverters._
     implicit var client = writeDynamo
     // write to S3
@@ -229,27 +240,28 @@ class S3CurrentDatastore(val name: String) extends Datastore {
       val lapse = (t1 - t0) / 1000000;
       if (logger.isInfoEnabled) logger.info(s"$req$this s3 write lapse: ${lapse}ms")
     }
-    
+
     val oldLocation = d.recordSet.meta.get("location") match {
       case Some(location: String) => location
-      case _ => ""
+      case _                      => ""
     }
-    
+
     val attrs = Map(
-      "name" -> name,
+      "name"     -> name,
       "location" -> location,
-      "reqId" -> req.id
+      "reqId"    -> req.id
     )
-    val expected = if( oldLocation.isEmpty ) Map( "name" -> None ) else Map( "location" -> oldLocation )
+    val expected = if (oldLocation.isEmpty) Map("name" -> None) else Map("location" -> oldLocation)
 
     DynamoDB.put(tableName, attrs, expected);
-      
-    if( ! oldLocation.isEmpty && autoDelete.get.toBoolean ) {
+
+    if (!oldLocation.isEmpty && autoDelete.get.toBoolean) {
       t0 = System.nanoTime()
       try {
         s3.deleteObject(bucketName, oldLocation)
       } catch {
-        case e: Exception => logger.error(s"$req$this failed to delete $oldLocation from $bucketName", e)
+        case e: Exception =>
+          logger.error(s"$req$this failed to delete $oldLocation from $bucketName", e)
       } finally {
         val t1 = System.nanoTime()
         val lapse = (t1 - t0) / 1000000;
@@ -257,21 +269,28 @@ class S3CurrentDatastore(val name: String) extends Datastore {
       }
     }
 
-    val mtime = if( d.recordSet.records.isEmpty ) {
-        DateTime.now
-      } else {
-        d.recordSet.records.head.mtime
-      }
-    d.copy(recordSet = RecordSet(d.recordSet.records, d.recordSet.meta + ("location" -> location, "mtime" -> mtime)))
+    val mtime = if (d.recordSet.records.isEmpty) {
+      DateTime.now
+    } else {
+      d.recordSet.records.head.mtime
+    }
+    d.copy(
+      recordSet = RecordSet(
+        d.recordSet.records,
+        d.recordSet.meta + ("location" -> location, "mtime" -> mtime)
+      )
+    )
   }
 
-  def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean)(implicit req: RequestId): Seq[Record] = {
+  def query(queryMap: Map[String, Any], limit: Int, keys: Set[String], replicaOk: Boolean)(
+    implicit req: RequestId
+  ): Seq[Record] = {
     throw new java.lang.UnsupportedOperationException("you cannot query the S3 Live datastore");
   }
 
   def remove(queryMap: Map[String, Any])(implicit req: RequestId) {
     throw new java.lang.UnsupportedOperationException("you cannot query the S3 Live datastore");
   }
-    
+
   override def toString = "[S3CurrentDatastore " + name + "]"
 }

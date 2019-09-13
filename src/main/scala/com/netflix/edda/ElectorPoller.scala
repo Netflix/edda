@@ -44,9 +44,10 @@ class ElectorPoller(elector: Elector) extends Actor {
   }
 
   override def exceptionHandler = {
-    case e: Exception => if (logger.isErrorEnabled) logger.error(this + " failed to setup election poller", e)
+    case e: Exception =>
+      if (logger.isErrorEnabled) logger.error(this + " failed to setup election poller", e)
   }
-  
+
   def stop()(implicit req: RequestId) {
     val msg = StateMachine.Stop(this)
     if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $this")

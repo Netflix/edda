@@ -40,7 +40,8 @@ object Elector extends StateMachine.LocalState[ElectorState] {
   val logger = LoggerFactory.getLogger(getClass)
 
   /** Message sent to observers after an Election */
-  case class ElectionResult(from: Actor, result: Boolean)(implicit req: RequestId) extends StateMachine.Message
+  case class ElectionResult(from: Actor, result: Boolean)(implicit req: RequestId)
+      extends StateMachine.Message
 
   /** Message to start an election and decide leadership */
   case class RunElection(from: Actor)(implicit req: RequestId) extends StateMachine.Message
@@ -51,7 +52,6 @@ object Elector extends StateMachine.LocalState[ElectorState] {
 
 /** interface for determining leadership in a multi system configuration.
   */
-
 abstract class Elector extends Observable {
 
   import Elector._
@@ -62,7 +62,8 @@ abstract class Elector extends Observable {
     MonitorConfig.builder("leader").build(),
     new Callable[java.lang.Integer] {
       def call() = if (self.isLeader()(RequestId("leaderGauge"))) 1 else 0
-    })
+    }
+  )
 
   /** synchronous call to the StateMachine to fetch the leadership status */
   val duration = scala.concurrent.duration.Duration(
@@ -75,11 +76,16 @@ abstract class Elector extends Observable {
     val p = scala.concurrent.promise[Boolean]
     Utils.namedActor(this + " elector client") {
       val msg = IsLeader(Actor.self)
-      if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} sending: $msg -> $this with 10000ms timeout")
-      this !?(10000, msg) match {
+      if (logger.isDebugEnabled)
+        logger.debug(s"$req${Actor.self} sending: $msg -> $this with 10000ms timeout")
+      this !? (10000, msg) match {
         case Some(ElectionResult(from, result)) => p success result
-        case Some(message) => p failure new java.lang.UnsupportedOperationException("Failed to determine leadership: " + message)
-        case None => p failure new java.lang.RuntimeException("TIMEOUT: isLeader response within 10s")
+        case Some(message) =>
+          p failure new java.lang.UnsupportedOperationException(
+            "Failed to determine leadership: " + message
+          )
+        case None =>
+          p failure new java.lang.RuntimeException("TIMEOUT: isLeader response within 10s")
       }
     }
     scala.concurrent.Await.result(p.future, duration)
@@ -100,7 +106,14 @@ abstract class Elector extends Observable {
   protected override def init() {
     implicit val req = RequestId("init")
     Monitors.registerObject("edda.elector", this)
-    DefaultMonitorRegistry.getInstance().register(Monitors.newThreadPoolMonitor("edda.elector.threadpool", this.pool.asInstanceOf[ThreadPoolExecutor]))
+    DefaultMonitorRegistry
+      .getInstance()
+      .register(
+        Monitors.newThreadPoolMonitor(
+          "edda.elector.threadpool",
+          this.pool.asInstanceOf[ThreadPoolExecutor]
+        )
+      )
     Utils.namedActor(this + " init") {
       val msg = RunElection(Actor.self)
       if (logger.isDebugEnabled) logger.debug(s"$req${Actor.self} sending: $msg -> $this")
@@ -112,7 +125,8 @@ abstract class Elector extends Observable {
         import ObserverExecutionContext._
         this.addObserver(this) onFailure {
           case msg => {
-            if (logger.isErrorEnabled) logger.error(s"$req${Actor.self} failed to add observer $this to $this, retrying")
+            if (logger.isErrorEnabled)
+              logger.error(s"$req${Actor.self} failed to add observer $this to $this, retrying")
             retry
           }
         }
@@ -133,10 +147,13 @@ abstract class Elector extends Observable {
       scala.concurrent.future {
         val result = runElection()
         val msg = ElectionResult(this, result)
-        Observable.localState(state).observers.foreach(o => {
+        Observable
+          .localState(state)
+          .observers
+          .foreach(o => {
             if (logger.isDebugEnabled) logger.debug(s"$req$this sending: $msg -> $o")
             o ! msg
-        })
+          })
       }
       state
     }
@@ -159,4 +176,3 @@ abstract class Elector extends Observable {
 
   override def transitions = localTransitions orElse super.transitions
 }
-

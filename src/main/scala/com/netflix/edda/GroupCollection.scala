@@ -46,14 +46,26 @@ trait GroupCollection extends Collection {
     * to return a single document for all the revisions with the lastest revision of every instance in the queryied
     * timeframe.  See [[com.netflix.edda.Queryable.query]]
     */
-  override def doQuery(queryMap: Map[String, Any], limit: Int, live: Boolean, keys: Set[String], replicaOk: Boolean, state: StateMachine.State)(implicit req: RequestId): Seq[Record] = {
+  override def doQuery(
+    queryMap: Map[String, Any],
+    limit: Int,
+    live: Boolean,
+    keys: Set[String],
+    replicaOk: Boolean,
+    state: StateMachine.State
+  )(implicit req: RequestId): Seq[Record] = {
     // if they have specified a subset of keys, then we need to make
     // sure "id" is in there so we can group
     val requiredKeys = if (keys.isEmpty) keys else (keys + "id")
     val records = super.doQuery(queryMap, limit, live, requiredKeys, replicaOk, state)
 
     if (keys.isEmpty || mergeKeys.find(pair => keys.contains("data." + pair._1)) != None) {
-      records.groupBy(_.id).values.toSeq.sortBy(_.head).map((recs: Seq[Record]) => mergeRecords(recs.sortBy(_.stime)))
+      records
+        .groupBy(_.id)
+        .values
+        .toSeq
+        .sortBy(_.head)
+        .map((recs: Seq[Record]) => mergeRecords(recs.sortBy(_.stime)))
     } else if (keys.contains("data.end")) {
       records.map(rec => {
         val data = rec.data.asInstanceOf[Map[String, Any]] + ("end" -> rec.ltime)
@@ -74,25 +86,29 @@ trait GroupCollection extends Collection {
     * records).
     */
   def mergeRecords(records: Seq[Record]): Record = {
-    val merge = mergeKeys.map(
-      pair => {
+    val merge = mergeKeys
+      .map(pair => {
         val groupName = pair._1
         val groupKey = pair._2
         var seen: Set[String] = Set()
-        groupName -> records.map(
-          rec => {
-            rec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[Seq[Map[String, Any]]].map(
-              inst => inst ++ Map("end" -> rec.ltime))
-          }).flatten.filterNot(
-            inst => {
-                val id = inst(groupKey).asInstanceOf[String]
-                val skip = seen.contains(id)
-                if (!skip) {
-                    seen = seen + id
-                }
-                skip
+        groupName -> records
+          .map(rec => {
+            rec.data
+              .asInstanceOf[Map[String, Any]](groupName)
+              .asInstanceOf[Seq[Map[String, Any]]]
+              .map(inst => inst ++ Map("end" -> rec.ltime))
           })
-      }).toMap
+          .flatten
+          .filterNot(inst => {
+            val id = inst(groupKey).asInstanceOf[String]
+            val skip = seen.contains(id)
+            if (!skip) {
+              seen = seen + id
+            }
+            skip
+          })
+      })
+      .toMap
 
     val rec = records.head
     val data = rec.data.asInstanceOf[Map[String, Any]] ++ merge + ("end" -> rec.ltime)
@@ -106,16 +122,21 @@ trait GroupCollection extends Collection {
     *                   over multiple crawls
     */
   def groupSlots(oldRecords: Seq[Record]): Map[String, Map[String, Int]] = {
-    mergeKeys.map(
-      pair => {
+    mergeKeys
+      .map(pair => {
         val groupName = pair._1
         val groupKey = pair._2
 
-        groupName -> oldRecords.flatMap(rec => {
-          rec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[Seq[Map[String, Any]]].map(
-            item => item(groupKey).asInstanceOf[String] -> item("slot").asInstanceOf[Int])
-        }).toMap
-      }).toMap
+        groupName -> oldRecords
+          .flatMap(rec => {
+            rec.data
+              .asInstanceOf[Map[String, Any]](groupName)
+              .asInstanceOf[Seq[Map[String, Any]]]
+              .map(item => item(groupKey).asInstanceOf[String] -> item("slot").asInstanceOf[Int])
+          })
+          .toMap
+      })
+      .toMap
   }
 
   /** assign a numeric slot number for all items that we merge. If there is already a slot
@@ -127,19 +148,25 @@ trait GroupCollection extends Collection {
     * @param slotMap map of resources still active with current slot assignments
     * @return list of resources modified to have a "slot" key
     */
-  def assignSlots(group: Seq[Map[String, Any]], groupKey: String, slotMap: Map[String, Int]): Seq[Map[String, Any]] = {
+  def assignSlots(
+    group: Seq[Map[String, Any]],
+    groupKey: String,
+    slotMap: Map[String, Int]
+  ): Seq[Map[String, Any]] = {
 
-    val usedSlots: Set[Int] = group.map(
-      item => item(groupKey).asInstanceOf[String]).collect({
-      case id: String if slotMap.contains(id) => slotMap(id)
-    }).toSet
+    val usedSlots: Set[Int] = group
+      .map(item => item(groupKey).asInstanceOf[String])
+      .collect({
+        case id: String if slotMap.contains(id) => slotMap(id)
+      })
+      .toSet
 
     var unusedSlots = Range(0, group.size).collect {
       case slot if !usedSlots.contains(slot) => slot
     }
 
-    group.map(
-      item => {
+    group
+      .map(item => {
         val id = item(groupKey).asInstanceOf[String]
         val slot = slotMap.get(id) match {
           case Some(s) => s
@@ -150,7 +177,8 @@ trait GroupCollection extends Collection {
           }
         }
         item + ("slot" -> slot)
-      }).sortWith((a, b) => a("slot").asInstanceOf[Int] < b("slot").asInstanceOf[Int])
+      })
+      .sortWith((a, b) => a("slot").asInstanceOf[Int] < b("slot").asInstanceOf[Int])
   }
 
   /** only create new document revision if the membership of the groups have changed.
@@ -159,19 +187,24 @@ trait GroupCollection extends Collection {
     * the previous document will get overwritten.  If an instance change state from Pending to Running
     * then the document will just get updated and no new revision will get created.
     */
-  override protected
-  def newStateTimeForChange(newRec: Record, oldRec: Record): Boolean = {
+  override protected def newStateTimeForChange(newRec: Record, oldRec: Record): Boolean = {
     val changes = mergeKeys.filterNot(
       pair => {
         val groupName = pair._1
         val groupKey = pair._2
 
         // if we have new instances then we increment stime, otherwise just update to new document
-        val newSet = newRec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[Seq[Map[String, Any]]].map(
-          item => item(groupKey).asInstanceOf[String]).toSet
+        val newSet = newRec.data
+          .asInstanceOf[Map[String, Any]](groupName)
+          .asInstanceOf[Seq[Map[String, Any]]]
+          .map(item => item(groupKey).asInstanceOf[String])
+          .toSet
 
-        val oldSet = oldRec.data.asInstanceOf[Map[String, Any]](groupName).asInstanceOf[Seq[Map[String, Any]]].map(
-          item => item(groupKey).asInstanceOf[String]).toSet
+        val oldSet = oldRec.data
+          .asInstanceOf[Map[String, Any]](groupName)
+          .asInstanceOf[Seq[Map[String, Any]]]
+          .map(item => item(groupKey).asInstanceOf[String])
+          .toSet
         newSet == oldSet
       }
     )

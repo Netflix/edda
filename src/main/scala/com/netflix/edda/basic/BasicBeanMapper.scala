@@ -26,10 +26,8 @@ import org.slf4j.LoggerFactory
 
 import org.apache.commons.beanutils.BeanMap
 
-
-
 /** Class to convert a Java Bean to a primitive Scala object (Map, Seq, etc)
- */
+  */
 class BasicBeanMapper extends BeanMapper {
   private[this] val logger = LoggerFactory.getLogger(getClass)
 
@@ -56,32 +54,35 @@ class BasicBeanMapper extends BeanMapper {
     if (m.getClass.isEnum)
       Map(
         "class" -> m.getClass.getName,
-        "name" -> m.getClass.getMethod("name").invoke(m).asInstanceOf[String])
+        "name"  -> m.getClass.getMethod("name").invoke(m).asInstanceOf[String]
+      )
     else
-      m.asScala.collect({
-        case (key: Any, value: Any) =>
-          argPattern.replaceAllIn(key.toString, "_").intern -> mkValue(value).getOrElse(null)
-      }).toMap[Any, Any] + ("class" -> m.getClass.getName)
+      m.asScala
+        .collect({
+          case (key: Any, value: Any) =>
+            argPattern.replaceAllIn(key.toString, "_").intern -> mkValue(value).getOrElse(null)
+        })
+        .toMap[Any, Any] + ("class" -> m.getClass.getName)
   }
 
   /** Create Any value into a Option of corresponding Scala value */
   def mkValue(value: Any): Option[Any] = value match {
-    case v: Boolean => Some(v)
-    case v: Byte => Some(v)
-    case v: Int => Some(v)
-    case v: Short => Some(v)
-    case v: Long => Some(v)
-    case v: Float => Some(v)
-    case v: Double => Some(v)
-    case v: Char => Some(v)
-    case v: String => Some(v)
-    case v: Date => Some(new DateTime(v))
-    case v: DateTime => Some(v)
-    case v: Class[_] => Some(v.getName)
+    case v: Boolean                 => Some(v)
+    case v: Byte                    => Some(v)
+    case v: Int                     => Some(v)
+    case v: Short                   => Some(v)
+    case v: Long                    => Some(v)
+    case v: Float                   => Some(v)
+    case v: Double                  => Some(v)
+    case v: Char                    => Some(v)
+    case v: String                  => Some(v)
+    case v: Date                    => Some(new DateTime(v))
+    case v: DateTime                => Some(v)
+    case v: Class[_]                => Some(v.getName)
     case v: java.util.Collection[_] => Some(mkList(v))
-    case v: java.util.Map[_, _] => Some(mkMap(v))
-    case v: AnyRef => Some(fromBean(v))
-    case null => Some(null)
+    case v: java.util.Map[_, _]     => Some(mkMap(v))
+    case v: AnyRef                  => Some(fromBean(v))
+    case null                       => Some(null)
     case other => {
       if (logger.isWarnEnabled) logger.warn("dont know how to make value from " + other)
       None
@@ -92,16 +93,19 @@ class BasicBeanMapper extends BeanMapper {
     case obj => {
       import scala.collection.JavaConverters._
       val beanMap = new BeanMap(obj)
-      val entries = beanMap.entrySet.asScala.toList.sortBy(_.asInstanceOf[java.util.Map.Entry[String, Any]].getKey.toLowerCase)
-      entries.map(
-        item => {
+      val entries = beanMap.entrySet.asScala.toList
+        .sortBy(_.asInstanceOf[java.util.Map.Entry[String, Any]].getKey.toLowerCase)
+      entries
+        .map(item => {
           val entry = item.asInstanceOf[java.util.Map.Entry[String, Any]]
           val value = mkValue(entry.getValue)
           entry.getKey -> keyMappers(obj, entry.getKey, value)
-        }).collect({
-        case (name: String, Some(value)) =>
-          argPattern.replaceAllIn(name, "_").intern -> value
-      }).toMap
+        })
+        .collect({
+          case (name: String, Some(value)) =>
+            argPattern.replaceAllIn(name, "_").intern -> value
+        })
+        .toMap
     }
   }
 
@@ -115,7 +119,8 @@ class BasicBeanMapper extends BeanMapper {
     if (obj.getClass.isEnum) {
       Map(
         "class" -> obj.getClass.getName,
-        "name" -> obj.getClass.getMethod("name").invoke(obj).asInstanceOf[String])
+        "name"  -> obj.getClass.getMethod("name").invoke(obj).asInstanceOf[String]
+      )
     } else {
       objMappers(obj)
     }
@@ -135,7 +140,6 @@ class BasicBeanMapper extends BeanMapper {
   def addObjMapper(pf: PartialFunction[AnyRef, AnyRef]) {
     objMappers = pf orElse objMappers
   }
-
 
   /** to specialize a Bean transformation you can create a custom Object Mapper which
     * translates specific attributes to whatever is needed

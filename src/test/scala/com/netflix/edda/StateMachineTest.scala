@@ -16,7 +16,7 @@
 package com.netflix.edda
 
 import scala.actors.Actor
-import scala.actors.Futures.{future, awaitAll}
+import scala.actors.Futures.{awaitAll, future}
 
 import org.scalatest.FunSuite
 
@@ -30,7 +30,8 @@ object Counter extends StateMachine.LocalState[CounterState] {
 
   case class Get(from: Actor)(implicit req: RequestId) extends StateMachine.Message
 
-  case class GetResult(from: Actor, result: Int)(implicit req: RequestId) extends StateMachine.Message
+  case class GetResult(from: Actor, result: Int)(implicit req: RequestId)
+      extends StateMachine.Message
 
 }
 
@@ -38,8 +39,7 @@ class Counter extends StateMachine {
 
   import Counter._
 
-  protected override
-  def initState = addInitialState(super.initState, newLocalState(CounterState()))
+  protected override def initState = addInitialState(super.initState, newLocalState(CounterState()))
 
   def get()(implicit req: RequestId) = this !? Get(this) match {
     case GetResult(from, result) => result
@@ -53,7 +53,8 @@ class Counter extends StateMachine {
     this ! Dec(this)
   }
 
-  private def localTransitions: PartialFunction[(StateMachine.Message, StateMachine.State), StateMachine.State] = {
+  private def localTransitions
+    : PartialFunction[(StateMachine.Message, StateMachine.State), StateMachine.State] = {
     case (gotMsg @ Inc(from), state) => {
       implicit val req = gotMsg.req
       setLocalState(state, CounterState(localState(state).counter + 1))
@@ -92,19 +93,24 @@ class StateMachineTest extends FunSuite {
     val counter = new Counter
     counter.start()
     expectResult(1000) {
-      val tasks = Range(0, 1000).map(i => future {
-        counter.inc()
-      })
+      val tasks = Range(0, 1000).map(
+        i =>
+          future {
+            counter.inc()
+          }
+      )
       awaitAll(3000L, tasks: _*)
       counter.get
     }
     expectResult(0) {
-      val tasks = Range(0, 1000).map(i => future {
-        counter.dec()
-      })
+      val tasks = Range(0, 1000).map(
+        i =>
+          future {
+            counter.dec()
+          }
+      )
       awaitAll(3000L, tasks: _*)
       counter.get
     }
   }
 }
-

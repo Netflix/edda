@@ -20,15 +20,25 @@ import org.scalatest.FunSuite
 class FieldSelectorExprTest extends FunSuite {
 
   test("FlattenExpr") {
-    val input = Map("b" -> 42, "c" -> Map("d" -> "def", "e" -> List(
-      Map("f" -> 1, "g" -> 27),
-      Map("f" -> 2, "g" -> 27)
-    )))
+    val input = Map(
+      "b" -> 42,
+      "c" -> Map(
+        "d" -> "def",
+        "e" -> List(
+          Map("f" -> 1, "g" -> 27),
+          Map("f" -> 2, "g" -> 27)
+        )
+      )
+    )
 
-    val output = Map("b" -> 42, "c.d" -> "def", "c.e" -> List(
-      Map("f" -> 1, "g" -> 27),
-      Map("f" -> 2, "g" -> 27)
-    ))
+    val output = Map(
+      "b"   -> 42,
+      "c.d" -> "def",
+      "c.e" -> List(
+        Map("f" -> 1, "g" -> 27),
+        Map("f" -> 2, "g" -> 27)
+      )
+    )
 
     val expr = FlattenExpr(FixedExpr(matches = true))
 
@@ -42,11 +52,13 @@ class FieldSelectorExprTest extends FunSuite {
   }
 
   test("KeySelectExpr") {
-    val expr1 = KeySelectExpr(Map(
-      "a" -> FixedExpr(matches = true),
-      "b" -> EqualExpr(42),
-      "c" -> EqualExpr("def")
-    ))
+    val expr1 = KeySelectExpr(
+      Map(
+        "a" -> FixedExpr(matches = true),
+        "b" -> EqualExpr(42),
+        "c" -> EqualExpr("def")
+      )
+    )
 
     val base = Map("b" -> 42, "c" -> "def")
 
@@ -59,7 +71,7 @@ class FieldSelectorExprTest extends FunSuite {
     }
 
     expectResult(Some(base + ("a" -> 65))) {
-      expr1.select(base + ("a" -> 65))
+      expr1.select(base + ("a"    -> 65))
     }
 
     expectResult(None) {
@@ -75,31 +87,31 @@ class FieldSelectorExprTest extends FunSuite {
     }
 
     expectResult(Some(base + ("a" -> null))) {
-      expr1.select(base + ("a" -> null))
+      expr1.select(base + ("a"    -> null))
     }
 
     expectResult(Some(base + ("a" -> List(1, 2, 3)))) {
-      expr1.select(base + ("a" -> List(1, 2, 3)))
+      expr1.select(base + ("a"    -> List(1, 2, 3)))
     }
 
     // FixedExpr(true) matches empty list
     expectResult(Some(base + ("a" -> List()))) {
-      expr1.select(base + ("a" -> List()))
+      expr1.select(base + ("a"    -> List()))
     }
 
     // EqualExpr on list returns empty List if there are not matches
     expectResult(Some(base + ("b" -> List()))) {
-      expr1.select(base + ("b" -> List(1, 2, 3)))
+      expr1.select(base + ("b"    -> List(1, 2, 3)))
     }
 
     // EqualExpr on list returns just matching items
     expectResult(Some(base + ("b" -> List(42)))) {
-      expr1.select(base + ("b" -> List(1, 2, 42)))
+      expr1.select(base + ("b"    -> List(1, 2, 42)))
     }
 
     // EqualExpr on empty list return empty list
     expectResult(Some(base + ("b" -> List()))) {
-      expr1.select(base + ("b" -> List()))
+      expr1.select(base + ("b"    -> List()))
     }
   }
 
@@ -134,7 +146,7 @@ class FieldSelectorExprTest extends FunSuite {
     expectResult(Some(List(41, 40))) {
       NotEqualExpr(42).select(List(42, 41, 40))
     }
-    expectResult(Some(Map("a" -> 42, "b" -> 0))) {
+    expectResult(Some(Map("a"         -> 42, "b" -> 0))) {
       NotEqualExpr(42).select(Map("a" -> 42, "b" -> 0))
     }
   }
@@ -150,16 +162,20 @@ class FieldSelectorExprTest extends FunSuite {
       RegexExpr("[0-9]+", invert = false).select(42)
     }
 
-    val expr1 = KeySelectExpr(Map(
-      "a" -> RegexExpr("^[24]+$", invert = false)
-    ))
+    val expr1 = KeySelectExpr(
+      Map(
+        "a" -> RegexExpr("^[24]+$", invert = false)
+      )
+    )
     expectResult(Some(Map("a" -> 42))) {
-      expr1.select(Map("a" -> 42, "b" -> 0))
+      expr1.select(Map("a"    -> 42, "b" -> 0))
     }
 
-    val expr2 = KeySelectExpr(Map(
-      "a" -> RegexExpr("^[abc]+$", invert = false)
-    ))
+    val expr2 = KeySelectExpr(
+      Map(
+        "a" -> RegexExpr("^[abc]+$", invert = false)
+      )
+    )
     expectResult(None) {
       expr2.select(Map("a" -> 42, "b" -> 0))
     }
