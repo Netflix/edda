@@ -1,0 +1,1332 @@
+
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta http-equiv="x-ua-compatible" content="ie=edge">
+      
+      
+        <link rel="canonical" href="https://netflix.github.io/edda/configuration/">
+      
+      
+      
+        <meta name="lang:clipboard.copy" content="Copy to clipboard">
+      
+        <meta name="lang:clipboard.copied" content="Copied to clipboard">
+      
+        <meta name="lang:search.language" content="en">
+      
+        <meta name="lang:search.pipeline.stopwords" content="True">
+      
+        <meta name="lang:search.pipeline.trimmer" content="True">
+      
+        <meta name="lang:search.result.none" content="No matching documents">
+      
+        <meta name="lang:search.result.one" content="1 matching document">
+      
+        <meta name="lang:search.result.other" content="# matching documents">
+      
+        <meta name="lang:search.tokenizer" content="[\s\-]+">
+      
+      <link rel="shortcut icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.0.4, mkdocs-material-4.4.2">
+    
+    
+      
+        <title>Configuration - Edda Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/application.30686662.css">
+      
+      
+    
+    
+      <script src="../assets/javascripts/modernizr.74668098.js"></script>
+    
+    
+      
+        <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,700|Roboto+Mono&display=fallback">
+        <style>body,input{font-family:"Roboto","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"Roboto Mono","Courier New",Courier,monospace}</style>
+      
+    
+    <link rel="stylesheet" href="../assets/fonts/material-icons.css">
+    
+    
+      <link rel="stylesheet" href="../css/custom.css">
+    
+    
+      
+        
+<script>
+  window.ga = window.ga || function() {
+    (ga.q = ga.q || []).push(arguments)
+  }
+  ga.l = +new Date
+  /* Setup integration and send page view */
+  ga("create", "UA-82153845-1", "auto")
+  ga("set", "anonymizeIp", true)
+  ga("send", "pageview")
+  /* Register handler to log search on blur */
+  document.addEventListener("DOMContentLoaded", () => {
+    if (document.forms.search) {
+      var query = document.forms.search.query
+      query.addEventListener("blur", function() {
+        if (this.value) {
+          var path = document.location.pathname;
+          ga("send", "pageview", path + "?q=" + this.value)
+        }
+      })
+    }
+  })
+</script>
+<script async src="https://www.google-analytics.com/analytics.js"></script>
+      
+    
+    
+  </head>
+  
+    <body dir="ltr">
+  
+    <svg class="md-svg">
+      <defs>
+        
+        
+          <svg xmlns="http://www.w3.org/2000/svg" width="416" height="448" viewBox="0 0 416 448" id="__github"><path fill="currentColor" d="M160 304q0 10-3.125 20.5t-10.75 19T128 352t-18.125-8.5-10.75-19T96 304t3.125-20.5 10.75-19T128 256t18.125 8.5 10.75 19T160 304zm160 0q0 10-3.125 20.5t-10.75 19T288 352t-18.125-8.5-10.75-19T256 304t3.125-20.5 10.75-19T288 256t18.125 8.5 10.75 19T320 304zm40 0q0-30-17.25-51T296 232q-10.25 0-48.75 5.25Q229.5 240 208 240t-39.25-2.75Q130.75 232 120 232q-29.5 0-46.75 21T56 304q0 22 8 38.375t20.25 25.75 30.5 15 35 7.375 37.25 1.75h42q20.5 0 37.25-1.75t35-7.375 30.5-15 20.25-25.75T360 304zm56-44q0 51.75-15.25 82.75-9.5 19.25-26.375 33.25t-35.25 21.5-42.5 11.875-42.875 5.5T212 416q-19.5 0-35.5-.75t-36.875-3.125-38.125-7.5-34.25-12.875T37 371.5t-21.5-28.75Q0 312 0 260q0-59.25 34-99-6.75-20.5-6.75-42.5 0-29 12.75-54.5 27 0 47.5 9.875t47.25 30.875Q171.5 96 212 96q37 0 70 8 26.25-20.5 46.75-30.25T376 64q12.75 25.5 12.75 54.5 0 21.75-6.75 42 34 40 34 99.5z"/></svg>
+        
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
+    
+      <a href="#configuration" tabindex="1" class="md-skip">
+        Skip to content
+      </a>
+    
+    
+      <header class="md-header" data-md-component="header">
+  <nav class="md-header-nav md-grid">
+    <div class="md-flex">
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <a href="https://netflix.github.io/edda/" title="Edda Docs" class="md-header-nav__button md-logo">
+          
+            <i class="md-icon"></i>
+          
+        </a>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        <label class="md-icon md-icon--menu md-header-nav__button" for="__drawer"></label>
+      </div>
+      <div class="md-flex__cell md-flex__cell--stretch">
+        <div class="md-flex__ellipsis md-header-nav__title" data-md-component="title">
+          
+            <span class="md-header-nav__topic">
+              Edda Docs
+            </span>
+            <span class="md-header-nav__topic">
+              
+                Configuration
+              
+            </span>
+          
+        </div>
+      </div>
+      <div class="md-flex__cell md-flex__cell--shrink">
+        
+          <label class="md-icon md-icon--search md-header-nav__button" for="__search"></label>
+          
+<div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="query" data-md-state="active">
+      <label class="md-icon md-search__icon" for="__search"></label>
+      <button type="reset" class="md-icon md-search__icon" data-md-component="reset" tabindex="-1">
+        &#xE5CD;
+      </button>
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="result">
+          <div class="md-search-result__meta">
+            Type to start searching
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+        
+      </div>
+      
+        <div class="md-flex__cell md-flex__cell--shrink">
+          <div class="md-header-nav__source">
+            
+
+
+  
+
+<a href="https://github.com/Netflix/edda/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+          </div>
+        </div>
+      
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container">
+      
+        
+      
+      
+      <main class="md-main" role="main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          
+            
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    <nav class="md-nav md-nav--primary" data-md-level="0">
+  <label class="md-nav__title md-nav__title--site" for="__drawer">
+    <a href="https://netflix.github.io/edda/" title="Edda Docs" class="md-nav__button md-logo">
+      
+        <i class="md-icon"></i>
+      
+    </a>
+    Edda Docs
+  </label>
+  
+    <div class="md-nav__source">
+      
+
+
+  
+
+<a href="https://github.com/Netflix/edda/" title="Go to repository" class="md-source" data-md-source="github">
+  
+    <div class="md-source__icon">
+      <svg viewBox="0 0 24 24" width="24" height="24">
+        <use xlink:href="#__github" width="24" height="24"></use>
+      </svg>
+    </div>
+  
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href=".." title="Edda" class="md-nav__link">
+      Edda
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../quick-start-guide/" title="Quick Start Guide" class="md-nav__link">
+      Quick Start Guide
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../docker-start-guide/" title="Docker Start Guide" class="md-nav__link">
+      Docker Start Guide
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+  
+
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Configuration
+      </label>
+    
+    <a href="./" title="Configuration" class="md-nav__link md-nav__link--active">
+      Configuration
+    </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#general-options" class="md-nav__link">
+    General Options
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eddaaccounts" class="md-nav__link">
+    edda.accounts
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaregion" class="md-nav__link">
+    edda.region
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaaccountregion" class="md-nav__link">
+    edda.$account.region
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aws-options" class="md-nav__link">
+    AWS Options
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eddaawsaccesskey" class="md-nav__link">
+    edda.aws.accessKey
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaaccountawsaccesskey" class="md-nav__link">
+    edda.$account.aws.accessKey
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaawssecretkey" class="md-nav__link">
+    edda.aws.secretKey
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaaccountawssecretkey" class="md-nav__link">
+    edda.$account.aws.secretKey
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#collection-options" class="md-nav__link">
+    Collection Options
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectioncacherefresh" class="md-nav__link">
+    edda.collection.cache.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionaccountcacherefresh" class="md-nav__link">
+    edda.collection.$account.cache.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionaccountcollectionnamecacherefresh" class="md-nav__link">
+    edda.collection.$account.$collectionName.cache.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionrefresh" class="md-nav__link">
+    edda.collection.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionaccountrefresh" class="md-nav__link">
+    edda.collection.$account.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionaccountcollectionnamerefresh" class="md-nav__link">
+    edda.collection.$account.$collectionName.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionjitterenabled" class="md-nav__link">
+    edda.collection.jitter.enabled
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionaccountenabled" class="md-nav__link">
+    edda.collection.$account.enabled
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionaccountcollectionnameenabled" class="md-nav__link">
+    edda.collection.$account.$collectionName.enabled
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#crawler-options" class="md-nav__link">
+    Crawler Options
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eddabeanargpattern" class="md-nav__link">
+    edda.bean.argPattern
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacrawlerawssuppresstags" class="md-nav__link">
+    edda.crawler.aws.suppressTags
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacrawlerabortwithouttags" class="md-nav__link">
+    edda.crawler.abortWithoutTags
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacrawleraccountabortwithouttags" class="md-nav__link">
+    edda.crawler.$account.abortWithoutTags
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacrawleraccountcollectionnameabortwithouttags" class="md-nav__link">
+    edda.crawler.$account.$collectionName.abortWithoutTags
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacrawleraccountenabled" class="md-nav__link">
+    edda.crawler.$account.enabled
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacrawleraccountcollectionnameenabled" class="md-nav__link">
+    edda.crawler.$account.$collectionName.enabled
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#elector-options" class="md-nav__link">
+    Elector Options
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eddaelectorrefresh" class="md-nav__link">
+    edda.elector.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaelectormongocollectionname" class="md-nav__link">
+    edda.elector.mongo.collectionName
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaelectormongoleadertimeout" class="md-nav__link">
+    edda.elector.mongo.leaderTimeout
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaelectormongouniqueenvname" class="md-nav__link">
+    edda.elector.mongo.uniqueEnvName
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mongo-options" class="md-nav__link">
+    Mongo Options
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaddress" class="md-nav__link">
+    edda.mongo.address
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountaddress" class="md-nav__link">
+    edda.mongo.$account.address
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountcollectionnameaddress" class="md-nav__link">
+    edda.mongo.$account.$collectionName.address
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongodatabase" class="md-nav__link">
+    edda.mongo.database
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountdatabase" class="md-nav__link">
+    edda.mongo.$account.database
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountcollectionnamedatabase" class="md-nav__link">
+    edda.mongo.$account.$collectionName.database
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongouser" class="md-nav__link">
+    edda.mongo.user
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountuser" class="md-nav__link">
+    edda.mongo.$account.user
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountcollectionnameuser" class="md-nav__link">
+    edda.mongo.$account.$collectionName.user
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongopassword" class="md-nav__link">
+    edda.mongo.password
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountpassword" class="md-nav__link">
+    edda.mongo.$account.password
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountcollectionamepassword" class="md-nav__link">
+    edda.mongo.$account.$collectioName.password
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+    
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../aws-permissions/" title="AWS Permissions" class="md-nav__link">
+      AWS Permissions
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../rest-api/" title="REST API" class="md-nav__link">
+      REST API
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../resiliency/" title="Resiliency" class="md-nav__link">
+      Resiliency
+    </a>
+  </li>
+
+    
+      
+      
+      
+
+
+  <li class="md-nav__item">
+    <a href="../support/" title="Support" class="md-nav__link">
+      Support
+    </a>
+  </li>
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#general-options" class="md-nav__link">
+    General Options
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eddaaccounts" class="md-nav__link">
+    edda.accounts
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaregion" class="md-nav__link">
+    edda.region
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaaccountregion" class="md-nav__link">
+    edda.$account.region
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aws-options" class="md-nav__link">
+    AWS Options
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eddaawsaccesskey" class="md-nav__link">
+    edda.aws.accessKey
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaaccountawsaccesskey" class="md-nav__link">
+    edda.$account.aws.accessKey
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaawssecretkey" class="md-nav__link">
+    edda.aws.secretKey
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaaccountawssecretkey" class="md-nav__link">
+    edda.$account.aws.secretKey
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#collection-options" class="md-nav__link">
+    Collection Options
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectioncacherefresh" class="md-nav__link">
+    edda.collection.cache.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionaccountcacherefresh" class="md-nav__link">
+    edda.collection.$account.cache.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionaccountcollectionnamecacherefresh" class="md-nav__link">
+    edda.collection.$account.$collectionName.cache.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionrefresh" class="md-nav__link">
+    edda.collection.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionaccountrefresh" class="md-nav__link">
+    edda.collection.$account.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionaccountcollectionnamerefresh" class="md-nav__link">
+    edda.collection.$account.$collectionName.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionjitterenabled" class="md-nav__link">
+    edda.collection.jitter.enabled
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionaccountenabled" class="md-nav__link">
+    edda.collection.$account.enabled
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacollectionaccountcollectionnameenabled" class="md-nav__link">
+    edda.collection.$account.$collectionName.enabled
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#crawler-options" class="md-nav__link">
+    Crawler Options
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eddabeanargpattern" class="md-nav__link">
+    edda.bean.argPattern
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacrawlerawssuppresstags" class="md-nav__link">
+    edda.crawler.aws.suppressTags
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacrawlerabortwithouttags" class="md-nav__link">
+    edda.crawler.abortWithoutTags
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacrawleraccountabortwithouttags" class="md-nav__link">
+    edda.crawler.$account.abortWithoutTags
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacrawleraccountcollectionnameabortwithouttags" class="md-nav__link">
+    edda.crawler.$account.$collectionName.abortWithoutTags
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacrawleraccountenabled" class="md-nav__link">
+    edda.crawler.$account.enabled
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddacrawleraccountcollectionnameenabled" class="md-nav__link">
+    edda.crawler.$account.$collectionName.enabled
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#elector-options" class="md-nav__link">
+    Elector Options
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eddaelectorrefresh" class="md-nav__link">
+    edda.elector.refresh
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaelectormongocollectionname" class="md-nav__link">
+    edda.elector.mongo.collectionName
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaelectormongoleadertimeout" class="md-nav__link">
+    edda.elector.mongo.leaderTimeout
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddaelectormongouniqueenvname" class="md-nav__link">
+    edda.elector.mongo.uniqueEnvName
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mongo-options" class="md-nav__link">
+    Mongo Options
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaddress" class="md-nav__link">
+    edda.mongo.address
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountaddress" class="md-nav__link">
+    edda.mongo.$account.address
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountcollectionnameaddress" class="md-nav__link">
+    edda.mongo.$account.$collectionName.address
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongodatabase" class="md-nav__link">
+    edda.mongo.database
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountdatabase" class="md-nav__link">
+    edda.mongo.$account.database
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountcollectionnamedatabase" class="md-nav__link">
+    edda.mongo.$account.$collectionName.database
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongouser" class="md-nav__link">
+    edda.mongo.user
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountuser" class="md-nav__link">
+    edda.mongo.$account.user
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountcollectionnameuser" class="md-nav__link">
+    edda.mongo.$account.$collectionName.user
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongopassword" class="md-nav__link">
+    edda.mongo.password
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountpassword" class="md-nav__link">
+    edda.mongo.$account.password
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eddamongoaccountcollectionamepassword" class="md-nav__link">
+    edda.mongo.$account.$collectioName.password
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              
+                
+                  <a href="https://github.com/Netflix/edda/edit/master/docs/configuration.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                
+                
+                <h1 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h1>
+<p>Edda Configuration is done via an <a href="https://github.com/Netflix/edda/blob/master/src/main/resources/edda.properties">edda.properties</a> file located at the server root. The file
+name and location can be overridden with the system property <code>-Dedda.properties=file-path</code>. The
+linked file shows the default values provided with the server.</p>
+<p>In the documentation below, <code>$account</code> refers to any value found in the <code>edda.accounts</code> property.
+If <code>edda.accounts</code> is unset then the configuration options without <code>$account</code> are relevant and
+configuration options like <code>edda.$accounts.setting</code> will be read as <code>edda.setting</code>. </p>
+<p><code>$collectionName</code> refers to any of the collections that Edda crawls.</p>
+<h2 id="general-options">General Options<a class="headerlink" href="#general-options" title="Permanent link">&para;</a></h2>
+<h3 id="eddaaccounts">edda.accounts<a class="headerlink" href="#eddaaccounts" title="Permanent link">&para;</a></h3>
+<p>Edda can be configured to poll collections for any number of (comma separated) accounts. Per
+account configuration options are available below. The default is unset.</p>
+<h3 id="eddaregion">edda.region<a class="headerlink" href="#eddaregion" title="Permanent link">&para;</a></h3>
+<p>This sets the region for the collections that Edda will be polling. For AWS this setting will
+determine which <a href="https://docs.aws.amazon.com/general/latest/gr/rande.html">AWS Endpoint</a> Edda
+communicates with. The default is unset.</p>
+<h3 id="eddaaccountregion">edda.$account.region<a class="headerlink" href="#eddaaccountregion" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddaregion">edda.region</a>. If multiple accounts are being used then you can set the region
+per account. This could be useful it you intend to poll multiple regions from a single Edda
+instance. For example, if <code>edda.accounts=prod.us-east-1,prod.eu-west-1</code>, then you would want to
+set the region specifically for each account as:</p>
+<div class="codehilite"><pre><span></span><span class="n">edda</span><span class="p">.</span><span class="n">prod</span><span class="p">.</span><span class="n">us</span><span class="o">-</span><span class="n">east</span><span class="o">-</span><span class="mi">1</span><span class="p">.</span><span class="n">region</span><span class="o">=</span><span class="n">us</span><span class="o">-</span><span class="n">east</span><span class="o">-</span><span class="mi">1</span>
+<span class="n">edda</span><span class="p">.</span><span class="n">prod</span><span class="p">.</span><span class="n">eu</span><span class="o">-</span><span class="n">west</span><span class="o">-</span><span class="mi">1</span><span class="p">.</span><span class="n">region</span><span class="o">=</span><span class="n">eu</span><span class="o">-</span><span class="n">west</span><span class="o">-</span><span class="mi">1</span>
+</pre></div>
+
+<h2 id="aws-options">AWS Options<a class="headerlink" href="#aws-options" title="Permanent link">&para;</a></h2>
+<h3 id="eddaawsaccesskey">edda.aws.accessKey<a class="headerlink" href="#eddaawsaccesskey" title="Permanent link">&para;</a></h3>
+<p>The access key for AWS account. If unset Edda will attempt to access the AWS Account using the
+<a href="http://docs.amazonwebservices.com/AWSJavaSDK/latest/javadoc/com/amazonaws/auth/DefaultAWSCredentialsProviderChain.html">Default AWS Credential Provider Chain</a>.</p>
+<h3 id="eddaaccountawsaccesskey">edda.$account.aws.accessKey<a class="headerlink" href="#eddaaccountawsaccesskey" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddaawsaccesskey">edda.aws.accessKey</a>. Allow for per-account AWS credential settings.</p>
+<h3 id="eddaawssecretkey">edda.aws.secretKey<a class="headerlink" href="#eddaawssecretkey" title="Permanent link">&para;</a></h3>
+<p>The secret key for AWS account. If <code>accessKey</code> is set, then <code>secretKey</code> must also be set.</p>
+<h3 id="eddaaccountawssecretkey">edda.$account.aws.secretKey<a class="headerlink" href="#eddaaccountawssecretkey" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddaawssecretkey">edda.aws.secretKey</a>. Allow for per-account AWS credential settings.</p>
+<h2 id="collection-options">Collection Options<a class="headerlink" href="#collection-options" title="Permanent link">&para;</a></h2>
+<h3 id="eddacollectioncacherefresh">edda.collection.cache.refresh<a class="headerlink" href="#eddacollectioncacherefresh" title="Permanent link">&para;</a></h3>
+<p>The time period in milliseconds for how frequent secondary edda servers should reload their
+in-memory cache of "live" resources. Not used if Edda running in stand-alone mode. Default
+value is <code>30000</code> (30 seconds).</p>
+<h3 id="eddacollectionaccountcacherefresh">edda.collection.$account.cache.refresh<a class="headerlink" href="#eddacollectionaccountcacherefresh" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddacollectioncacherefresh">edda.collection.cache.refresh</a>. If you want to change the
+cache refresh rate for a specific account you can set this.  </p>
+<h3 id="eddacollectionaccountcollectionnamecacherefresh">edda.collection.$account.$collectionName.cache.refresh<a class="headerlink" href="#eddacollectionaccountcollectionnamecacherefresh" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddacollectioncacherefresh">edda.collection.cache.refresh</a>. If you want to change the
+cache refresh rate for a specific account and specific collection you can set this. You might
+want to increase the default value if a collection is especially large, or decrease the value,
+if the collection is small.</p>
+<h3 id="eddacollectionrefresh">edda.collection.refresh<a class="headerlink" href="#eddacollectionrefresh" title="Permanent link">&para;</a></h3>
+<p>The time period in milliseconds for how frequent the primary Edda servers should crawl the AWS
+APIs looking for changed resources. Default value is <code>60000</code> (1 minute).</p>
+<h3 id="eddacollectionaccountrefresh">edda.collection.$account.refresh<a class="headerlink" href="#eddacollectionaccountrefresh" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddacollectionrefresh">edda.collection.refresh</a>. If you want change the crawl frequency
+for a specific account, you can change this value.</p>
+<h3 id="eddacollectionaccountcollectionnamerefresh">edda.collection.$account.$collectionName.refresh<a class="headerlink" href="#eddacollectionaccountcollectionnamerefresh" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddacollectionrefresh">edda.collection.refresh</a>. If you want change the crawl frequency
+for a specific account and specific collection, you can change this value.</p>
+<h3 id="eddacollectionjitterenabled">edda.collection.jitter.enabled<a class="headerlink" href="#eddacollectionjitterenabled" title="Permanent link">&para;</a></h3>
+<p>This boolean value is used to ease the load on your data store upon startup. The default value
+is <code>false</code>. The jitter cases the initial load of the collection to be staggered randomly over a
+time period of 2X the value of <code>edda.collection.cache.refresh</code>. You might want to set this to
+<code>true</code> for development or if you collections are small enough that the data store has no problem
+loading them all simultaneously.</p>
+<h3 id="eddacollectionaccountenabled">edda.collection.$account.enabled<a class="headerlink" href="#eddacollectionaccountenabled" title="Permanent link">&para;</a></h3>
+<p>You can disable all collections for a specific account by setting this value to <code>false</code>. The
+default value is <code>true</code>.</p>
+<h3 id="eddacollectionaccountcollectionnameenabled">edda.collection.$account.$collectionName.enabled<a class="headerlink" href="#eddacollectionaccountcollectionnameenabled" title="Permanent link">&para;</a></h3>
+<p>You can disable a specific collection for an account by setting this value to <code>false</code>. The
+default value is <code>true</code>.</p>
+<h2 id="crawler-options">Crawler Options<a class="headerlink" href="#crawler-options" title="Permanent link">&para;</a></h2>
+<h3 id="eddabeanargpattern">edda.bean.argPattern<a class="headerlink" href="#eddabeanargpattern" title="Permanent link">&para;</a></h3>
+<p>Edda polls some API's via java client libraries which return Java Beans. We serialize the Beans
+to a JSON blob before persisting the data to the data store. This setting is a regular express
+that determines which properties of the bean to serialize. The default value is <code>[^a-zA-Z0-9_]</code>.
+Any Bean properties not matching this regular expression will be ignored.</p>
+<h3 id="eddacrawlerawssuppresstags">edda.crawler.aws.suppressTags<a class="headerlink" href="#eddacrawlerawssuppresstags" title="Permanent link">&para;</a></h3>
+<p>AWS provides the ability to add custom tags to many resources that Edda will poll. Sometimes those
+tags are frequently changing (like tags with timestamp values) which will cause Edda to persist a
+ton of data that is of little use. If there are tags that you need Edda to ignore you can set this
+property to a comma separated list of tag names where the value will be automatically replaced with
+<code>[EDDA_SUPPRESSED]</code>. The default value is unset.</p>
+<h3 id="eddacrawlerabortwithouttags">edda.crawler.abortWithoutTags<a class="headerlink" href="#eddacrawlerabortwithouttags" title="Permanent link">&para;</a></h3>
+<p>AWS APIs for resources that support tagging have an odd quirk: if Amazon is experiencing load
+problems with their API servers, then they will silently drop all tag information from the
+responses. Until this problem can be fixed by AWS we have this special setting to allow us to
+handle this degraded response.  If you routinely use tags on your AWS resources you should set
+this value to <code>true</code>, which will cause crawl results that are missing any tags to be ignored.
+The default value is <code>false</code>.</p>
+<h3 id="eddacrawleraccountabortwithouttags">edda.crawler.$account.abortWithoutTags<a class="headerlink" href="#eddacrawleraccountabortwithouttags" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddacrawlerabortwithouttags">edda.crawler.abortWithoutTags</a>. Apply setting to a specific
+account.</p>
+<h3 id="eddacrawleraccountcollectionnameabortwithouttags">edda.crawler.$account.$collectionName.abortWithoutTags<a class="headerlink" href="#eddacrawleraccountcollectionnameabortwithouttags" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddacrawlerabortwithouttags">edda.crawler.abortWithoutTags</a>. Apply setting to a specific
+account and specific collection.</p>
+<h3 id="eddacrawleraccountenabled">edda.crawler.$account.enabled<a class="headerlink" href="#eddacrawleraccountenabled" title="Permanent link">&para;</a></h3>
+<p>Boolean value to enable or disable crawlers for an account.  The default value is <code>true</code>.</p>
+<h3 id="eddacrawleraccountcollectionnameenabled">edda.crawler.$account.$collectionName.enabled<a class="headerlink" href="#eddacrawleraccountcollectionnameenabled" title="Permanent link">&para;</a></h3>
+<p>Boolean value to enable or disable a crawler for a specific account and specific collection. The
+default value is <code>true</code>.</p>
+<h2 id="elector-options">Elector Options<a class="headerlink" href="#elector-options" title="Permanent link">&para;</a></h2>
+<p>Elector options control how leader election is done in Edda.</p>
+<h3 id="eddaelectorrefresh">edda.elector.refresh<a class="headerlink" href="#eddaelectorrefresh" title="Permanent link">&para;</a></h3>
+<p>The time period in milliseconds for how frequently an election should be run to determine a new
+leader. The default value is <code>10000</code> (10 seconds).</p>
+<h3 id="eddaelectormongocollectionname">edda.elector.mongo.collectionName<a class="headerlink" href="#eddaelectormongocollectionname" title="Permanent link">&para;</a></h3>
+<p>The Mongo Elector uses MongoDB's atomic write capabilities to determine leadership. For this
+to work every Edda instance in a cluster will attempt to write to a single record in a specific
+collection. This values lets you customize the collection name. The default value is
+<code>sys.monitor</code>.</p>
+<h3 id="eddaelectormongoleadertimeout">edda.elector.mongo.leaderTimeout<a class="headerlink" href="#eddaelectormongoleadertimeout" title="Permanent link">&para;</a></h3>
+<p>If Mongo Elector is being used, leaders that have not updated MongoDB within a timeout period will
+automatically loose leadership and a new leader will be chosen. The default value is <code>30000</code> (30
+seconds). We recommend the value be 3X the value of <code>edda.elector.refresh</code>.</p>
+<h3 id="eddaelectormongouniqueenvname">edda.elector.mongo.uniqueEnvName<a class="headerlink" href="#eddaelectormongouniqueenvname" title="Permanent link">&para;</a></h3>
+<p>The Mongo Elector will use a unique id to identify each candidate in the election and it gets
+this unique id from an environment variable. The default value is to use the AWS Instance ID
+for a unique name, and that value is assumed to be in the <code>EC2_INSTANCE_ID</code> environment variable.
+If the unique name is in a different environment variable then change this setting.</p>
+<h2 id="mongo-options">Mongo Options<a class="headerlink" href="#mongo-options" title="Permanent link">&para;</a></h2>
+<p>Options for how to connect to MongoDB. You can customize the connections per account or even per
+collection to be able to spread out the load on MongoDB between more instances.</p>
+<h3 id="eddamongoaddress">edda.mongo.address<a class="headerlink" href="#eddamongoaddress" title="Permanent link">&para;</a></h3>
+<p>The network <code>address:port</code> for where the MongoDB server is running. The default is
+<code>localhost:27017</code>. If you are running a MongoDB replication set, then set this value
+to a comma separated list of all the addresses of the replication set.</p>
+<h3 id="eddamongoaccountaddress">edda.mongo.$account.address<a class="headerlink" href="#eddamongoaccountaddress" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddamongoaddress">edda.mongo.address</a>.  Set the address for a specific account.</p>
+<h3 id="eddamongoaccountcollectionnameaddress">edda.mongo.$account.$collectionName.address<a class="headerlink" href="#eddamongoaccountcollectionnameaddress" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddamongoaddress">edda.mongo.address</a>.  Set the address for a specific account and collection.</p>
+<h3 id="eddamongodatabase">edda.mongo.database<a class="headerlink" href="#eddamongodatabase" title="Permanent link">&para;</a></h3>
+<p>Specify the name of the database in the MondoDB server to use. The default value is <code>edda</code>.</p>
+<h3 id="eddamongoaccountdatabase">edda.mongo.$account.database<a class="headerlink" href="#eddamongoaccountdatabase" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddamongodatabase">edda.mongo.database</a>. Set the database name to use for a specific account.</p>
+<h3 id="eddamongoaccountcollectionnamedatabase">edda.mongo.$account.$collectionName.database<a class="headerlink" href="#eddamongoaccountcollectionnamedatabase" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddamongodatabase">edda.mongo.database</a>. Set the database name to use for a specific account
+and collection.</p>
+<h3 id="eddamongouser">edda.mongo.user<a class="headerlink" href="#eddamongouser" title="Permanent link">&para;</a></h3>
+<p>Specify the user name to use when connecting to the MongoDB server. The default is unset.</p>
+<h3 id="eddamongoaccountuser">edda.mongo.$account.user<a class="headerlink" href="#eddamongoaccountuser" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddamongouser">edda.mongo.user</a>. Set the user for a specific account.</p>
+<h3 id="eddamongoaccountcollectionnameuser">edda.mongo.$account.$collectionName.user<a class="headerlink" href="#eddamongoaccountcollectionnameuser" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddamongouser">edda.mongo.user</a>. Set the user for a specific account</p>
+<h3 id="eddamongopassword">edda.mongo.password<a class="headerlink" href="#eddamongopassword" title="Permanent link">&para;</a></h3>
+<p>Specify the password to use when connecting to the MongoDB server. The default is unset.</p>
+<h3 id="eddamongoaccountpassword">edda.mongo.$account.password<a class="headerlink" href="#eddamongoaccountpassword" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddamongopassword">edda.mongo.password</a>. Set the password for a specific account.</p>
+<h3 id="eddamongoaccountcollectionamepassword">edda.mongo.$account.$collectioName.password<a class="headerlink" href="#eddamongoaccountcollectionamepassword" title="Permanent link">&para;</a></h3>
+<p>See <a href="#eddamongopassword">edda.mongo.password</a>. Set the password for a specific account and
+collection.</p>
+                
+                  
+                
+              
+              
+                
+
+
+              
+            </article>
+          </div>
+        </div>
+      </main>
+      
+        
+<footer class="md-footer">
+  
+    <div class="md-footer-nav">
+      <nav class="md-footer-nav__inner md-grid">
+        
+          <a href="../docker-start-guide/" title="Docker Start Guide" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
+            </div>
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Previous
+                </span>
+                Docker Start Guide
+              </span>
+            </div>
+          </a>
+        
+        
+          <a href="../aws-permissions/" title="AWS Permissions" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
+            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
+              <span class="md-flex__ellipsis">
+                <span class="md-footer-nav__direction">
+                  Next
+                </span>
+                AWS Permissions
+              </span>
+            </div>
+            <div class="md-flex__cell md-flex__cell--shrink">
+              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
+            </div>
+          </a>
+        
+      </nav>
+    </div>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-footer-copyright">
+        
+        powered by
+        <a href="https://www.mkdocs.org">MkDocs</a>
+        and
+        <a href="https://squidfunk.github.io/mkdocs-material/">
+          Material for MkDocs</a>
+      </div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    
+      <script src="../assets/javascripts/application.c648116f.js"></script>
+      
+      <script>app.initialize({version:"1.0.4",url:{base:".."}})</script>
+      
+    
+  </body>
+</html>
