@@ -1,0 +1,33 @@
+site_name: Edda Docs
+site_url: 'https://netflix.github.io/edda/'
+repo_url: 'https://github.com/Netflix/edda'
+google_analytics: ['UA-82153845-1', 'auto']
+strict: True
+
+nav:
+  - Edda: index.md
+  - Quick Start Guide: quick-start-guide.md
+  - Docker Start Guide: docker-start-guide.md
+  - Configuration: configuration.md
+  - AWS Permissions: aws-permissions.md
+  - REST API: rest-api.md
+  - Resiliency: resiliency.md
+  - Support: support.md
+
+theme:
+  name: material
+
+extra_css:
+  - css/custom.css
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - pymdownx.superfences
+  - pymdownx.tilde
+  - toc:
+      permalink: True
+
+plugins:
+  - markdownextradata: {}
+  - search
