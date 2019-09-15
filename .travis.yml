@@ -1,16 +1,48 @@
-language: scala
-scala:
-- 2.10.3
-jdk:
-- openjdk8
-script: "./buildViaTravis.sh"
 env:
   global:
-  - secure: O3OrlLq5W6i+lt2XDEdDQf0Ve6UEbRouxGF6VPLDugniRaNYT6tNx0MpIVVEcths05Nd5mIfYi/kdPUqaJnAe9nS0eOIRW8SkuB1z8WPOJjOBGhYvIC7oWvxFPyfW84pUAsrl3KOIrRsl2T4DKdtwarTQQ5KeLuv0vJ5KLAsg5E=
-  - secure: dxEF8gt/QDcwElCmD+wibSt0eyN6veHyIYT3kLS55cXXacJ2Ag8gckywwcBsch5l0ngKwcYhzXdkdPHEot4RDF1DPagQnBJ0jWO7y2rlJrE84z56WiXk3vPXHpNysUF2ZYLR+leo9jo6nz3bLwc3NADZVeG+XK7Z4iqBGV86EuE=
-  - secure: fZeX+fIzbSXoM/ABgKo+kXbkvWAbLIg7/trmsYPd3lIfHLnBMxm0lRv1UI8m01EK5hIwB6GmMEL35K9gWcm+oUfmQ/7Xfym/sS8cGXt7vXBh9j7iJPguzWyUxYDI7exIoRIUNFvXfmL+0NxSvpsNhTGT3eD/LW3MeCPztZ9wXak=
-  - secure: wPGXmyanN7NxZvAB0QcCJau7+XJsK2EdWKRH6GwWy11Gwp/sLY3+a+O1wdmjgg1juzFFJXzUq5BHCF20WrZqnd4k14YeblEu3kOr1qcTQ1QpOQGzmjEqX+cwmAhVVdfpo3kfwUd56LJxIFagm7p6ZH7Dx/0huMp1kqcmkL9e+R8=
-cache:
-  directories:
-  - "$HOME/.sbt"
-  - "$HOME/.ivy2"
+    - secure: O3OrlLq5W6i+lt2XDEdDQf0Ve6UEbRouxGF6VPLDugniRaNYT6tNx0MpIVVEcths05Nd5mIfYi/kdPUqaJnAe9nS0eOIRW8SkuB1z8WPOJjOBGhYvIC7oWvxFPyfW84pUAsrl3KOIrRsl2T4DKdtwarTQQ5KeLuv0vJ5KLAsg5E=
+    - secure: dxEF8gt/QDcwElCmD+wibSt0eyN6veHyIYT3kLS55cXXacJ2Ag8gckywwcBsch5l0ngKwcYhzXdkdPHEot4RDF1DPagQnBJ0jWO7y2rlJrE84z56WiXk3vPXHpNysUF2ZYLR+leo9jo6nz3bLwc3NADZVeG+XK7Z4iqBGV86EuE=
+    - secure: fZeX+fIzbSXoM/ABgKo+kXbkvWAbLIg7/trmsYPd3lIfHLnBMxm0lRv1UI8m01EK5hIwB6GmMEL35K9gWcm+oUfmQ/7Xfym/sS8cGXt7vXBh9j7iJPguzWyUxYDI7exIoRIUNFvXfmL+0NxSvpsNhTGT3eD/LW3MeCPztZ9wXak=
+    - secure: wPGXmyanN7NxZvAB0QcCJau7+XJsK2EdWKRH6GwWy11Gwp/sLY3+a+O1wdmjgg1juzFFJXzUq5BHCF20WrZqnd4k14YeblEu3kOr1qcTQ1QpOQGzmjEqX+cwmAhVVdfpo3kfwUd56LJxIFagm7p6ZH7Dx/0huMp1kqcmkL9e+R8=
+
+matrix:
+  include:
+    - language: scala
+      scala:
+        - 2.11.8
+      jdk:
+        - openjdk8
+      script:
+        - "./buildViaTravis.sh"
+      cache:
+        directories:
+          - "$HOME/.sbt"
+          - "$HOME/.ivy2"
+    - language: python
+      python:
+        - "3.7"
+      install:
+        - pip install -r requirements.txt
+      script:
+        - mkdocs build
+      before_deploy:
+        # Decrypt the GitHub Deploy Key using instructions from `travis encrypt-file`
+        - openssl aes-256-cbc -K $encrypted_e7d3087fc2ad_key -iv $encrypted_e7d3087fc2ad_iv -in travis-deploy-key.enc -out travis-deploy-key -d
+        - chmod 600 travis-deploy-key
+        # Start an ssh-agent in the background and load the Deploy Key
+        - eval "$(ssh-agent -s)"
+        - ssh-add travis-deploy-key
+        # Record minimal build information in the Git user identity
+        - git config --global user.name "$USER"
+        - git config --global user.email "$TRAVIS_BUILD_NUMBER@$TRAVIS_COMMIT"
+        # Switch the origin from HTTPS to SSH, so that we can use the Deploy Token and setup the branch
+        - git remote set-url origin git@github.com:Netflix/edda.git
+        - git remote set-branches --add origin gh-pages
+        - git fetch origin gh-pages:gh-pages
+      deploy:
+        provider: script
+        script: mkdocs gh-deploy
+        skip_cleanup: true
+        on:
+          branch: master
+          condition: $TRAVIS_PULL_REQUEST = false
