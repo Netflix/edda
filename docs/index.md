@@ -40,11 +40,11 @@ looking for. Furthermore, we can trim out unnecessary data in the responses with
 When trying to analyze causes and impacts of outages we have found the historical data stored in
 Edda to be very valuable. Currently AWS does not provide APIs that allow you to see the history of
 your resources, but Edda records each AWS resource as versioned documents that can be recalled via
-the [[REST|REST APIs]]. The "current state" is stored in memory, which allows for quick access.
-Previous resource states and expired resources are stored in MongoDB (by default), which allows
-for efficient retrieval. Not only can you see how resources looked in the past, but you can also
-[[REST#wiki-_diff|get unified diff output]] quickly and see all the changes a resource has gone
-through.
+the [REST API](./rest-api.md). The "current state" is stored in memory, which allows for quick
+access. Previous resource states and expired resources are stored in MongoDB (by default), which
+allows for efficient retrieval. Not only can you see how resources looked in the past, but you can
+also [get unified diff output](./rest-api.md#_diff) quickly and see all the changes a resource has
+gone through.
 
 ## High-Level Architecture
 
@@ -69,6 +69,6 @@ resources other than those of AWS.
 
 There are many [configuration](./configuration.md) options for Edda. It can be configured to poll
 a single AWS region (as we run it here) or to poll multiple regions. If you have multiple AWS
-accounts (ie. test and prod), Edda can be configured to poll both from the same instance.  Edda
+accounts (i.e. test and prod), Edda can be configured to poll both from the same instance. Edda
 currently polls 15 different resource types within AWS. Each collection can be individually
 enabled or disabled. Additionally, crawl frequency and cache refresh rates can all be tweaked.
