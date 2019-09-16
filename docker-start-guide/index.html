@@ -518,12 +518,13 @@ the container.</p>
 <span class="n">edda</span><span class="p">.</span><span class="n">s3current</span><span class="p">.</span><span class="n">locationPrefix</span><span class="o">=</span><span class="n">edda</span><span class="o">/</span><span class="n">s3current</span><span class="o">/</span><span class="n">dev</span>
 </pre></div>
 
-<p>See [[Configuration]] and <a href="https://github.com/Netflix/edda/blob/master/src/main/resources/edda.properties">edda.properties</a> for details on additional configuration options that
-can be set.</p>
+<p>See <a href="../configuration/">Configuration</a> and <a href="https://github.com/Netflix/edda/blob/master/src/main/resources/edda.properties">edda.properties</a> for details on additional
+configuration options that can be set.</p>
 <p>The Tomcat instance in the Edda container will run on port 8080 and this will be mapped to port
 0.0.0.0:8080 on the host machine running the container.  Using this mapping, you can test Edda
 with a curl command to one of the endpoints.  If you use curl for testing, you will want to
-disable range queries by setting the globoff option.  See [[REST]] for more details on endpoints.</p>
+disable range queries by setting the globoff option.  See <a href="../rest-api/">REST API</a> for more
+details on endpoints.</p>
 <div class="codehilite"><pre><span></span><span class="nt">curl</span> <span class="nt">-g</span> <span class="s1">&#39;localhost:8080/api/v2/view/instances;_pp&#39;</span>
 </pre></div>
 

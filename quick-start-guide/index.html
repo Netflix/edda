@@ -106,7 +106,7 @@
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
     <label class="md-overlay" data-md-component="overlay" for="__drawer"></label>
     
-      <a href="#aws-credentials" tabindex="1" class="md-skip">
+      <a href="#git-fork-clone" tabindex="1" class="md-skip">
         Skip to content
       </a>
     
@@ -278,6 +278,13 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#git-fork-clone" class="md-nav__link">
+    Git Fork &amp; Clone
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#aws-credentials" class="md-nav__link">
     AWS Credentials
   </a>
@@ -421,6 +428,13 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#git-fork-clone" class="md-nav__link">
+    Git Fork &amp; Clone
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#aws-credentials" class="md-nav__link">
     AWS Credentials
   </a>
@@ -483,7 +497,17 @@
                 
                   <h1>Quick Start Guide</h1>
                 
-                <h2 id="aws-credentials">AWS Credentials<a class="headerlink" href="#aws-credentials" title="Permanent link">&para;</a></h2>
+                <h2 id="git-fork-clone">Git Fork &amp; Clone<a class="headerlink" href="#git-fork-clone" title="Permanent link">&para;</a></h2>
+<p>If you have a fork of the Edda repo and you see the following error when trying to start sbt:</p>
+<div class="codehilite"><pre><span></span><span class="n">java</span><span class="p">.</span><span class="n">lang</span><span class="p">.</span><span class="n">RuntimeException</span><span class="p">:</span> <span class="n">Setting</span> <span class="n">value</span> <span class="n">cannot</span> <span class="n">be</span> <span class="k">null</span><span class="p">:</span> <span class="err">{</span><span class="n">file</span><span class="p">:...</span><span class="o">/</span><span class="n">edda</span><span class="o">/</span><span class="err">}</span><span class="cm">/*:version</span>
+</pre></div>
+
+<p>Then you need to add the upstream repository and fetch it, so that you have tag data available:</p>
+<div class="codehilite"><pre><span></span>git remote add upstream https://github.com/Netflix/edda.git
+git fetch upstream
+</pre></div>
+
+<h2 id="aws-credentials">AWS Credentials<a class="headerlink" href="#aws-credentials" title="Permanent link">&para;</a></h2>
 <p>Proper read-only credentials are required to allow Edda to crawl AWS resources in your account.</p>
 <p>The fastest way to get started is to create a new set of PowerUser credentials in the <a href="https://aws.amazon.com/iam/">Identity
 and Access Management</a> console. The downside to this approach is that you need to be careful
@@ -552,7 +576,8 @@ curl <span class="s2">&quot;</span><span class="nv">$EDDA</span><span class="s2"
 <div class="codehilite"><pre><span></span>curl <span class="nv">$EDDA</span>/view/instances/i-012345678a <span class="p">|</span>jq .
 </pre></div>
 
-<p>Use <a href="../rest-api/">Field Selectors</a> to pull out the instance state and privateIpAddress:</p>
+<p>Use <a href="../rest-api/#field-selectors">Field Selectors</a> to pull out the instance <code>state</code> and
+<code>privateIpAddress</code>:</p>
 <div class="codehilite"><pre><span></span>curl <span class="s2">&quot;</span><span class="nv">$EDDA</span><span class="s2">/view/instances/i-012345678a;_pp:(state:(name),privateIpAddress)&quot;</span>
 </pre></div>
 

@@ -2,42 +2,42 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
      <loc>https://netflix.github.io/edda/</loc>
-     <lastmod>2019-09-15</lastmod>
+     <lastmod>2019-09-16</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://netflix.github.io/edda/quick-start-guide/</loc>
-     <lastmod>2019-09-15</lastmod>
+     <lastmod>2019-09-16</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://netflix.github.io/edda/docker-start-guide/</loc>
-     <lastmod>2019-09-15</lastmod>
+     <lastmod>2019-09-16</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://netflix.github.io/edda/configuration/</loc>
-     <lastmod>2019-09-15</lastmod>
+     <lastmod>2019-09-16</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://netflix.github.io/edda/aws-permissions/</loc>
-     <lastmod>2019-09-15</lastmod>
+     <lastmod>2019-09-16</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://netflix.github.io/edda/rest-api/</loc>
-     <lastmod>2019-09-15</lastmod>
+     <lastmod>2019-09-16</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://netflix.github.io/edda/resiliency/</loc>
-     <lastmod>2019-09-15</lastmod>
+     <lastmod>2019-09-16</lastmod>
      <changefreq>daily</changefreq>
     </url>
     <url>
      <loc>https://netflix.github.io/edda/support/</loc>
-     <lastmod>2019-09-15</lastmod>
+     <lastmod>2019-09-16</lastmod>
      <changefreq>daily</changefreq>
     </url>
 </urlset>

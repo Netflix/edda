@@ -540,11 +540,11 @@ looking for. Furthermore, we can trim out unnecessary data in the responses with
 <p>When trying to analyze causes and impacts of outages we have found the historical data stored in
 Edda to be very valuable. Currently AWS does not provide APIs that allow you to see the history of
 your resources, but Edda records each AWS resource as versioned documents that can be recalled via
-the [[REST|REST APIs]]. The "current state" is stored in memory, which allows for quick access.
-Previous resource states and expired resources are stored in MongoDB (by default), which allows
-for efficient retrieval. Not only can you see how resources looked in the past, but you can also
-[[REST#wiki-_diff|get unified diff output]] quickly and see all the changes a resource has gone
-through.</p>
+the <a href="rest-api/">REST API</a>. The "current state" is stored in memory, which allows for quick
+access. Previous resource states and expired resources are stored in MongoDB (by default), which
+allows for efficient retrieval. Not only can you see how resources looked in the past, but you can
+also <a href="rest-api/#_diff">get unified diff output</a> quickly and see all the changes a resource has
+gone through.</p>
 <h2 id="high-level-architecture">High-Level Architecture<a class="headerlink" href="#high-level-architecture" title="Permanent link">&para;</a></h2>
 <p>Edda is a Scala application that can both run on a single instance or scale up to many instances
 running behind a load-balancer for high availability. The data store that Edda currently supports
@@ -563,7 +563,7 @@ resources other than those of AWS.</p>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <p>There are many <a href="configuration/">configuration</a> options for Edda. It can be configured to poll
 a single AWS region (as we run it here) or to poll multiple regions. If you have multiple AWS
-accounts (ie. test and prod), Edda can be configured to poll both from the same instance.  Edda
+accounts (i.e. test and prod), Edda can be configured to poll both from the same instance. Edda
 currently polls 15 different resource types within AWS. Each collection can be individually
 enabled or disabled. Additionally, crawl frequency and cache refresh rates can all be tweaked.</p>
                 
