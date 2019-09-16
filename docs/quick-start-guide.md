@@ -1,3 +1,18 @@
+## Git Fork & Clone
+
+If you have a fork of the Edda repo and you see the following error when trying to start sbt:
+
+```
+java.lang.RuntimeException: Setting value cannot be null: {file:.../edda/}/*:version
+```
+
+Then you need to add the upstream repository and fetch it, so that you have tag data available:
+
+```bash
+git remote add upstream https://github.com/Netflix/edda.git
+git fetch upstream
+```
+
 ## AWS Credentials
 
 Proper read-only credentials are required to allow Edda to crawl AWS resources in your account.
@@ -58,7 +73,7 @@ The Jetty server will be listening at `http://localhost:8080`.
 
 ## API Testing
 
-You can start playing with the [REST](rest-api.md) APIs on your running Edda server. The
+You can start playing with the [REST](./rest-api.md) APIs on your running Edda server. The
 [jq](https://stedolan.github.io/jq/) CLI tool is recommended for working JSON API data.
 
 Set the base URL for your local Edda instance:
@@ -95,7 +110,8 @@ See the details of that instance:
 curl $EDDA/view/instances/i-012345678a |jq .
 ```
 
-Use [Field Selectors](rest-api.md) to pull out the instance state and privateIpAddress:
+Use [Field Selectors](./rest-api.md#field-selectors) to pull out the instance `state` and
+`privateIpAddress`:
 
 ```sh
 curl "$EDDA/view/instances/i-012345678a;_pp:(state:(name),privateIpAddress)"
@@ -127,5 +143,5 @@ See the [Configuration](./configuration.md) page for details on the various conf
 
 ## Further Reading
 
-* Continue experimenting with the [REST API](rest-api.md) and matrix arguments.
+* Continue experimenting with the [REST API](./rest-api.md) and matrix arguments.
 * [Configuration](./configuration.md) options are available to customize the Edda service.

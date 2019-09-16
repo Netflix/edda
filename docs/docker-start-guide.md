@@ -85,13 +85,14 @@ edda.s3current.writeCapacity=1
 edda.s3current.locationPrefix=edda/s3current/dev
 ```
 
-See [[Configuration]] and [edda.properties] for details on additional configuration options that
-can be set.
+See [Configuration](./configuration.md) and [edda.properties] for details on additional
+configuration options that can be set.
 
 The Tomcat instance in the Edda container will run on port 8080 and this will be mapped to port
 0.0.0.0:8080 on the host machine running the container.  Using this mapping, you can test Edda
 with a curl command to one of the endpoints.  If you use curl for testing, you will want to
-disable range queries by setting the globoff option.  See [[REST]] for more details on endpoints.
+disable range queries by setting the globoff option.  See [REST API](./rest-api.md) for more
+details on endpoints.
 
 [edda.properties]: https://github.com/Netflix/edda/blob/master/src/main/resources/edda.properties
 

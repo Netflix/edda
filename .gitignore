@@ -68,6 +68,7 @@ atlassian-ide-plugin.xml
 *.log
 
 # sbt specific
+.history
 dist/*
 target/
 lib_managed/
