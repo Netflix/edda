@@ -1,5 +1,6 @@
-import sbt._
+import sbt.Def
 import sbt.Keys._
+import sbt._
 
 object BuildSettings {
 
@@ -16,39 +17,32 @@ object BuildSettings {
   lazy val formatLicenseHeaders = taskKey[Unit]("Fix the license headers for all source files.")
 
   lazy val storeBintrayCredentials = taskKey[Unit]("Store bintray credentials.")
-  lazy val credentialsFile = Path.userHome / ".bintray" / ".credentials"
+  lazy val credentialsFile: File = Path.userHome / ".bintray" / ".credentials"
 
-  lazy val baseSettings =
-    sbtrelease.ReleasePlugin.releaseSettings ++
-    GitVersion.settings ++
-    scoverage.ScoverageSbtPlugin.projectSettings
+  lazy val baseSettings: Seq[Def.Setting[_]] = GitVersion.settings
 
-  lazy val buildSettings = baseSettings ++ Seq(
-      organization := "com.netflix.edda",
-      scalaVersion := "2.11.8",
-      scalacOptions ++= BuildSettings.compilerFlags,
-      crossPaths := true,
-      crossScalaVersions := Seq("2.11.8"),
-      sourcesInBase := false,
-      exportJars := true, // Needed for one-jar, with multi-project
-      externalResolvers := BuildSettings.resolvers,
-      checkLicenseHeaders := License.checkLicenseHeaders(streams.value.log, sourceDirectory.value),
-      formatLicenseHeaders := License
-          .formatLicenseHeaders(streams.value.log, sourceDirectory.value),
-      storeBintrayCredentials := {
-        IO.write(
-          credentialsFile,
-          bintray.BintrayCredentials.api.template(Bintray.user, Bintray.pass)
-        )
-      }
-    )
+  lazy val buildSettings: Seq[Def.Setting[_]] = baseSettings ++ Seq(
+    organization := "com.netflix.edda",
+    scalaVersion := "2.11.12",
+    scalacOptions ++= BuildSettings.compilerFlags,
+    crossPaths := true,
+    crossScalaVersions := Seq("2.11.12"),
+    sourcesInBase := false,
+    exportJars := true, // Needed for one-jar, with multi-project
+    externalResolvers := BuildSettings.resolvers,
+    checkLicenseHeaders := License.checkLicenseHeaders(streams.value.log, sourceDirectory.value),
+    formatLicenseHeaders := License.formatLicenseHeaders(streams.value.log, sourceDirectory.value),
+    storeBintrayCredentials := {
+      IO.write(credentialsFile, bintray.BintrayCredentials.api.template(Bintray.user, Bintray.pass))
+    }
+  )
 
-  val commonDeps = Seq.empty
+  val commonDeps: Seq[Nothing] = Seq.empty
 
   val resolvers = Seq(
     Resolver.mavenLocal,
     Resolver.jcenterRepo,
-    "jfrog" at "http://oss.jfrog.org/oss-snapshot-local"
+    "jfrog" at "https://oss.jfrog.org/oss-snapshot-local"
   )
 
   // Don't create root.jar, from:
