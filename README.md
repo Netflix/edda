@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/Netflix/edda.svg)](https://travis-ci.org/Netflix/edda/builds)
+[![Build Status](https://travis-ci.com/Netflix/edda.svg)](https://travis-ci.com/Netflix/edda/builds)
 
 ## DESCRIPTION
 
