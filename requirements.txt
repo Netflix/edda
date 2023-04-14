@@ -5,7 +5,7 @@ jsmin==2.2.2
 livereload==2.6.1
 Markdown==3.1.1
 MarkupSafe==1.1.1
-mkdocs==1.0.4
+mkdocs==1.2.3
 mkdocs-markdownextradata-plugin==0.0.6
 mkdocs-material==4.4.2
 mkdocs-minify-plugin==0.2.1
