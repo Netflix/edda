@@ -30,7 +30,6 @@ lazy val edda = project.in(file("."))
     "org.scala-lang.modules"        %% "scala-parser-combinators" % "1.0.4",
     "com.netflix.servo"              % "servo-core"               % "0.4.10",
     "org.slf4j"                      % "slf4j-api"                % slf4j,
-    "com.spatial4j"                  % "spatial4j"                % "0.3",
 
     "javax.servlet"                  % "servlet-api"              % "2.5"   % "provided",
 
